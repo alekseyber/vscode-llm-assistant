@@ -23,7 +23,7 @@
 | Пакет | Версия | Зачем | Используется в |
 |-------|--------|-------|----------------|
 | `typescript` | ^5.x | Компиляция TS → JS | Задача 1 (Init) |
-| `@types/vscode` | ^1.92.x | Типы VS Code Extension API | Задача 1 (Init) |
+| `@types/vscode` | ^1.131.0 | Типы VS Code Extension API (совместимость с 1.131.0) | Задача 1 (Init) |
 | `@types/node` | ^20.x | Типы Node.js (VS Code extension host) | Задача 1 (Init) |
 | `webpack` | ^5.x | Сборка extension в один .js файл | Задача 1 (Init) |
 | `webpack-cli` | ^5.x | CLI для webpack | Задача 1 (Init) |
@@ -94,7 +94,7 @@ npm install --save-dev typescript @types/vscode @types/node webpack webpack-cli 
 
 ### Git-репозиторий и работа с ветками
 
-- **Репозиторий:** `git@github.com:alekseyber/vscode-llm-assistant.git`
+- **Репозиторий:** `https://github.com/alekseyber/vscode-llm-assistant.git`
 - **Ветка:** `main` (одна ветка на весь проект)
 - **Каждый этап** = отдельный коммит с сообщением на русском
 - **Push только после проверки AC** — сначала все AC = PASS, потом `git push`
@@ -515,7 +515,7 @@ type Mode = 'chat' | 'edit' | 'autocomplete' | 'apply';
 ```bash
 cd /opt/data/projects/vscode-llm-assistant
 git init
-git remote add origin git@github.com:alekseyber/vscode-llm-assistant.git
+git remote add origin https://github.com/alekseyber/vscode-llm-assistant.git
 ```
 
 2. Создать `package.json` — вручную или через `npm init`:
