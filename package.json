@@ -1,0 +1,104 @@
+{
+  "name": "vscode-llm-assistant",
+  "displayName": "LLM Assistant",
+  "description": "AI-ассистент: чат, редактирование, автокомплит, агентный кодинг",
+  "publisher": "alekseyber",
+  "version": "0.1.0",
+  "engines": { "vscode": "^1.131.0" },
+  "categories": ["Programming Languages", "Other"],
+  "activationEvents": [ "onStartupFinished" ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      { "command": "llmAssistant.chat.focus", "title": "LLM Assistant: Открыть чат" },
+      { "command": "llmAssistant.chat.addSelection", "title": "LLM Assistant: Добавить выделение в контекст" },
+      { "command": "llmAssistant.edit.selection", "title": "LLM Assistant: Редактировать выделенный код" },
+      { "command": "llmAssistant.autocomplete.toggle", "title": "LLM Assistant: Вкл/Выкл автокомплит" },
+      { "command": "llmAssistant.apply.start", "title": "LLM Assistant: Запустить агентный режим" },
+      { "command": "llmAssistant.selectProvider", "title": "LLM Assistant: Выбрать провайдер" }
+    ],
+    "keybindings": [
+      { "command": "llmAssistant.chat.focus", "key": "ctrl+shift+l" },
+      { "command": "llmAssistant.edit.selection", "key": "ctrl+i" },
+      { "command": "llmAssistant.apply.start", "key": "ctrl+shift+a" }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        { "id": "llmAssistant", "title": "LLM Assistant", "icon": "media/icons/chat.svg" }
+      ]
+    },
+    "views": {
+      "llmAssistant": [
+        { "type": "webview", "id": "llmAssistant.chat", "name": "Чат" }
+      ]
+    },
+    "configuration": {
+      "title": "LLM Assistant",
+      "properties": {
+        "llmAssistant.defaultProvider": {
+          "type": "string", "default": "openai",
+          "description": "Провайдер по умолчанию"
+        },
+        "llmAssistant.defaultModel": {
+          "type": "string", "default": "gpt-4o",
+          "description": "Модель по умолчанию"
+        },
+        "llmAssistant.autocomplete.enabled": {
+          "type": "boolean", "default": true,
+          "description": "Включить автокомплит"
+        },
+        "llmAssistant.autocomplete.debounceMs": {
+          "type": "number", "default": 500,
+          "description": "Задержка перед запросом автокомплита (ms)"
+        },
+        "llmAssistant.chat.maxContextTokens": {
+          "type": "number", "default": 4096,
+          "description": "Максимум токенов контекста чата"
+        },
+        "llmAssistant.apply.maxIterations": {
+          "type": "number", "default": 20,
+          "description": "Максимум шагов агента"
+        },
+        "llmAssistant.debug": {
+          "type": "boolean", "default": false,
+          "description": "Включить DEBUG логи"
+        },
+        "llmAssistant.providers": {
+          "type": "object", "default": {},
+          "description": "Настройки провайдеров (baseUrl, apiKey, models)"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "webpack --mode production",
+    "watch": "webpack --mode development --watch",
+    "lint": "eslint src/ test/",
+    "test": "node ./out/test/runTest.js",
+    "package": "vsce package",
+    "publish": "vsce publish"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.125.0",
+    "@types/node": "^20.x",
+    "typescript": "^5.x",
+    "webpack": "^5.x",
+    "webpack-cli": "^5.x",
+    "ts-loader": "^9.x",
+    "@vscode/test-electron": "^2.x",
+    "@vscode/vsce": "^2.x",
+    "mocha": "^10.x",
+    "@types/mocha": "^10.x",
+    "sinon": "^18.x",
+    "@types/sinon": "^17.x",
+    "eslint": "^8.56.0",
+    "@typescript-eslint/parser": "^7.x",
+    "@typescript-eslint/eslint-plugin": "^7.x",
+    "nyc": "^17.x"
+  },
+  "dependencies": {
+    "openai": "^4.x",
+    "marked": "^12.x",
+    "highlight.js": "^11.x"
+  }
+}

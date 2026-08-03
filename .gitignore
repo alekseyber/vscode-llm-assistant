@@ -1,1 +1,8 @@
-reports/task-*-before.json\nreports/task-*-after.json
+node_modules/
+dist/
+.vscode-test/
+out/
+*.vsix
+reports/task-*-before.json
+reports/task-*-after.json
+.DS_Store
