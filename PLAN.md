@@ -143,9 +143,98 @@ Extension должен быть совместим с **VS Code 1.131.0** (по�
    - Выставить права: `chmod 644` на новые файлы, `chmod 755` на новые папки
    - Закоммитить в git с сообщением на русском
    - Выполнить `git push` (только после проверки AC)
-   - Вернуть отчёт: список созданных/изменённых файлов, AC-статус
+   - **Сформировать отчёт о затратах на реализацию этапа** (токены, провайдер, модель)
+   - Вернуть отчёт: список созданных/изменённых файлов, AC-статус, затраты
 4. **При фейле** — cronjob возвращает ошибку с diagnose, задача НЕ переходит к следующей
 5. **PLAN.md всегда актуален** — перед запуском cronjob я проверяю, что PLAN.md обновлён
+
+---
+
+## Отчётность по затратам
+
+Каждый этап разработки потребляет токены провайдеров (SiliconFlow, DeepSeek, Polza). Система отслеживает затраты и формирует отчёты.
+
+### Механизм сбора
+
+```
+Перед стартом задачи:
+  → Снимок known_balances.json       → reports/task-N-before.json
+
+Во время задачи:
+  → Cronjob реализует задачу, агент потребляет токены
+
+После завершения задачи:
+  → Снимок known_balances.json       → reports/task-N-after.json
+  → Парсинг agent.log за время выполнения → reports/task-N-usage.json
+  → Итоговый отчёт                   → reports/task-N-report.md
+```
+
+### Формат отчёта (`reports/task-N-report.md`)
+
+```markdown
+# Отчёт: Задача N — [Название задачи]
+
+**Дата:** 2026-08-04
+**Провайдер:** siliconflow
+**Модель:** deepseek-ai/DeepSeek-V4-Flash
+
+## Затраты токенов
+| Параметр | Значение |
+|----------|----------|
+| Prompt tokens | 12 345 |
+| Completion tokens | 6 789 |
+| Всего | 19 134 |
+| Стоимость | $0.034 |
+
+## Баланс
+| Параметр | Значение |
+|----------|----------|
+| Баланс до | $9.55 |
+| Баланс после | $9.52 |
+| Списано | $0.03 |
+
+## Файлы, созданные/изменённые
+- `src/providers/openai.ts` (создан)
+- `src/providers/base.ts` (создан)
+- ...
+
+## Acceptance Criteria
+- AC-2.1 ✅
+- AC-2.2 ✅
+- ...
+```
+
+### Структура файлов отчётности
+
+```
+reports/
+├── task-01-report.md       # Отчёт по Задаче 1
+├── task-02-report.md       # Отчёт по Задаче 2
+├── ...
+├── task-10-report.md       # Отчёт по Задаче 10
+├── task-01-before.json     # Снимок баланса ДО задачи
+├── task-01-after.json      # Снимок баланса ПОСЛЕ задачи
+└── SUMMARY.md              # Сводный отчёт по всем этапам
+```
+
+### Сводный отчёт (`reports/SUMMARY.md`)
+
+Формируется **вручную мной** после завершения всех 10 задач.
+
+```markdown
+# Сводный отчёт по разработке VS Code LLM Assistant
+
+| Задача | Провайдер | Prompt | Completion | Всего | Стоимость | Статус |
+|--------|-----------|--------|------------|-------|-----------|--------|
+| 1. Init | siliconflow | 1 200 | 800 | 2 000 | $0.003 | ✅ |
+| 2. Provider | deepseek | ... | ... | ... | ... | ✅ |
+| ... | ... | ... | ... | ... | ... | ... |
+| **Итого** | | **X** | **Y** | **Z** | **$N** | |
+
+**Общее время разработки:** 8 дней
+**Всего задач:** 10/10
+**Провайдеры:** siliconflow (60%), deepseek (30%), polza (10%)
+```
 
 ---
 
@@ -449,6 +538,14 @@ vscode-llm-assistant/                          # Корень проекта
 │
 ├── dist/                                      # Сборка (создаётся webpack, в .gitignore)
 │   └── extension.js
+│
+├── reports/                                   # Отчёты по затратам на этапы
+│   ├── task-01-report.md                      # Отчёт по Задаче 1
+│   ├── task-02-report.md                      # ...
+│   ├── task-10-report.md                      # Отчёт по Задаче 10
+│   ├── task-N-before.json                     # Снимок баланса ДО
+│   ├── task-N-after.json                      # Снимок баланса ПОСЛЕ
+│   └── SUMMARY.md                             # Сводный отчёт по всем этапам
 │
 └── .gitignore                                 # Node, dist, .vsix
 ```
@@ -809,8 +906,12 @@ chmod 644 package.json tsconfig.json webpack.config.js .vscodeignore src/extensi
 chmod 755 .vscode src
 ```
 
-13. Закоммитить и запушить:
+13. Собрать отчёт о затратах и запушить:
 ```bash
+mkdir -p reports
+if [ -f ~/.hermes/scripts/known_balances.json ]; then
+  cp ~/.hermes/scripts/known_balances.json reports/task-01-after.json
+fi
 git add .
 git commit -m "Задача 1: инициализация проекта, настройка сборки и дебага"
 git push origin main
@@ -855,9 +956,13 @@ git push origin main
 ```bash
 chmod 644 src/providers/types.ts src/providers/base.ts src/providers/openai.ts src/providers/manager.ts
 chmod 755 src/providers
-git add src/providers/
+# Сбор информации о затратах на этап
+mkdir -p reports
+cat ~/.hermes/scripts/known_balances.json > reports/task-02-after.json 2>/dev/null || echo "{}" > reports/task-02-after.json
+git add src/providers/ reports/task-02-after.json
 git commit -m "Задача 2: Provider Manager — BaseProvider, OpenAIProvider, Manager"
 git push origin main
+echo "Задача 2 завершена. Отчёт о затратах: reports/task-02-after.json"
 ```
 
 **Acceptance Criteria (DoD) Задача 2:**
@@ -909,7 +1014,12 @@ git push origin main
 ```bash
 chmod 644 src/modes/chat/ChatPanel.ts src/modes/chat/ChatViewProvider.ts src/modes/chat/ConversationManager.ts src/webviews/chat/index.html src/webviews/chat/styles.css src/webviews/chat/main.js
 chmod 755 src/modes/chat src/webviews/chat
-git add src/modes/chat/ src/webviews/chat/
+# Сбор информации о затратах на этап
+mkdir -p reports
+if [ -f ~/.hermes/scripts/known_balances.json ]; then
+  cp ~/.hermes/scripts/known_balances.json reports/task-3-after.json
+fi
+git add src/modes/chat/ src/webviews/chat/ reports/
 git commit -m "Задача 3: Chat Mode — WebView панель, стриминг, история"
 git push origin main
 ```
@@ -954,7 +1064,12 @@ git push origin main
 ```bash
 chmod 644 src/modes/edit/EditController.ts src/modes/edit/diff.ts
 chmod 755 src/modes/edit
-git add src/modes/edit/
+# Сбор информации о затратах на этап
+mkdir -p reports
+if [ -f ~/.hermes/scripts/known_balances.json ]; then
+  cp ~/.hermes/scripts/known_balances.json reports/task-4-after.json
+fi
+git add src/modes/edit/ reports/
 git commit -m "Задача 4: Edit Mode — inline-редактирование с diff и accept/reject"
 git push origin main
 ```
@@ -1004,7 +1119,12 @@ git push origin main
 ```bash
 chmod 644 src/modes/autocomplete/AutocompleteController.ts src/modes/autocomplete/GhostTextManager.ts src/modes/autocomplete/ContextBuilder.ts
 chmod 755 src/modes/autocomplete
-git add src/modes/autocomplete/
+# Сбор информации о затратах на этап
+mkdir -p reports
+if [ -f ~/.hermes/scripts/known_balances.json ]; then
+  cp ~/.hermes/scripts/known_balances.json reports/task-5-after.json
+fi
+git add src/modes/autocomplete/ reports/
 git commit -m "Задача 5: Autocomplete — Ghost Text, InlineCompletionItem, контекст"
 git push origin main
 ```
@@ -1151,7 +1271,12 @@ const SYSTEM_PROMPT = `Ты — AI-ассистент для программи�
 ```bash
 chmod 644 src/modes/apply/AgentController.ts src/modes/apply/ToolSystem.ts src/modes/apply/ToolDefinitions.ts
 chmod 755 src/modes/apply
-git add src/modes/apply/
+# Сбор информации о затратах на этап
+mkdir -p reports
+if [ -f ~/.hermes/scripts/known_balances.json ]; then
+  cp ~/.hermes/scripts/known_balances.json reports/task-6-after.json
+fi
+git add src/modes/apply/ reports/
 git commit -m "Задача 6: Apply Mode — ReAct-агент, 5 инструментов, function calling"
 git push origin main
 ```
@@ -1200,7 +1325,12 @@ git push origin main
 ```bash
 chmod 644 src/extension.ts src/activation/registerCommands.ts
 chmod 755 src/activation
-git add src/extension.ts src/activation/
+# Сбор информации о затратах на этап
+mkdir -p reports
+if [ -f ~/.hermes/scripts/known_balances.json ]; then
+  cp ~/.hermes/scripts/known_balances.json reports/task-7-after.json
+fi
+git add src/extension.ts src/activation/ reports/
 git commit -m "Задача 7: Интеграция — все команды, хоткеи, Command Palette"
 git push origin main
 ```
@@ -1246,7 +1376,12 @@ git push origin main
 
 ```bash
 chmod 644 package.json
-git add package.json
+# Сбор информации о затратах на этап
+mkdir -p reports
+if [ -f ~/.hermes/scripts/known_balances.json ]; then
+  cp ~/.hermes/scripts/known_balances.json reports/task-8-after.json
+fi
+git add package.json reports/
 git commit -m "Задача 8: Конфигурация — все настройки провайдеров и поведения"
 git push origin main
 ```
@@ -1286,7 +1421,12 @@ git push origin main
 ```bash
 chmod 644 test/suite/providers.test.ts test/suite/streaming.test.ts test/suite/tools.test.ts
 chmod 755 test/suite
-git add test/
+# Сбор информации о затратах на этап
+mkdir -p reports
+if [ -f ~/.hermes/scripts/known_balances.json ]; then
+  cp ~/.hermes/scripts/known_balances.json reports/task-9-after.json
+fi
+git add test/ reports/
 git commit -m "Задача 9: Тестирование — unit-тесты, coverage 60%"
 git push origin main
 ```
@@ -1382,7 +1522,12 @@ npx vsce package
 ```bash
 chmod 644 .github/workflows/ci.yml .github/workflows/publish.yml
 chmod 755 .github/workflows
-git add .github/
+# Сбор информации о затратах на этап
+mkdir -p reports
+if [ -f ~/.hermes/scripts/known_balances.json ]; then
+  cp ~/.hermes/scripts/known_balances.json reports/task-10-after.json
+fi
+git add .github/ reports/
 git commit -m "Задача 10: CI + публикация в Marketplace"
 git push origin main
 ```
