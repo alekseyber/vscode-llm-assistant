@@ -147,6 +147,31 @@ Extension должен быть совместим с **VS Code 1.131.0** (по�
 4. **При фейле** — cronjob возвращает ошибку с diagnose, задача НЕ переходит к следующей
 5. **PLAN.md всегда актуален** — перед запуском cronjob я проверяю, что PLAN.md обновлён
 
+---
+
+## Обработка ошибок (Error Handling Strategy)
+
+Общая стратегия для всех режимов. Детали реализации — в каждой задаче.
+
+| Ситуация | Действие |
+|----------|----------|
+| **Таймаут сети** (нет ответа >30s) | Retry 2 раза с exponential backoff (1s → 2s). Если всё ещё фейл — показать ошибку пользователю: "Сервер не отвечает. Проверьте провайдер и сеть." |
+| **HTTP ошибка** (401, 403, 429, 500+) | Разбор статуса: 401/403 → "Неверный API ключ", 429 → "Лимит запросов, попробуйте позже", 500 → "Ошибка сервера провайдера" |
+| **Невалидный JSON** от LLM (при tool_calls) | Повторный запрос с ошибкой парсинга в истории сообщений. После 3 фейлов — стоп и "Ошибка формата ответа" |
+| **Превышение maxTokens** | Обрезать контекст (удалить старые сообщения), retry |
+| **Ошибка файловой системы** (нет прав, нет файла) | Чёткое сообщение: "Файл X не найден" / "Нет прав на запись Y" |
+| **Отмена пользователем** (CancellationToken) | Немедленный стоп, показ частичного результата (если есть) |
+| **Unhandled exception** в extension | `try/catch` на каждом entry point. Логирование в Output Channel + `vscode.window.showErrorMessage` |
+
+### Логирование
+
+- Все запросы/ответы/ошибки пишутся в Output Channel: `LLM Assistant`
+- Уровни: `[INFO]`, `[WARN]`, `[ERROR]`, `[DEBUG]` (DEBUG только при `llmAssistant.debug: true`)
+
+---
+
+## ФАЗА 1: Архитектура решения
+
 **Цель фазы:** Спроектировать полную архитектуру extension до начала кодирования.
 
 ### Acceptance Criteria Phase 1 (DoD Phase 1)
@@ -507,6 +532,7 @@ type Mode = 'chat' | 'edit' | 'autocomplete' | 'apply';
 - Create: `tsconfig.json`
 - Create: `webpack.config.js`
 - Create: `.vscode/launch.json`
+- Create: `.vscode/tasks.json`
 - Create: `.vscodeignore`
 - Create: `src/extension.ts` (заглушка)
 
@@ -518,23 +544,246 @@ git init
 git remote add origin https://github.com/alekseyber/vscode-llm-assistant.git
 ```
 
-2. Создать `package.json` — вручную или через `npm init`:
-   - `name`: `vscode-llm-assistant`
-   - `publisher`: `alekseyber`
-   - `version`: `0.1.0`
-   - `engines.vscode`: `^1.131.0`
-   - `activationEvents`: `onStartupFinished`
-   - `contributes`: commands, configuration, viewsContainers, views
-   - Установка зависимостей (см. секцию Зависимости выше)
+2. Создать `package.json`:
+```json
+{
+  "name": "vscode-llm-assistant",
+  "displayName": "LLM Assistant",
+  "description": "AI-ассистент: чат, редактирование, автокомплит, агентный кодинг",
+  "publisher": "alekseyber",
+  "version": "0.1.0",
+  "engines": { "vscode": "^1.131.0" },
+  "categories": ["Programming Languages", "Other"],
+  "activationEvents": [ "onStartupFinished" ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      { "command": "llmAssistant.chat.focus", "title": "LLM Assistant: Открыть чат" },
+      { "command": "llmAssistant.chat.addSelection", "title": "LLM Assistant: Добавить выделение в контекст" },
+      { "command": "llmAssistant.edit.selection", "title": "LLM Assistant: Редактировать выделенный код" },
+      { "command": "llmAssistant.autocomplete.toggle", "title": "LLM Assistant: Вкл/Выкл автокомплит" },
+      { "command": "llmAssistant.apply.start", "title": "LLM Assistant: Запустить агентный режим" },
+      { "command": "llmAssistant.selectProvider", "title": "LLM Assistant: Выбрать провайдер" }
+    ],
+    "keybindings": [
+      { "command": "llmAssistant.chat.focus", "key": "ctrl+shift+l" },
+      { "command": "llmAssistant.edit.selection", "key": "ctrl+i" },
+      { "command": "llmAssistant.apply.start", "key": "ctrl+shift+a" }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        { "id": "llmAssistant", "title": "LLM Assistant", "icon": "media/icons/chat.svg" }
+      ]
+    },
+    "views": {
+      "llmAssistant": [
+        { "type": "webview", "id": "llmAssistant.chat", "name": "Чат" }
+      ]
+    },
+    "configuration": {
+      "title": "LLM Assistant",
+      "properties": {
+        "llmAssistant.defaultProvider": {
+          "type": "string", "default": "openai",
+          "description": "Провайдер по умолчанию"
+        },
+        "llmAssistant.defaultModel": {
+          "type": "string", "default": "gpt-4o",
+          "description": "Модель по умолчанию"
+        },
+        "llmAssistant.autocomplete.enabled": {
+          "type": "boolean", "default": true,
+          "description": "Включить автокомплит"
+        },
+        "llmAssistant.autocomplete.debounceMs": {
+          "type": "number", "default": 500,
+          "description": "Задержка перед запросом автокомплита (ms)"
+        },
+        "llmAssistant.chat.maxContextTokens": {
+          "type": "number", "default": 4096,
+          "description": "Максимум токенов контекста чата"
+        },
+        "llmAssistant.apply.maxIterations": {
+          "type": "number", "default": 20,
+          "description": "Максимум шагов агента"
+        },
+        "llmAssistant.debug": {
+          "type": "boolean", "default": false,
+          "description": "Включить DEBUG логи"
+        },
+        "llmAssistant.providers": {
+          "type": "object", "default": {},
+          "description": "Настройки провайдеров (baseUrl, apiKey, models)"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "webpack --mode production",
+    "watch": "webpack --mode development --watch",
+    "lint": "eslint src/ test/",
+    "test": "node ./out/test/runTest.js",
+    "package": "vsce package",
+    "publish": "vsce publish"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.131.0",
+    "@types/node": "^20.x",
+    "typescript": "^5.x",
+    "webpack": "^5.x",
+    "webpack-cli": "^5.x",
+    "ts-loader": "^9.x",
+    "@vscode/test-electron": "^2.x",
+    "@vscode/vsce": "^2.x",
+    "mocha": "^10.x",
+    "@types/mocha": "^10.x",
+    "sinon": "^18.x",
+    "@types/sinon": "^17.x",
+    "eslint": "^9.x",
+    "@typescript-eslint/parser": "^7.x",
+    "@typescript-eslint/eslint-plugin": "^7.x",
+    "nyc": "^17.x"
+  },
+  "dependencies": {
+    "openai": "^4.x",
+    "marked": "^12.x",
+    "highlight.js": "^11.x"
+  }
+}
+```
 
-3. Настроить `tsconfig.json` (strict, ESNext, CommonJS)
+3. Настроить `tsconfig.json`:
+```json
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "CommonJS",
+    "lib": ["ESNext"],
+    "outDir": "dist",
+    "rootDir": "src",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", ".vscode-test"]
+}
+```
 
-4. Настроить `webpack.config.js` для VS Code extension (target: 'node', externals: vscode)
+4. Настроить `webpack.config.js`:
+```javascript
+// webpack.config.js — сборка VS Code extension
+const path = require('path');
 
-5. Создать `src/extension.ts`:
+/** @type {import('webpack').Configuration} */
+module.exports = {
+  target: 'node', // VS Code extension работает в Node.js окружении
+  entry: './src/extension.ts',
+  output: {
+    path: path.resolve(__dirname, 'dist'),
+    filename: 'extension.js',
+    libraryTarget: 'commonjs2',
+    devtoolModuleFilenameTemplate: '../[resource-path]'
+  },
+  devtool: 'source-map',
+  externals: {
+    vscode: 'commonjs vscode' // VS Code API — внешняя зависимость
+  },
+  resolve: {
+    extensions: ['.ts', '.js']
+  },
+  module: {
+    rules: [
+      {
+        test: /\.ts$/,
+        exclude: /node_modules/,
+        use: [
+          {
+            loader: 'ts-loader'
+          }
+        ]
+      }
+    ]
+  },
+  stats: {
+    warnings: true,
+    errors: true
+  }
+};
+```
+
+5. Создать `.vscode/launch.json`:
+```json
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Run Extension",
+      "type": "extensionHost",
+      "request": "launch",
+      "args": [
+        "--extensionDevelopmentPath=${workspaceFolder}"
+      ],
+      "outFiles": ["${workspaceFolder}/dist/**/*.js"],
+      "preLaunchTask": "npm: compile"
+    },
+    {
+      "name": "Extension Tests",
+      "type": "extensionHost",
+      "request": "launch",
+      "args": [
+        "--extensionDevelopmentPath=${workspaceFolder}",
+        "--extensionTestsPath=${workspaceFolder}/out/test/suite/index"
+      ],
+      "outFiles": ["${workspaceFolder}/out/test/**/*.js"],
+      "preLaunchTask": "npm: compile"
+    }
+  ]
+}
+```
+
+6. Создать `.vscode/tasks.json`:
+```json
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "type": "npm",
+      "script": "compile",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": "$ts-webpack-watch"
+    }
+  ]
+}
+```
+
+7. Создать `.vscodeignore`:
+```
+.vscode/**
+.vscode-test/**
+src/**
+node_modules/**
+.gitignore
+tsconfig.json
+webpack.config.js
+CHANGELOG.md
+**/*.ts
+**/*.map
+```
+
+8. Создать `src/extension.ts`:
 ```typescript
 import * as vscode from 'vscode';
 
+// Точка входа в extension
 export function activate(context: vscode.ExtensionContext) {
     console.log('LLM Assistant activated');
 }
@@ -542,15 +791,25 @@ export function activate(context: vscode.ExtensionContext) {
 export function deactivate() {}
 ```
 
-6. `F5` → запуск Extension Development Host
-
-7. Установить права доступа на все созданные файлы:
+9. Установить зависимости:
 ```bash
-chmod 644 package.json tsconfig.json webpack.config.js .vscodeignore src/extension.ts
+npm install
+```
+
+10. Проверить сборку:
+```bash
+npm run compile
+```
+
+11. `F5` → запуск Extension Development Host
+
+12. Установить права доступа:
+```bash
+chmod 644 package.json tsconfig.json webpack.config.js .vscodeignore src/extension.ts .vscode/launch.json .vscode/tasks.json
 chmod 755 .vscode src
 ```
 
-8. Закоммитить и запушить:
+13. Закоммитить и запушить:
 ```bash
 git add .
 git commit -m "Задача 1: инициализация проекта, настройка сборки и дебага"
@@ -591,9 +850,17 @@ git push origin main
   - Хранит Map<name, LLMProvider>
   - Методы: `getProvider(name)`, `getDefault()`, `refresh()`
 
-**Acceptance Criteria (DoD) Задача 2:**
+**Завершение задачи:**
 
-| # | Критерий | Проверка |
+```bash
+chmod 644 src/providers/types.ts src/providers/base.ts src/providers/openai.ts src/providers/manager.ts
+chmod 755 src/providers
+git add src/providers/
+git commit -m "Задача 2: Provider Manager — BaseProvider, OpenAIProvider, Manager"
+git push origin main
+```
+
+**Acceptance Criteria (DoD) Задача 2:**
 |---|---------|---------|
 | AC-2.1 | `BaseProvider` — абстрактный класс с методом `chat()` | tsc проверка типа |
 | AC-2.2 | `OpenAIProvider.chat()` возвращает `AsyncIterable<string>` с реальными токенами | Интеграционный тест с реальным API (или mock) |
@@ -637,6 +904,16 @@ git push origin main
 - `llmAssistant.chat.focus` — открыть/сфокусировать панель
 - `llmAssistant.chat.addSelection` — добавить выделенный код в контекст
 
+**Завершение задачи:**
+
+```bash
+chmod 644 src/modes/chat/ChatPanel.ts src/modes/chat/ChatViewProvider.ts src/modes/chat/ConversationManager.ts src/webviews/chat/index.html src/webviews/chat/styles.css src/webviews/chat/main.js
+chmod 755 src/modes/chat src/webviews/chat
+git add src/modes/chat/ src/webviews/chat/
+git commit -m "Задача 3: Chat Mode — WebView панель, стриминг, история"
+git push origin main
+```
+
 **Acceptance Criteria (DoD) Задача 3:**
 
 | # | Критерий | Проверка |
@@ -671,6 +948,16 @@ git push origin main
    - Или создаём временный документ с diff
 6. Кнопки Accept (применить) / Reject (отменить)
 7. `textEdit` в `InlineCompletionItem` для бесшовного apply
+
+**Завершение задачи:**
+
+```bash
+chmod 644 src/modes/edit/EditController.ts src/modes/edit/diff.ts
+chmod 755 src/modes/edit
+git add src/modes/edit/
+git commit -m "Задача 4: Edit Mode — inline-редактирование с diff и accept/reject"
+git push origin main
+```
 
 **Acceptance Criteria (DoD) Задача 4:**
 
@@ -712,6 +999,16 @@ git push origin main
 6. Accept: Tab | Dismiss: Escape
 7. Кэш: не предлагать то же самое 2 раза подряд
 
+**Завершение задачи:**
+
+```bash
+chmod 644 src/modes/autocomplete/AutocompleteController.ts src/modes/autocomplete/GhostTextManager.ts src/modes/autocomplete/ContextBuilder.ts
+chmod 755 src/modes/autocomplete
+git add src/modes/autocomplete/
+git commit -m "Задача 5: Autocomplete — Ghost Text, InlineCompletionItem, контекст"
+git push origin main
+```
+
 **Acceptance Criteria (DoD) Задача 5:**
 
 | # | Критерий | Проверка |
@@ -737,40 +1034,106 @@ git push origin main
 - Create: `src/modes/apply/ToolSystem.ts`
 - Create: `src/modes/apply/ToolDefinitions.ts`
 
-**Tool Definitions:**
+**Tool Definitions (JSON Schema для function calling API):**
 ```typescript
+// Каждый инструмент — это OpenAI-compatible function tool
+// Schema: https://platform.openai.com/docs/guides/function-calling
 const tools: Tool[] = [
   {
     name: 'read_file',
-    description: 'Read contents of a file',
-    parameters: { path: 'string', offset?: 'number', limit?: 'number' },
+    description: 'Читает содержимое файла в workspace. offset и limit опциональны.',
+    parameters: {
+      type: 'object',
+      properties: {
+        path: { type: 'string', description: 'Путь к файлу относительно workspace' },
+        offset: { type: 'number', description: 'Строка с которой начать (1-indexed)', default: 1 },
+        limit: { type: 'number', description: 'Сколько строк прочитать', default: 500 }
+      },
+      required: ['path']
+    },
     execute: async ({path, offset, limit}) => { /* read file */ }
   },
   {
     name: 'write_file',
-    description: 'Write content to a file (overwrites)',
-    parameters: { path: 'string', content: 'string' },
+    description: 'Записывает содержимое в файл (перезаписывает). Папки создаются автоматически.',
+    parameters: {
+      type: 'object',
+      properties: {
+        path: { type: 'string', description: 'Путь к файлу относительно workspace' },
+        content: { type: 'string', description: 'Полное содержимое файла' }
+      },
+      required: ['path', 'content']
+    },
     execute: async ({path, content}) => { /* write file */ }
   },
   {
     name: 'patch_file',
-    description: 'Find and replace text in a file',
-    parameters: { path: 'string', old: 'string', new: 'string' },
-    execute: async ({path, old, new}) => { /* patch */ }
+    description: 'Находит строку old и заменяет её на new в файле. Если replace_all=false — только первое вхождение.',
+    parameters: {
+      type: 'object',
+      properties: {
+        path: { type: 'string', description: 'Путь к файлу относительно workspace' },
+        old: { type: 'string', description: 'Текст который нужно заменить' },
+        new: { type: 'string', description: 'Новый текст' },
+        replace_all: { type: 'boolean', description: 'Заменить все вхождения', default: false }
+      },
+      required: ['path', 'old', 'new']
+    },
+    execute: async ({path, old, new, replace_all}) => { /* patch */ }
   },
   {
     name: 'search_files',
-    description: 'Search for files or text in files',
-    parameters: { pattern: 'string', path?: 'string' },
-    execute: async ({pattern, path}) => { /* search */ }
+    description: 'Ищет файлы по имени или текст внутри файлов. Использует ripgrep-like регулярные выражения.',
+    parameters: {
+      type: 'object',
+      properties: {
+        pattern: { type: 'string', description: 'Поисковый запрос (regex)' },
+        path: { type: 'string', description: 'Путь к папке для поиска', default: '.' },
+        file_glob: { type: 'string', description: 'Фильтр по типу файлов (например *.ts)', default: '*' }
+      },
+      required: ['pattern']
+    },
+    execute: async ({pattern, path, file_glob}) => { /* search */ }
   },
   {
     name: 'run_terminal',
-    description: 'Run a shell command',
-    parameters: { command: 'string', workdir?: 'string', timeout?: 'number' },
+    description: 'Запускает команду в терминале. timeout в секундах. Команда выполняется в workspace.',
+    parameters: {
+      type: 'object',
+      properties: {
+        command: { type: 'string', description: 'Команда для выполнения' },
+        workdir: { type: 'string', description: 'Рабочая папка (по умолчанию workspace)', default: '.' },
+        timeout: { type: 'number', description: 'Максимальное время выполнения (сек)', default: 30 }
+      },
+      required: ['command']
+    },
     execute: async ({command, workdir, timeout}) => { /* exec */ }
   },
 ];
+```
+
+**System Prompt для ReAct-агента (AgentController.ts):**
+
+```typescript
+const SYSTEM_PROMPT = `Ты — AI-ассистент для программирования, встроенный в VS Code.
+Твоя задача — помогать пользователю с кодом: писать, читать, изменять, искать, запускать команды.
+
+У тебя есть набор инструментов (tools). Для каждого шага:
+1. Проанализируй текущую ситуацию (что уже сделано, что ещё нужно)
+2. Если нужно действие — вызови соответствующий инструмент
+3. После получения результата проанализируй его и реши, нужен ли ещё шаг
+4. Когда задача полностью выполнена — верни финальный ответ со сводкой всех изменений
+
+Правила:
+- Не вызывай инструменты без необходимости
+- Если инструмент вернул ошибку — попробуй другой подход
+- Пользователь может отменить выполнение в любой момент
+- Максимум шагов: {maxIterations}. Если не уложился — заверши с сообщением о превышении лимита
+- Используй русский язык для ответов пользователю
+- Имена переменных/функций в коде — на английском, комментарии — на русском
+
+Доступные инструменты:
+{toolsDescription}`;
 ```
 
 **ReAct-цикл в AgentController:**
@@ -782,6 +1145,16 @@ const tools: Tool[] = [
    c. Если финальный ответ → показываем сводку изменений
 4. CancellationToken для отмены
 5. WebView для лога шагов (what is agent doing now)
+
+**Завершение задачи:**
+
+```bash
+chmod 644 src/modes/apply/AgentController.ts src/modes/apply/ToolSystem.ts src/modes/apply/ToolDefinitions.ts
+chmod 755 src/modes/apply
+git add src/modes/apply/
+git commit -m "Задача 6: Apply Mode — ReAct-агент, 5 инструментов, function calling"
+git push origin main
+```
 
 **Acceptance Criteria (DoD) Задача 6:**
 
@@ -822,6 +1195,16 @@ const tools: Tool[] = [
 | `llmAssistant.apply.start` | `Ctrl+Shift+A` | Запустить агентный режим |
 | `llmAssistant.selectProvider` | — | Выбрать провайдер/модель |
 
+**Завершение задачи:**
+
+```bash
+chmod 644 src/extension.ts src/activation/registerCommands.ts
+chmod 755 src/activation
+git add src/extension.ts src/activation/
+git commit -m "Задача 7: Интеграция — все команды, хоткеи, Command Palette"
+git push origin main
+```
+
 **Acceptance Criteria (DoD) Задача 7:**
 
 | # | Критерий | Проверка |
@@ -842,7 +1225,7 @@ const tools: Tool[] = [
 
 **Objective:** Все настройки провайдеров и поведения через VS Code settings.
 
-**Files:**
+**Файлы:**
 - Modify: `package.json` (contributes.configuration)
 
 **Настройки:**
@@ -857,6 +1240,15 @@ const tools: Tool[] = [
   "llmAssistant.apply.maxIterations": 20,
   "llmAssistant.agent.model": "gpt-4o"
 }
+```
+
+**Завершение задачи:**
+
+```bash
+chmod 644 package.json
+git add package.json
+git commit -m "Задача 8: Конфигурация — все настройки провайдеров и поведения"
+git push origin main
 ```
 
 **Acceptance Criteria (DoD) Задача 8:**
@@ -889,6 +1281,16 @@ const tools: Tool[] = [
 - ContextBuilder — сбор контекста из редактора
 - ConversationManager — сохранение/восстановление истории
 
+**Завершение задачи:**
+
+```bash
+chmod 644 test/suite/providers.test.ts test/suite/streaming.test.ts test/suite/tools.test.ts
+chmod 755 test/suite
+git add test/
+git commit -m "Задача 9: Тестирование — unit-тесты, coverage 60%"
+git push origin main
+```
+
 **Acceptance Criteria (DoD) Задача 9:**
 
 | # | Критерий | Проверка |
@@ -913,9 +1315,77 @@ const tools: Tool[] = [
 - Create: `.github/workflows/publish.yml`
 
 **Шаги:**
-1. `vsce package` — сборка .vsix
-2. GitHub Actions: lint → test → build
-3. Публикация через `vsce publish` (триггер по тэгу)
+1. Создать `.github/workflows/ci.yml`:
+```yaml
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [20.x]
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run compile
+      - run: npm test
+```
+
+2. Создать `.github/workflows/publish.yml`:
+```yaml
+name: Publish
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+      - run: npm ci
+      - run: npm run compile
+      - name: Publish to Marketplace
+        run: npx vsce publish
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+```
+
+3. Собрать .vsix локально:
+```bash
+npm run compile
+npx vsce package
+```
+
+4. Проверить .vsix: установить в VS Code через "Install from VSIX..."
+
+**Завершение задачи:**
+
+```bash
+chmod 644 .github/workflows/ci.yml .github/workflows/publish.yml
+chmod 755 .github/workflows
+git add .github/
+git commit -m "Задача 10: CI + публикация в Marketplace"
+git push origin main
+```
 
 **Acceptance Criteria (DoD) Задача 10:**
 
