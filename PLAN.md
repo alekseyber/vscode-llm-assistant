@@ -23,7 +23,7 @@
 | Пакет | Версия | Зачем | Используется в |
 |-------|--------|-------|----------------|
 | `typescript` | ^5.x | Компиляция TS → JS | Задача 1 (Init) |
-| `@types/vscode` | ^1.131.0 | Типы VS Code Extension API (совместимость с 1.131.0) | Задача 1 (Init) |
+| `@types/vscode` | ^1.125.0 | Типы VS Code Extension API (максимальная доступная на npm, совместима с 1.131.0) | Задача 1 (Init) |
 | `@types/node` | ^20.x | Типы Node.js (VS Code extension host) | Задача 1 (Init) |
 | `webpack` | ^5.x | Сборка extension в один .js файл | Задача 1 (Init) |
 | `webpack-cli` | ^5.x | CLI для webpack | Задача 1 (Init) |

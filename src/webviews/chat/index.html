@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline';" />
+  <title>LLM Assistant — Чат</title>
+  <style>{{STYLES}}</style>
+</head>
+<body>
+  <!-- Шапка с информацией о контексте -->
+  <header id="chat-header">
+    <span id="header-title">LLM Assistant — Чат</span>
+    <button id="btn-clear" class="icon-btn" title="Очистить историю">🗑️</button>
+  </header>
+
+  <!-- Контейнер сообщений -->
+  <div id="messages-container">
+    <div id="welcome-message" class="message assistant-message">
+      <div class="message-content">
+        <p>👋 Привет! Я — LLM Assistant.</p>
+        <p>Задай мне вопрос или попроси помочь с кодом.</p>
+        <p><em>Совет: выдели код в редакторе и используй команду "Добавить выделение в контекст" (Ctrl+Shift+L).</em></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Индикатор стриминга (появляется во время получения ответа) -->
+  <div id="streaming-indicator" class="hidden">
+    <span class="loading-dots">LLM печатает</span>
+    <button id="btn-cancel" class="icon-btn" title="Отменить">⏹️</button>
+  </div>
+
+  <!-- Блок ввода сообщения -->
+  <div id="input-container">
+    <textarea id="message-input"
+              placeholder="Напиши сообщение... (Enter — отправить, Shift+Enter — новая строка)"
+              rows="3"></textarea>
+    <button id="btn-send" class="send-btn" title="Отправить">➤</button>
+  </div>
+
+  <!-- Подключаем библиотеки и основной скрипт -->
+  <script>{{MARKED_LIB}}</script>
+  <script>{{SCRIPT}}</script>
+</body>
+</html>
