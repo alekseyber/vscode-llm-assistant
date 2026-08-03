@@ -6,12 +6,16 @@ import { ProviderManager } from './providers/manager';
 import { ChatViewProvider } from './modes/chat/ChatViewProvider';
 import { ChatPanel } from './modes/chat/ChatPanel';
 import { ConversationManager } from './modes/chat/ConversationManager';
+import { EditController } from './modes/edit/EditController';
 
 /** Глобальный экземпляр менеджера провайдеров */
 let providerManager: ProviderManager;
 
 /** Глобальный экземпляр менеджера истории чата */
 let conversationManager: ConversationManager;
+
+/** Глобальный экземпляр контроллера Edit Mode */
+let editController: EditController;
 
 /**
  * Точка входа. Вызывается VS Code при активации расширения.
@@ -27,6 +31,9 @@ export function activate(context: vscode.ExtensionContext) {
 
     // Инициализируем менеджер истории чата (сохраняется в workspaceState)
     conversationManager = new ConversationManager(context.workspaceState);
+
+    // Инициализируем контроллер Edit Mode
+    editController = new EditController(providerManager);
 
     // Регистрируем WebviewViewProvider для боковой панели чата
     const chatViewProvider = new ChatViewProvider(
@@ -45,6 +52,13 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         vscode.commands.registerCommand('llmAssistant.chat.focus', () => {
             ChatPanel.createOrShow(context, providerManager, conversationManager);
+        })
+    );
+
+    // Регистрируем команду: редактировать выделенный код (Ctrl+I)
+    context.subscriptions.push(
+        vscode.commands.registerCommand('llmAssistant.edit.selection', () => {
+            editController.handleEditSelection();
         })
     );
 
@@ -80,6 +94,10 @@ export function activate(context: vscode.ExtensionContext) {
  */
 export function deactivate() {
     console.log('[LLM Assistant] Деактивация');
+    // Освобождаем ресурсы EditController
+    if (editController) {
+        editController.dispose();
+    }
 }
 
 /**
