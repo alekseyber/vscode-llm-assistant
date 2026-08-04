@@ -7,6 +7,7 @@ import { ChatViewProvider } from './modes/chat/ChatViewProvider';
 import { ChatPanel } from './modes/chat/ChatPanel';
 import { ConversationManager } from './modes/chat/ConversationManager';
 import { EditController } from './modes/edit/EditController';
+import { AutocompleteController } from './modes/autocomplete/AutocompleteController';
 
 /** Глобальный экземпляр менеджера провайдеров */
 let providerManager: ProviderManager;
@@ -16,6 +17,9 @@ let conversationManager: ConversationManager;
 
 /** Глобальный экземпляр контроллера Edit Mode */
 let editController: EditController;
+
+/** Глобальный экземпляр контроллера Autocomplete (ghost text) */
+let autocompleteController: AutocompleteController;
 
 /**
  * Точка входа. Вызывается VS Code при активации расширения.
@@ -34,6 +38,9 @@ export function activate(context: vscode.ExtensionContext) {
 
     // Инициализируем контроллер Edit Mode
     editController = new EditController(providerManager);
+
+    // Инициализируем контроллер Autocomplete (ghost text при паузе в печати)
+    autocompleteController = new AutocompleteController(providerManager);
 
     // Регистрируем WebviewViewProvider для боковой панели чата
     const chatViewProvider = new ChatViewProvider(
@@ -97,6 +104,11 @@ export function deactivate() {
     // Освобождаем ресурсы EditController
     if (editController) {
         editController.dispose();
+    }
+
+    // Освобождаем ресурсы AutocompleteController
+    if (autocompleteController) {
+        autocompleteController.dispose();
     }
 }
 
