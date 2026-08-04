@@ -92,8 +92,8 @@ curl https://api.github.com/repos/alekseyber/vscode-llm-assistant  # → "id": 1
 
 ```
 GitHub → Settings → Secrets and variables → Actions → New repository secret:
-- AZURE_CLIENT_ID = 5f95cc7a-f362-49df-8e7b-cc5f5080d92a
-- AZURE_TENANT_ID = 768eed83-8ab5-4217-be8f-4f6b3590b8c1
+- AZURE_CLIENT_ID = <YOUR_AZURE_CLIENT_ID>
+- AZURE_TENANT_ID = <YOUR_AZURE_TENANT_ID>
 ```
 
 **Как определить, что есть что** (важно! на странице Properties два GUID):
