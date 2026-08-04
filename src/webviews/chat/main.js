@@ -404,8 +404,7 @@
 
     switch (message.type) {
       case 'userMessage':
-        // Сообщение пользователя от extension (после сохранения в историю)
-        addMessage('user', message.text);
+        // Сообщение уже добавлено локально в sendUserMessage(), не дублируем
         break;
 
       case 'streamChunk':
