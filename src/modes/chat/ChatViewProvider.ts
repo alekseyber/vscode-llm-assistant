@@ -2,7 +2,6 @@
 
 import * as vscode from 'vscode';
 import * as fs from 'fs';
-import OpenAI from 'openai';
 import { ProviderManager } from '../../providers/manager';
 import { ConversationManager } from './ConversationManager';
 import { ChatMessage } from '../../providers/types';
@@ -167,16 +166,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     for (let i = 0; i < MAX_ITER; i++) {
       if (this.abortController?.signal.aborted) break;
 
-      const client = new OpenAI({
-        apiKey: (provider as any).apiKey || 'dummy',
-        baseURL: (provider as any).baseUrl,
-      });
-
-      const response = await client.chat.completions.create({
-        model, messages,
-        tools: tools as any,
-        tool_choice: 'auto',
-      }, { signal: this.abortController?.signal });
+      const response = await (provider as any).createWithTools(messages, model, tools, this.abortController?.signal);
 
       const choice = response.choices[0];
       const toolCalls = choice.message.tool_calls;

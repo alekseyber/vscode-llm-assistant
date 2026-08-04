@@ -42,4 +42,11 @@ export class OpenAIProvider extends BaseProvider {
       if (content) yield content;
     }
   }
+
+  /** Запрос с tools (function calling) для агента */
+  async createWithTools(messages: any[], model: string, tools: any[], signal?: AbortSignal): Promise<any> {
+    return this.client.chat.completions.create({
+      model, messages, tools: tools as any, tool_choice: 'auto',
+    }, { signal });
+  }
 }
