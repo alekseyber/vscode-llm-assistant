@@ -149,10 +149,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         for await (const chunk of stream) { full += chunk; this.postMessage({ type: 'streamChunk', text: chunk }); }
         this.postMessage({ type: 'done' });
         this.conversationManager.addMessage({ role: 'assistant', content: full });
-        // Оценка токенов и стоимости
-        const inTokens = Math.ceil(messages.reduce((s: number, m: any) => s + (typeof m.content === 'string' ? m.content.length : JSON.stringify(m.content).length), 0) / 4);
-        const outTokens = Math.ceil(full.length / 4);
-        this.postMessage({ type: 'tokens', inputTokens: inTokens, outputTokens: outTokens, model });
+        this.postTokens(messages, full, model);
       }
     } catch (error: any) {
       if (error.name === 'AbortError') this.postMessage({ type: 'cancelled' });
@@ -180,6 +177,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         this.postMessage({ type: 'streamChunk', text: content });
         this.postMessage({ type: 'done' });
         this.conversationManager.addMessage({ role: 'assistant', content });
+        this.postTokens(messages, content, model);
         return;
       }
 
@@ -249,6 +247,12 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         }
       });
     });
+  }
+
+  private postTokens(messages: any[], fullResponse: string, model: string): void {
+    const inTokens = Math.ceil(messages.reduce((s: number, m: any) => s + (typeof m.content === 'string' ? m.content.length : JSON.stringify(m.content).length), 0) / 4);
+    const outTokens = Math.ceil(fullResponse.length / 4);
+    this.postMessage({ type: 'tokens', inputTokens: inTokens, outputTokens: outTokens, model });
   }
 
   private getSystemPrompt(mode: string, providerName?: string): string {
