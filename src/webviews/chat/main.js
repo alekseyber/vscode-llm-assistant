@@ -290,39 +290,31 @@
     return el;
   }
 
+  /** Сырой текст текущего стрима (для избежания разрывов markdown) */
+  let streamingRawText = '';
+
   /**
    * Добавить токен (чанк) к текущему стриминг-сообщению.
-   *
-   * @param {string} chunk - текст токена
    */
   function appendStreamChunk(chunk) {
     if (!lastAssistantContentEl) {
-      // Если нет активного стриминг-сообщения — создаём новое
-      addMessage('assistant', chunk, true);
-      return;
+      addMessage('assistant', '', true);
+      if (!lastAssistantContentEl) return;
     }
 
-    // Добавляем текст к текущему содержимому
-    const currentHtml = lastAssistantContentEl.innerHTML;
-    // Берём текст без последнего мигающего курсора
-    const cleanHtml = currentHtml.replace(/▊$/, '');
-    lastAssistantContentEl.innerHTML = cleanHtml + escapeHtml(chunk) + '▊';
-
-    // Скроллим
+    streamingRawText += chunk;
+    // Показываем сырой текст без рендеринга markdown (чтобы не было разрывов)
+    lastAssistantContentEl.textContent = streamingRawText + '▊';
     scrollToBottom();
   }
 
   /**
-   * Завершить стриминг — убрать курсор и перерендерить markdown.
+   * Завершить стриминг — рендерить markdown и добавить кнопки копирования.
    */
   function finishStreaming() {
     if (lastAssistantContentEl) {
-      // Убираем мигающий курсор
-      const currentHtml = lastAssistantContentEl.innerHTML.replace(/▊$/, '');
-      // Перерендерим весь текст как markdown
-      // Нужно извлечь сырой текст из HTML
-      const rawText = extractTextFromHtml(currentHtml);
-      lastAssistantContentEl.innerHTML = renderMarkdown(rawText);
+      lastAssistantContentEl.innerHTML = renderMarkdown(streamingRawText);
+      addCopyButtonsToCodeBlocks(lastAssistantMessageEl || lastAssistantContentEl);
     }
 
     if (lastAssistantMessageEl) {
@@ -332,14 +324,34 @@
     isStreaming = false;
     lastAssistantMessageEl = null;
     lastAssistantContentEl = null;
+    streamingRawText = '';
 
-    // Прячем индикатор стриминга
     streamingIndicator.classList.add('hidden');
-
-    // Включаем кнопку отправки и поле ввода
     sendButton.disabled = false;
     messageInput.disabled = false;
     messageInput.focus();
+  }
+
+  /** Добавить кнопки копирования ко всем блокам кода */
+  function addCopyButtonsToCodeBlocks(container) {
+    if (!container) return;
+    const blocks = container.querySelectorAll('pre code');
+    blocks.forEach(code => {
+      const pre = code.parentElement;
+      if (pre.querySelector('.copy-btn')) return; // уже есть
+      const btn = document.createElement('button');
+      btn.className = 'copy-btn';
+      btn.textContent = '📋';
+      btn.title = 'Копировать';
+      btn.addEventListener('click', () => {
+        navigator.clipboard.writeText(code.textContent || '').then(() => {
+          btn.textContent = '✅';
+          setTimeout(() => btn.textContent = '📋', 1500);
+        });
+      });
+      pre.style.position = 'relative';
+      pre.appendChild(btn);
+    });
   }
 
   /**
@@ -465,6 +477,8 @@
     for (const msg of messages) {
       addMessage(msg.role, msg.content);
     }
+    // Кнопки копирования для блоков кода в истории
+    addCopyButtonsToCodeBlocks(messagesContainer);
   }
 
   // ---------- Session Management ----------

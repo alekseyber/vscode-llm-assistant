@@ -302,6 +302,33 @@ body {
   text-transform: uppercase;
 }
 
+/* Кнопка копирования для блоков кода */
+.copy-btn {
+  position: absolute;
+  top: 4px;
+  right: 8px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 6px;
+  opacity: 0;
+  transition: opacity 0.15s;
+  z-index: 1;
+}
+
+.message-content pre:hover .copy-btn {
+  opacity: 1;
+}
+
+.copy-btn:hover {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+
 /* ---------- Streaming Animation ---------- */
 #streaming-indicator {
   display: flex;
