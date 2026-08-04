@@ -673,13 +673,6 @@ body {
   transform: scale(1.02);
 }
 
-/* Drag & drop подсветка */
-#messages-container.drag-over {
-  outline: 2px dashed var(--accent);
-  outline-offset: -2px;
-  background: rgba(0, 122, 204, 0.05);
-}
-
 /* Бейдж использования токенов */
 .token-badge {
   text-align: center;
@@ -691,16 +684,13 @@ body {
 
 /* Индикатор заполнения контекста */
 .context-bar {
-  position: sticky;
-  top: 0;
-  z-index: 10;
   background: var(--bg-secondary);
   padding: 4px 8px;
   border-bottom: 1px solid var(--border);
-  margin-bottom: 4px;
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-shrink: 0;
 }
 .context-bar-fill {
   flex: 1;

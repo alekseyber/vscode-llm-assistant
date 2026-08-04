@@ -670,26 +670,6 @@
 
   window.addEventListener('message', handleMessage);
 
-  // Drag & drop файлов на контейнер сообщений
-  const dragTarget = messagesContainer;
-  dragTarget.addEventListener('dragover', (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    dragTarget.classList.add('drag-over');
-  });
-  dragTarget.addEventListener('dragleave', () => {
-    dragTarget.classList.remove('drag-over');
-  });
-  dragTarget.addEventListener('drop', async (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    dragTarget.classList.remove('drag-over');
-    if (!e.dataTransfer?.files.length) return;
-    for (const file of e.dataTransfer.files) {
-      await processAttachedFile(file);
-    }
-  });
-
   // Прикрепление файлов (общая функция)
   async function processAttachedFile(file) {
     const isImage = file.type.startsWith('image/');
