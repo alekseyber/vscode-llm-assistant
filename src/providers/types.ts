@@ -55,9 +55,9 @@ export interface LLMProvider {
     signal?: AbortSignal
   ): AsyncIterable<string>;
 
-  /**
-   * Получить список доступных моделей
-   * @returns Promise со списком имён моделей
-   */
+  /** Выполнить запрос с tools (function calling) для ReAct-агента */
+  createWithTools?(messages: any[], model: string, tools: any[], signal?: AbortSignal): Promise<any>;
+
+  /** Получить список доступных моделей */
   models(): Promise<string[]>;
 }
