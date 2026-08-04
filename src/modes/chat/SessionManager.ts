@@ -138,15 +138,20 @@ export class SessionManager {
   }
 
   private load(): void {
-    const saved = this.storage.get<Record<string, Session>>(SESSIONS_KEY, {});
-    for (const [id, session] of Object.entries(saved)) {
-      this.sessions.set(id, session);
-    }
-    this.activeId = this.storage.get<string>(ACTIVE_KEY) ?? null;
-    // Если активная сессия не найдена — берём последнюю
-    if (!this.activeId || !this.sessions.has(this.activeId)) {
-      const ids = [...this.sessions.keys()];
-      this.activeId = ids.length > 0 ? ids[ids.length - 1] : null;
+    try {
+      const saved = this.storage.get<Record<string, Session>>(SESSIONS_KEY, {});
+      for (const [id, session] of Object.entries(saved)) {
+        this.sessions.set(id, session);
+      }
+      this.activeId = this.storage.get<string>(ACTIVE_KEY) ?? null;
+      if (!this.activeId || !this.sessions.has(this.activeId)) {
+        const ids = [...this.sessions.keys()];
+        this.activeId = ids.length > 0 ? ids[ids.length - 1] : null;
+      }
+    } catch (err) {
+      console.error('[SessionManager] Ошибка загрузки, сброс:', err);
+      this.sessions.clear();
+      this.activeId = null;
     }
   }
 

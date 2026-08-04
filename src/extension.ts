@@ -30,55 +30,38 @@ let autocompleteController: AutocompleteController;
  * @param context - контекст расширения (subscriptions, workspaceState, extensionUri)
  */
 export function activate(context: vscode.ExtensionContext) {
+    try {
     console.log('[LLM Assistant] Активация...');
 
     // ── 1. Инициализация компонентов ──
-
-    // Менеджер провайдеров (читает настройки из settings.json)
     providerManager = new ProviderManager();
-
-    // Менеджер истории чата (сохраняется в workspaceState VS Code)
     conversationManager = new ConversationManager(context.workspaceState);
-
-    // Контроллер Edit Mode (Ctrl+I — редактирование выделенного кода)
     editController = new EditController(providerManager);
-
-    // Контроллер Autocomplete (ghost text при паузе в печати)
     autocompleteController = new AutocompleteController(providerManager);
 
-    // ── 2. Регистрация WebView Provider для боковой панели чата ──
-    const chatViewProvider = new ChatViewProvider(
-        context,
-        providerManager,
-        conversationManager
-    );
+    // ── 2. Регистрация WebView Provider ──
+    const chatViewProvider = new ChatViewProvider(context, providerManager, conversationManager);
     context.subscriptions.push(
-        vscode.window.registerWebviewViewProvider(
-            ChatViewProvider.viewType,
-            chatViewProvider
-        )
+        vscode.window.registerWebviewViewProvider(ChatViewProvider.viewType, chatViewProvider)
     );
 
-    // ── 3. Централизованная регистрация всех 6 команд ──
-    registerCommands({
-        context,
-        providerManager,
-        conversationManager,
-        editController,
-        autocompleteController,
-    });
+    // ── 3. Команды ──
+    registerCommands({ context, providerManager, conversationManager, editController, autocompleteController });
 
-    // ── 4. Подписка на изменение конфигурации ──
+    // ── 4. Конфигурация ──
     context.subscriptions.push(
         vscode.workspace.onDidChangeConfiguration((e) => {
             if (e.affectsConfiguration('llmAssistant')) {
                 providerManager.refresh();
-                debugLog('Конфигурация llmAssistant обновлена');
             }
         })
     );
 
-    console.log('[LLM Assistant] Активация завершена. Все 4 режима подключены: chat, edit, autocomplete, apply.');
+    console.log('[LLM Assistant] OK. 4 режима: chat, edit, autocomplete, apply.');
+    } catch (err: any) {
+        console.error('[LLM Assistant] Ошибка активации:', err.message, err.stack);
+        vscode.window.showErrorMessage('LLM Assistant: ошибка загрузки — ' + err.message);
+    }
 }
 
 /**
