@@ -95,4 +95,28 @@ suite('SessionManager', () => {
     sm.addMessage({ role: 'user', content: 'msg2' });
     assert.strictEqual(sm.getActive()!.meta.messageCount, 2);
   });
+
+  test('сообщения изолированы между сессиями', () => {
+    const sm = new SessionManager(storage);
+    const id1 = sm.getActive()!.meta.id;
+    sm.addMessage({ role: 'user', content: 'msg-1' });
+
+    const id2 = sm.createSession('Вторая');
+    sm.addMessage({ role: 'user', content: 'msg-2' });
+
+    sm.switchTo(id1);
+    assert.strictEqual(sm.getMessages().length, 1);
+    assert.strictEqual(sm.getMessages()[0].content, 'msg-1');
+
+    sm.switchTo(id2);
+    assert.strictEqual(sm.getMessages().length, 1);
+    assert.strictEqual(sm.getMessages()[0].content, 'msg-2');
+  });
+
+  test('новая сессия — пустая история', () => {
+    const sm = new SessionManager(storage);
+    sm.addMessage({ role: 'user', content: 'msg' });
+    sm.createSession('Новая');
+    assert.strictEqual(sm.getMessages().length, 0);
+  });
 });
