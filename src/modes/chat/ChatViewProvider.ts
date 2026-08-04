@@ -132,6 +132,21 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     // Сохраняем в историю
     this.conversationManager.addMessage({ role: 'user', content: text });
 
+    // Авто-контекст: прикрепляем содержимое открытого файла
+    const config = vscode.workspace.getConfiguration('llmAssistant');
+    const includeOpenFile = config.get<boolean>('chat.includeOpenFile', true);
+    if (includeOpenFile) {
+      const editor = vscode.window.activeTextEditor;
+      if (editor) {
+        const fileName = editor.document.fileName;
+        const content = editor.document.getText();
+        this.conversationManager.attachCodeContext({
+          filePath: fileName,
+          content,
+        });
+      }
+    }
+
     // Показываем сообщение пользователя в WebView
     this.postMessage({ type: 'userMessage', text });
 
@@ -146,7 +161,6 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     }
 
     // Получаем модель по умолчанию
-    const config = vscode.workspace.getConfiguration('llmAssistant');
     const model = config.get<string>('defaultModel') ?? 'gpt-4o';
 
     // Создаём AbortController для отмены

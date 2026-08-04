@@ -83,10 +83,18 @@ export class ConversationManager {
   getMessagesForRequest(): ContextMessage[] {
     const config = vscode.workspace.getConfiguration('llmAssistant');
     const maxTokens = config.get<number>('chat.maxContextTokens', 4096);
+    const systemPrompt = config.get<string>('chat.systemPrompt', '');
+
+    // Системный промпт всегда первым сообщением
+    const systemMessage: ContextMessage = {
+      role: 'system',
+      content: systemPrompt,
+    };
+    const systemTokens = ConversationManager.estimateTokens(systemPrompt);
 
     // Идём с конца истории (самые новые сообщения) и набираем до лимита
-    const result: ContextMessage[] = [];
-    let totalTokens = 0;
+    const history: ContextMessage[] = [];
+    let totalTokens = systemTokens;
 
     for (let i = this.messages.length - 1; i >= 0; i--) {
       const message = this.messages[i];
@@ -96,15 +104,22 @@ export class ConversationManager {
           : 0);
 
       // Если лимит превышен и хотя бы одно сообщение уже включено — останавливаемся
-      if (totalTokens + messageTokens > maxTokens && result.length > 0) {
+      if (totalTokens + messageTokens > maxTokens && history.length > 0) {
         break;
       }
 
       totalTokens += messageTokens;
-      result.unshift(message);
+      // Добавляем контекст кода в текст сообщения
+      const contextStr = message.context?.content
+        ? `\n\n--- Файл: ${message.context.filePath} ---\n\`\`\`\n${message.context.content}\n\`\`\``
+        : '';
+      history.unshift({
+        role: message.role,
+        content: message.content + contextStr,
+      });
     }
 
-    return result;
+    return [systemMessage, ...history];
   }
 
   /**

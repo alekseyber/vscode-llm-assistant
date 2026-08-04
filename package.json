@@ -3,7 +3,7 @@
   "displayName": "VS Code LLM Assistant",
   "description": "AI-ассистент: чат, редактирование, автокомплит, агентный кодинг",
   "publisher": "alekseyber",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "repository": {
     "type": "git",
     "url": "https://github.com/alekseyber/vscode-llm-assistant.git"
@@ -58,6 +58,15 @@
         "llmAssistant.chat.maxContextTokens": {
           "type": "number", "default": 4096,
           "description": "Максимум токенов контекста чата"
+        },
+        "llmAssistant.chat.systemPrompt": {
+          "type": "string",
+          "default": "Ты — AI-ассистент в VS Code. Отвечай кратко, по-русски, по делу. Без воды и длинных вступлений. Если спрашивают про код — предлагай конкретные исправления. Формат ответа: markdown.",
+          "description": "Системный промпт для чата"
+        },
+        "llmAssistant.chat.includeOpenFile": {
+          "type": "boolean", "default": true,
+          "description": "Автоматически прикреплять содержимое открытого файла к запросу"
         },
         "llmAssistant.apply.maxIterations": {
           "type": "number", "default": 20,
