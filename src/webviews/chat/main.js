@@ -489,6 +489,7 @@
 
   const sessionSelect = document.getElementById('session-select');
   const btnNewSession = document.getElementById('btn-new-session');
+  const btnDeleteSession = document.getElementById('btn-delete-session');
 
   let updatingSessionList = false;
 
@@ -516,6 +517,13 @@
   if (btnNewSession) {
     btnNewSession.addEventListener('click', () => {
       postMessage({ type: 'newSession' });
+    });
+  }
+
+  if (btnDeleteSession) {
+    btnDeleteSession.addEventListener('click', () => {
+      if (sessionSelect?.options.length <= 1) return; // Последнюю не удаляем
+      postMessage({ type: 'deleteSession', sessionId: sessionSelect.value });
     });
   }
 
