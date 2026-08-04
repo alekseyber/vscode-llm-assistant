@@ -672,3 +672,12 @@ body {
 .chat-image-preview:hover {
   transform: scale(1.02);
 }
+
+/* Бейдж использования токенов */
+.token-badge {
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-secondary);
+  padding: 4px;
+  opacity: 0.7;
+}

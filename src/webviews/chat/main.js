@@ -5,7 +5,27 @@
 (function () {
   'use strict';
 
-  // ---------- State ----------
+  // ---------- Token Usage ----------
+
+  // Цены за 1M токенов (примерные)
+  const MODEL_PRICES = {
+    'deepseek-chat': { input: 0.14, output: 0.28 },
+    'deepseek-v4-pro': { input: 0.435, output: 0.87 },
+    'deepseek-v4-flash': { input: 0.14, output: 0.28 },
+    'Qwen/Qwen3-VL-32B-Instruct': { input: 0.20, output: 0.60 },
+    'Qwen/Qwen3-VL-8B-Instruct': { input: 0.18, output: 0.68 },
+    'gpt-4o': { input: 2.50, output: 10.00 },
+  };
+
+  function showTokenUsage(msg) {
+    const price = MODEL_PRICES[msg.model] || { input: 0.5, output: 1.0 };
+    const cost = ((msg.inputTokens / 1_000_000) * price.input + (msg.outputTokens / 1_000_000) * price.output);
+    const badge = document.createElement('div');
+    badge.className = 'token-badge';
+    badge.innerHTML = `📊 ${msg.inputTokens}+${msg.outputTokens} токенов ≈ $${cost.toFixed(4)}`;
+    messagesContainer.appendChild(badge);
+    scrollToBottom();
+  }
   /** Флаг — идёт ли сейчас стриминг ответа */
   let isStreaming = false;
 
@@ -456,6 +476,10 @@
         showConfirmDialog(message);
         break;
 
+      case 'tokens':
+        showTokenUsage(message);
+        break;
+
       default:
         console.warn('[WebView] Неизвестный тип сообщения:', message.type);
     }
@@ -726,24 +750,44 @@
   const shareButton = document.getElementById('btn-share');
   if (shareButton) {
     shareButton.addEventListener('click', () => {
-      const msgs = [];
-      const allMessages = messagesContainer.querySelectorAll('.message');
-      allMessages.forEach(el => {
-        const role = el.querySelector('.message-role')?.textContent || '';
-        const content = el.querySelector('.message-content')?.textContent || '';
-        if (content.trim()) {
-          const prefix = role === 'Ты' ? '👤' : role === 'Ошибка' ? '⚠️' : '🤖';
-          msgs.push(`${prefix} **${role}**: ${content}`);
-        }
-      });
-      if (msgs.length === 0) return;
-      const text = `**Hermes, контекст сессии из VS Code LLM Assistant:**\n\n${msgs.join('\n\n')}`;
+      const text = buildSessionText();
       navigator.clipboard.writeText(text).then(() => {
         const orig = shareButton.textContent;
         shareButton.textContent = '✅';
         setTimeout(() => shareButton.textContent = orig, 1500);
       });
     });
+  }
+
+  // Экспорт в .md
+  const exportButton = document.getElementById('btn-export');
+  if (exportButton) {
+    exportButton.addEventListener('click', () => {
+      const text = buildSessionText();
+      const blob = new Blob([text], { type: 'text/markdown' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `session_${new Date().toISOString().slice(0,10)}.md`;
+      a.click();
+      URL.revokeObjectURL(url);
+      exportButton.textContent = '✅';
+      setTimeout(() => exportButton.textContent = '📥', 1500);
+    });
+  }
+
+  function buildSessionText() {
+    const msgs = [];
+    const allMessages = messagesContainer.querySelectorAll('.message');
+    allMessages.forEach(el => {
+      const role = el.querySelector('.message-role')?.textContent || '';
+      const content = el.querySelector('.message-content')?.textContent || '';
+      if (content.trim()) {
+        const prefix = role === 'Ты' ? '### 👤 Пользователь' : role === 'Ошибка' ? '### ⚠️ Ошибка' : '### 🤖 Ассистент';
+        msgs.push(`${prefix}\n\n${content}`);
+      }
+    });
+    return `# VS Code LLM Assistant — Сессия\n\n${new Date().toLocaleString('ru-RU')}\n\n---\n\n${msgs.join('\n\n---\n\n')}`;
   }
 
   // Авто-изменение высоты textarea
