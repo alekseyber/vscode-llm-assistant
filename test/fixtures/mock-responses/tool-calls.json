@@ -1,0 +1,27 @@
+{
+  "id": "chatcmpl-tool-123",
+  "object": "chat.completion.chunk",
+  "created": 1234567890,
+  "model": "gpt-4o",
+  "choices": [
+    {
+      "index": 0,
+      "delta": {
+        "role": "assistant",
+        "content": null,
+        "tool_calls": [
+          {
+            "index": 0,
+            "id": "call_abc123",
+            "type": "function",
+            "function": {
+              "name": "read_file",
+              "arguments": "{\"path\": \"src/main.ts\"}"
+            }
+          }
+        ]
+      },
+      "finish_reason": "tool_calls"
+    }
+  ]
+}
