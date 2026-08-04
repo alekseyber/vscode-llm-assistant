@@ -9,16 +9,22 @@
   <style>{{STYLES}}</style>
 </head>
 <body>
-  <!-- Шапка с информацией о контексте -->
+  <!-- Шапка -->
   <header id="chat-header">
-    <span id="header-title">LLM Assistant — Чат</span>
-    <div id="session-controls">
-      <select id="session-select" class="session-select"></select>
-      <button id="btn-new-session" class="icon-btn" title="Новая сессия">➕</button>
-      <button id="btn-delete-session" class="icon-btn" title="Удалить сессию">🗑️</button>
+    <div id="header-top">
+      <span id="header-title">LLM Assistant — Чат</span>
     </div>
-    <button id="btn-clear" class="icon-btn" title="Очистить историю">🧹</button>
-    <button id="btn-share" class="icon-btn" title="Поделиться с Hermes">📤</button>
+    <div id="header-bottom">
+      <div id="session-controls">
+        <select id="session-select" class="session-select"></select>
+        <button id="btn-new-session" class="icon-btn" title="Новая сессия">➕</button>
+        <button id="btn-delete-session" class="icon-btn" title="Удалить сессию">🗑️</button>
+      </div>
+      <div id="header-actions">
+        <button id="btn-share" class="icon-btn" title="Поделиться с Hermes">📤</button>
+        <button id="btn-clear" class="icon-btn" title="Очистить историю">🧹</button>
+      </div>
+    </div>
   </header>
 
   <!-- Контейнер сообщений -->

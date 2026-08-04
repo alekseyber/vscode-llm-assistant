@@ -44,12 +44,38 @@ body {
 /* ---------- Header ---------- */
 #chat-header {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 12px;
+  flex-direction: column;
+  padding: 6px 12px;
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
+  gap: 4px;
+}
+
+#header-top {
+  display: flex;
+  align-items: center;
+}
+
+#header-bottom {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+#session-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  max-width: 350px;
+}
+
+#header-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
 }
 
 #header-title {
@@ -58,15 +84,6 @@ body {
   color: var(--text-primary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
-}
-
-#session-controls {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  flex: 1;
-  margin: 0 12px;
-  max-width: 300px;
 }
 
 .session-select {
