@@ -48,6 +48,12 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         if (message.sessionId) { this.conversationManager.session.switchTo(message.sessionId); this.sendHistoryToWebview(); this.sendSessionListToWebview(); }
         break;
       case 'listSessions': this.sendSessionListToWebview(); break;
+      case 'attachFile':
+        this.conversationManager.attachCodeContext({
+          filePath: message.fileName,
+          content: message.content,
+        });
+        break;
       case 'deleteSession':
         if (message.sessionId) {
           this.conversationManager.session.deleteSession(message.sessionId);

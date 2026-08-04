@@ -571,20 +571,37 @@
     const existing = document.getElementById('confirm-dialog');
     if (existing) existing.remove();
 
+    let diffHtml = '';
+    if (msg.toolName === 'replace_in_file') {
+      const oldLines = (msg.oldStr || '').split('\n');
+      const newLines = (msg.newStr || '').split('\n');
+      diffHtml = '<div class="git-diff">';
+      for (const l of oldLines) {
+        diffHtml += `<div class="diff-line diff-removed"><span class="diff-sign">−</span>${escapeHtml(l)}</div>`;
+      }
+      for (const l of newLines) {
+        diffHtml += `<div class="diff-line diff-added"><span class="diff-sign">+</span>${escapeHtml(l)}</div>`;
+      }
+      diffHtml += '</div>';
+    } else {
+      const contentLines = (msg.content || '').split('\n');
+      diffHtml = '<div class="git-diff">';
+      contentLines.forEach((l, i) => {
+        diffHtml += `<div class="diff-line"><span class="diff-ln">${String(i + 1).padStart(4)}</span>${escapeHtml(l)}</div>`;
+      });
+      diffHtml += '</div>';
+    }
+
     const overlay = document.createElement('div');
     overlay.id = 'confirm-dialog';
     overlay.className = 'confirm-overlay';
     overlay.innerHTML = `
       <div class="confirm-box">
-        <div class="confirm-title">🔧 ${msg.toolName} — ${msg.filePath}</div>
-        <div class="confirm-diff">${msg.toolName === 'replace_in_file'
-          ? `<div class="diff-old">− ${escapeHtml(msg.oldStr?.slice(0, 500) || '')}</div>
-             <div class="diff-new">+ ${escapeHtml(msg.newStr?.slice(0, 500) || '')}</div>`
-          : `<pre>${escapeHtml(msg.content?.slice(0, 1000) || '')}</pre>`
-        }</div>
+        <div class="confirm-title">🔧 ${msg.toolName} — <code>${escapeHtml(msg.filePath || '')}</code></div>
+        <div class="confirm-body">${diffHtml}</div>
         <div class="confirm-buttons">
-          <button class="confirm-approve">✅ Подтвердить</button>
           <button class="confirm-reject">❌ Отклонить</button>
+          <button class="confirm-approve">✅ Подтвердить</button>
         </div>
       </div>
     `;
@@ -605,8 +622,25 @@
 
   // ---------- Event Listeners ----------
 
-  // Устанавливаем обработчик сообщений от extension
   window.addEventListener('message', handleMessage);
+
+  // Прикрепление файлов
+  const fileInput = document.getElementById('file-input');
+  const btnAttach = document.getElementById('btn-attach');
+  if (btnAttach && fileInput) {
+    btnAttach.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', async () => {
+      for (const file of fileInput.files) {
+        const text = await file.text();
+        const preview = text.slice(0, 3000);
+        const truncated = text.length > 3000 ? `\n... (файл ${text.length} символов, показаны первые 3000)` : '';
+        const fileMsg = `**📎 ${file.name}**\n\`\`\`\n${preview}${truncated}\n\`\`\``;
+        addMessage('assistant', fileMsg);
+        postMessage({ type: 'attachFile', fileName: file.name, content: text });
+      }
+      fileInput.value = '';
+    });
+  }
 
   // Отправка сообщения по Enter (Shift+Enter — новая строка)
   messageInput.addEventListener('keydown', (e) => {

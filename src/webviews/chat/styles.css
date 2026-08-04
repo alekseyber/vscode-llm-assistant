@@ -537,8 +537,11 @@ body {
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 16px;
-  max-width: 500px;
-  width: 90%;
+  max-width: 700px;
+  width: 95%;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
   box-shadow: 0 8px 32px rgba(0,0,0,0.4);
 }
 
@@ -547,34 +550,66 @@ body {
   font-weight: 600;
   color: var(--accent);
   margin-bottom: 10px;
-  word-break: break-all;
+  flex-shrink: 0;
+}
+.confirm-title code {
+  background: var(--bg-primary);
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 12px;
 }
 
-.confirm-diff {
-  background: var(--bg-primary);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 10px;
-  font-size: 12px;
-  font-family: monospace;
-  max-height: 200px;
+.confirm-body {
+  flex: 1;
   overflow-y: auto;
   margin-bottom: 12px;
-  white-space: pre-wrap;
-  word-break: break-all;
+  border: 1px solid var(--border);
+  border-radius: 6px;
 }
 
-.diff-old { color: #f48771; }
-.diff-new { color: #89d185; }
+/* Git-diff стиль */
+.git-diff {
+  font-family: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  background: var(--bg-primary);
+  padding: 8px 0;
+}
+
+.diff-line {
+  padding: 0 12px;
+  white-space: pre;
+  min-height: 19px;
+}
+
+.diff-ln {
+  color: var(--text-secondary);
+  margin-right: 12px;
+  user-select: none;
+  min-width: 40px;
+  display: inline-block;
+  text-align: right;
+}
+
+.diff-sign {
+  display: inline-block;
+  width: 16px;
+  user-select: none;
+  font-weight: bold;
+}
+
+.diff-removed { background: rgba(244, 135, 113, 0.15); color: #f48771; }
+.diff-added   { background: rgba(137, 209, 133, 0.15); color: #89d185; }
 
 .confirm-buttons {
   display: flex;
   gap: 8px;
   justify-content: flex-end;
+  flex-shrink: 0;
 }
 
 .confirm-approve, .confirm-reject {
-  padding: 6px 14px;
+  padding: 8px 18px;
   border: none;
   border-radius: 6px;
   font-size: 13px;
