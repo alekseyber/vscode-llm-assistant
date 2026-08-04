@@ -99,19 +99,19 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   private async runAgentLoop(provider: any, model: string, messages: any[]): Promise<void> {
     const MAX_ITER = 5;
     const tools = getToolSchemas();
+    const config = vscode.workspace.getConfiguration('llmAssistant');
+    const requireConfirmation = config.get<boolean>('agent.requireConfirmation', true);
 
     for (let i = 0; i < MAX_ITER; i++) {
       if (this.abortController?.signal.aborted) break;
 
-      // Используем прямой вызов OpenAI SDK для function calling
       const client = new OpenAI({
         apiKey: (provider as any).apiKey || 'dummy',
         baseURL: (provider as any).baseUrl,
       });
 
       const response = await client.chat.completions.create({
-        model,
-        messages,
+        model, messages,
         tools: tools as any,
         tool_choice: 'auto',
       }, { signal: this.abortController?.signal });
@@ -120,38 +120,79 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       const toolCalls = choice.message.tool_calls;
 
       if (!toolCalls || toolCalls.length === 0) {
-        // Нет вызовов инструментов — обычный ответ
         const content = choice.message.content || '';
-        this.postMessage({ type: 'done', text: content });
-        // Стримим как один чанк (для простоты)
         this.postMessage({ type: 'streamChunk', text: content });
         this.postMessage({ type: 'done' });
         this.conversationManager.addMessage({ role: 'assistant', content });
         return;
       }
 
-      // Выполняем инструменты
+      // Выполняем инструменты с подтверждением для опасных операций
       messages.push(choice.message);
       for (const tc of toolCalls) {
         const tool = getTool(tc.function.name);
-        let result: string;
-        if (tool) {
-          try {
-            const args = JSON.parse(tc.function.arguments);
-            result = await tool.execute(args);
-            this.postMessage({ type: 'streamChunk', text: `\n🔧 **${tc.function.name}**\n` });
-          } catch (e: any) {
-            result = `Ошибка: ${e.message}`;
-          }
-        } else {
-          result = `Инструмент '${tc.function.name}' не найден`;
+        if (!tool) {
+          messages.push({ role: 'tool', tool_call_id: tc.id, content: `Инструмент '${tc.function.name}' не найден` });
+          continue;
         }
-        messages.push({ role: 'tool', tool_call_id: tc.id, content: result });
-        this.postMessage({ type: 'streamChunk', text: result + '\n' });
+
+        const args = JSON.parse(tc.function.arguments);
+        const isDangerous = tc.function.name === 'write_file' || tc.function.name === 'replace_in_file';
+
+        // Запрос подтверждения для опасных операций
+        if (isDangerous && requireConfirmation) {
+          const approved = await this.requestConfirmation(tc.function.name, args);
+          if (!approved) {
+            messages.push({ role: 'tool', tool_call_id: tc.id, content: 'Операция отклонена пользователем.' });
+            this.postMessage({ type: 'streamChunk', text: '❌ Отклонено\n' });
+            continue;
+          }
+        }
+
+        this.postMessage({ type: 'streamChunk', text: `\n🔧 **${tc.function.name}**\n` });
+        try {
+          const result = await tool.execute(args);
+          messages.push({ role: 'tool', tool_call_id: tc.id, content: result });
+          this.postMessage({ type: 'streamChunk', text: result + '\n' });
+        } catch (e: any) {
+          messages.push({ role: 'tool', tool_call_id: tc.id, content: `Ошибка: ${e.message}` });
+        }
       }
     }
-    // Если исчерпали итерации
     this.postMessage({ type: 'done' });
+  }
+
+  /** Запросить подтверждение у пользователя для опасной операции */
+  private requestConfirmation(toolName: string, args: Record<string, unknown>): Promise<boolean> {
+    return new Promise((resolve) => {
+      const requestId = `confirm_${Date.now()}`;
+      this.postMessage({
+        type: 'confirmAction',
+        requestId,
+        toolName,
+        filePath: args.path || '',
+        content: args.content || '',
+        oldStr: args.old_str || '',
+        newStr: args.new_str || '',
+      });
+
+      const handler = (message: any) => {
+        if (message.type === 'confirmResponse' && message.requestId === requestId) {
+          this.view?.webview.onDidReceiveMessage((m) => {
+            if (m === message) return; // уже обработали
+          });
+          resolve(message.approved === true);
+        }
+      };
+
+      // Временно подписываемся на ответ
+      const disposable = this.view?.webview.onDidReceiveMessage((m: any) => {
+        if (m.type === 'confirmResponse' && m.requestId === requestId) {
+          disposable?.dispose();
+          resolve(m.approved === true);
+        }
+      });
+    });
   }
 
   private getSystemPrompt(mode: string): string {

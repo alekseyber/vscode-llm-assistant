@@ -3,7 +3,7 @@
   "displayName": "VS Code LLM Assistant",
   "description": "AI-ассистент: чат, редактирование, автокомплит, агентный кодинг",
   "publisher": "alekseyber",
-  "version": "0.1.9",
+  "version": "0.2.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/alekseyber/vscode-llm-assistant.git"
@@ -80,6 +80,10 @@
         "llmAssistant.agent.model": {
           "type": "string", "default": "gpt-4o",
           "description": "Модель для агентного режима (apply). Если не задана — используется defaultModel"
+        },
+        "llmAssistant.agent.requireConfirmation": {
+          "type": "boolean", "default": true,
+          "description": "Запрашивать подтверждение перед записью/изменением файлов"
         },
         "llmAssistant.debug": {
           "type": "boolean", "default": false,

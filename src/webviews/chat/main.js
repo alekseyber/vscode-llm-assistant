@@ -452,6 +452,10 @@
         updateProviderList(message.providers, message.defaultProvider);
         break;
 
+      case 'confirmAction':
+        showConfirmDialog(message);
+        break;
+
       default:
         console.warn('[WebView] Неизвестный тип сообщения:', message.type);
     }
@@ -551,6 +555,44 @@
 
   if (providerSelect) {
     providerSelect.addEventListener('change', updateModelList);
+  }
+
+  // ---------- Confirmation Dialog ----------
+
+  function showConfirmDialog(msg) {
+    const existing = document.getElementById('confirm-dialog');
+    if (existing) existing.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'confirm-dialog';
+    overlay.className = 'confirm-overlay';
+    overlay.innerHTML = `
+      <div class="confirm-box">
+        <div class="confirm-title">🔧 ${msg.toolName} — ${msg.filePath}</div>
+        <div class="confirm-diff">${msg.toolName === 'replace_in_file'
+          ? `<div class="diff-old">− ${escapeHtml(msg.oldStr?.slice(0, 500) || '')}</div>
+             <div class="diff-new">+ ${escapeHtml(msg.newStr?.slice(0, 500) || '')}</div>`
+          : `<pre>${escapeHtml(msg.content?.slice(0, 1000) || '')}</pre>`
+        }</div>
+        <div class="confirm-buttons">
+          <button class="confirm-approve">✅ Подтвердить</button>
+          <button class="confirm-reject">❌ Отклонить</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    overlay.querySelector('.confirm-approve')?.addEventListener('click', () => {
+      postMessage({ type: 'confirmResponse', requestId: msg.requestId, approved: true });
+      overlay.remove();
+    });
+    overlay.querySelector('.confirm-reject')?.addEventListener('click', () => {
+      postMessage({ type: 'confirmResponse', requestId: msg.requestId, approved: false });
+      overlay.remove();
+    });
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) { overlay.remove(); postMessage({ type: 'confirmResponse', requestId: msg.requestId, approved: false }); }
+    });
   }
 
   // ---------- Event Listeners ----------

@@ -520,3 +520,68 @@ body {
     padding: 6px 8px;
   }
 }
+
+/* ---------- Confirmation Dialog ---------- */
+.confirm-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.confirm-box {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  max-width: 500px;
+  width: 90%;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+}
+
+.confirm-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+  margin-bottom: 10px;
+  word-break: break-all;
+}
+
+.confirm-diff {
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px;
+  font-size: 12px;
+  font-family: monospace;
+  max-height: 200px;
+  overflow-y: auto;
+  margin-bottom: 12px;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.diff-old { color: #f48771; }
+.diff-new { color: #89d185; }
+
+.confirm-buttons {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.confirm-approve, .confirm-reject {
+  padding: 6px 14px;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.confirm-approve { background: var(--accent); color: white; }
+.confirm-reject { background: var(--bg-primary); color: var(--text-secondary); border: 1px solid var(--border); }
+.confirm-approve:hover { opacity: 0.9; }
+.confirm-reject:hover { background: var(--bg-tertiary); }
