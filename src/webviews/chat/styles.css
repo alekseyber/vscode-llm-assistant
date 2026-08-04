@@ -507,6 +507,28 @@ body {
   color: var(--text-primary);
 }
 
+/* Тултип при наведении */
+.icon-btn[title] {
+  position: relative;
+}
+
+.icon-btn[title]:hover::after {
+  content: attr(title);
+  position: absolute;
+  bottom: -22px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+  z-index: 100;
+  pointer-events: none;
+  border: 1px solid var(--border);
+}
+
 #btn-cancel:hover {
   background: var(--danger);
   color: #ffffff;
