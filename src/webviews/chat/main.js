@@ -376,19 +376,16 @@
     const text = messageInput.value.trim();
     if (!text || isStreaming) return;
 
-    // Очищаем поле ввода
     messageInput.value = '';
-
-    // Показываем сообщение пользователя локально
     addMessage('user', text);
 
-    // Отправляем в extension
-    postMessage({ type: 'sendMessage', text });
+    const mode = document.getElementById('mode-select')?.value || 'chat';
+    const provider = document.getElementById('provider-select')?.value || '';
+    const model = document.getElementById('model-select')?.value || '';
 
-    // Показываем индикатор стриминга
+    postMessage({ type: 'sendMessage', text, mode, provider, model });
+
     streamingIndicator.classList.remove('hidden');
-
-    // Блокируем ввод
     sendButton.disabled = true;
     messageInput.disabled = true;
     isStreaming = true;
@@ -436,8 +433,11 @@
         break;
 
       case 'sessionList':
-        // Обновление списка сессий
         updateSessionList(message.sessions, message.activeId);
+        break;
+
+      case 'providerList':
+        updateProviderList(message.providers, message.defaultProvider);
         break;
 
       default:
@@ -494,6 +494,44 @@
     btnNewSession.addEventListener('click', () => {
       postMessage({ type: 'newSession' });
     });
+  }
+
+  // ---------- Provider & Model Management ----------
+
+  const providerSelect = document.getElementById('provider-select');
+  const modelSelect = document.getElementById('model-select');
+  let providersData = {};
+
+  function updateProviderList(providers, defaultProvider) {
+    if (!providerSelect) return;
+    providersData = providers;
+    providerSelect.innerHTML = '';
+    for (const [name, cfg] of Object.entries(providers)) {
+      const opt = document.createElement('option');
+      opt.value = name;
+      opt.textContent = name;
+      if (name === defaultProvider) opt.selected = true;
+      providerSelect.appendChild(opt);
+    }
+    // Заполняем модели для выбранного провайдера
+    updateModelList();
+  }
+
+  function updateModelList() {
+    if (!modelSelect || !providerSelect) return;
+    const provider = providerSelect.value;
+    const models = providersData[provider]?.models || [];
+    modelSelect.innerHTML = '';
+    for (const m of models) {
+      const opt = document.createElement('option');
+      opt.value = m;
+      opt.textContent = m;
+      modelSelect.appendChild(opt);
+    }
+  }
+
+  if (providerSelect) {
+    providerSelect.addEventListener('change', updateModelList);
   }
 
   // ---------- Event Listeners ----------

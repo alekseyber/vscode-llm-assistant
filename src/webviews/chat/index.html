@@ -41,7 +41,15 @@
     <textarea id="message-input"
               placeholder="Напиши сообщение... (Enter — отправить, Shift+Enter — новая строка)"
               rows="3"></textarea>
-    <button id="btn-send" class="send-btn" title="Отправить">➤</button>
+    <div id="input-controls">
+      <select id="mode-select" class="input-select" title="Режим">
+        <option value="chat">💬 Чат</option>
+        <option value="agent">🤖 Агент</option>
+      </select>
+      <select id="provider-select" class="input-select" title="Провайдер"></select>
+      <select id="model-select" class="input-select" title="Модель"></select>
+      <button id="btn-send" class="send-btn" title="Отправить">➤</button>
+    </div>
   </div>
 
   <!-- Подключаем библиотеки и основной скрипт -->

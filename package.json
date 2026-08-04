@@ -3,7 +3,7 @@
   "displayName": "VS Code LLM Assistant",
   "description": "AI-ассистент: чат, редактирование, автокомплит, агентный кодинг",
   "publisher": "alekseyber",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "repository": {
     "type": "git",
     "url": "https://github.com/alekseyber/vscode-llm-assistant.git"
@@ -67,6 +67,11 @@
         "llmAssistant.chat.includeOpenFile": {
           "type": "boolean", "default": true,
           "description": "Автоматически прикреплять содержимое открытого файла к запросу"
+        },
+        "llmAssistant.chat.agentSystemPrompt": {
+          "type": "string",
+          "default": "Ты — AI-агент в VS Code. У тебя есть полный доступ к файлам и терминалу. Ты можешь читать, редактировать, создавать файлы и выполнять команды. Отвечай кратко, по-русски, по делу. Если нужно что-то сделать — предлагай конкретный код или команду. Формат: markdown.",
+          "description": "Системный промпт для режима агента"
         },
         "llmAssistant.apply.maxIterations": {
           "type": "number", "default": 20,

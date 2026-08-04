@@ -43,11 +43,19 @@ export class ConversationManager {
     const systemPrompt = config.get<string>('chat.systemPrompt', '');
 
     const systemMessage: ChatMessage = { role: 'system', content: systemPrompt };
-    const systemTokens = this.estimateTokens(systemPrompt);
+    const history = this.buildHistoryMessages(maxTokens, this.estimateTokens(systemPrompt));
+    return [systemMessage, ...history];
+  }
 
+  /** Только сообщения истории (без system prompt) — для внешнего управления */
+  getMessagesForHistory(): ChatMessage[] {
+    return this.buildHistoryMessages(Number.MAX_SAFE_INTEGER, 0);
+  }
+
+  private buildHistoryMessages(maxTokens: number, usedTokens: number): ChatMessage[] {
     const messages = this.sessionManager.getMessages();
     const history: ChatMessage[] = [];
-    let totalTokens = systemTokens;
+    let totalTokens = usedTokens;
 
     for (let i = messages.length - 1; i >= 0; i--) {
       const msg = messages[i];
@@ -66,7 +74,7 @@ export class ConversationManager {
       });
     }
 
-    return [systemMessage, ...history];
+    return history;
   }
 
   addMessage(message: ContextMessage): void {

@@ -355,8 +355,8 @@ body {
 /* ---------- Input Area ---------- */
 #input-container {
   display: flex;
-  align-items: flex-end;
-  gap: 8px;
+  flex-direction: column;
+  gap: 6px;
   padding: 8px 12px;
   background: var(--bg-secondary);
   border-top: 1px solid var(--border);
@@ -364,7 +364,7 @@ body {
 }
 
 #message-input {
-  flex: 1;
+  width: 100%;
   resize: none;
   padding: 10px 12px;
   border: 1px solid var(--border);
@@ -386,6 +386,31 @@ body {
   color: var(--text-secondary);
   font-style: italic;
 }
+
+#input-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.input-select {
+  padding: 6px 10px;
+  font-size: 12px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.input-select:focus {
+  outline: 1px solid var(--accent);
+}
+
+#mode-select { width: 110px; }
+#provider-select { flex: 1; max-width: 150px; }
+#model-select { flex: 1; max-width: 150px; }
 
 .send-btn {
   width: 40px;

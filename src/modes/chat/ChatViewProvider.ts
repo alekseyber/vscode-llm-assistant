@@ -1,6 +1,4 @@
 // ChatViewProvider — WebviewViewProvider для боковой панели чата
-// Регистрируется через vscode.window.registerWebviewViewProvider
-// Обеспечивает двустороннюю связь между WebView (фронтенд) и Extension (бэкенд)
 
 import * as vscode from 'vscode';
 import * as fs from 'fs';
@@ -8,42 +6,15 @@ import { ProviderManager } from '../../providers/manager';
 import { ConversationManager } from './ConversationManager';
 import { ChatMessage } from '../../providers/types';
 
-/**
- * ChatViewProvider — провайдер для боковой панели чата (WebviewView).
- *
- * VS Code вызывает resolveWebviewView(), когда пользователь открывает
- * панель "Чат" в боковой панели (Activity Bar → LLM Assistant).
- *
- * Особенности:
- * - Использует ConversationManager для хранения истории
- * - Отправляет сообщения в LLM через ProviderManager
- * - Стримит ответы в WebView через postMessage
- * - Поддерживает отмену запроса
- */
 export class ChatViewProvider implements vscode.WebviewViewProvider {
-  /** Идентификатор провайдера (должен совпадать с package.json views) */
   public static readonly viewType = 'llmAssistant.chat';
 
-  /** Ссылка на WebviewView */
   private view?: vscode.WebviewView;
-
-  /** Контекст расширения */
   private readonly context: vscode.ExtensionContext;
-
-  /** Менеджер провайдеров */
   private readonly providerManager: ProviderManager;
-
-  /** Менеджер истории сообщений */
   private readonly conversationManager: ConversationManager;
-
-  /** AbortController для отмены текущего запроса */
   private abortController: AbortController | null = null;
 
-  /**
-   * @param context - контекст расширения
-   * @param providerManager - менеджер провайдеров
-   * @param conversationManager - менеджер истории
-   */
   constructor(
     context: vscode.ExtensionContext,
     providerManager: ProviderManager,
@@ -54,23 +25,12 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     this.conversationManager = conversationManager;
   }
 
-  /**
-   * Вызывается VS Code, когда нужно создать или показать WebView.
-   * Это может произойти:
-   * - При открытии боковой панели в первый раз
-   * - При переключении вкладок
-   * - При изменении конфигурации
-   *
-   * @param webviewView - представление WebView, которое нужно настроить
-   */
   resolveWebviewView(
     webviewView: vscode.WebviewView,
     _context: vscode.WebviewViewResolveContext,
     _token: vscode.CancellationToken
   ): void {
     this.view = webviewView;
-
-    // Настройка WebView
     webviewView.webview.options = {
       enableScripts: true,
       localResourceRoots: [
@@ -78,16 +38,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         vscode.Uri.joinPath(this.context.extensionUri, 'node_modules'),
       ],
     };
-
-    // Устанавливаем HTML-содержимое
     webviewView.webview.html = this.getHtmlForWebview();
-
-    // Подписываемся на сообщения от WebView
     webviewView.webview.onDidReceiveMessage(
       (message) => this.handleWebviewMessage(message)
     );
-
-    // Когда представление становится видимым, отправляем историю
     webviewView.onDidChangeVisibility(() => {
       if (webviewView.visible) {
         this.sendHistoryToWebview();
@@ -95,37 +49,28 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     });
   }
 
-  /**
-   * Обработать сообщение от WebView.
-   *
-   * @param message - сообщение { type: string, ... }
-   */
   private async handleWebviewMessage(message: any): Promise<void> {
     switch (message.type) {
       case 'sendMessage':
-        await this.handleSendMessage(message.text);
+        await this.handleSendMessage(message.text, message.mode, message.provider, message.model);
         break;
-
       case 'cancelRequest':
         this.handleCancelRequest();
         break;
-
       case 'clearHistory':
         this.conversationManager.clearHistory();
         this.sendSessionListToWebview();
         break;
-
       case 'ready':
         this.sendHistoryToWebview();
         this.sendSessionListToWebview();
+        this.sendProviderListToWebview();
         break;
-
       case 'newSession':
         this.conversationManager.session.createSession();
         this.sendHistoryToWebview();
         this.sendSessionListToWebview();
         break;
-
       case 'switchSession':
         if (message.sessionId) {
           this.conversationManager.session.switchTo(message.sessionId);
@@ -133,87 +78,70 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
           this.sendSessionListToWebview();
         }
         break;
-
       case 'listSessions':
         this.sendSessionListToWebview();
         break;
-
       default:
         console.warn('[ChatViewProvider] Неизвестный тип сообщения:', message.type);
     }
   }
 
-  /**
-   * Отправить сообщение пользователя в LLM и стримить ответ.
-   *
-   * @param text - текст сообщения
-   */
-  private async handleSendMessage(text: string): Promise<void> {
-    // Сохраняем в историю
+  private async handleSendMessage(
+    text: string,
+    mode: string = 'chat',
+    providerName?: string,
+    modelName?: string
+  ): Promise<void> {
     this.conversationManager.addMessage({ role: 'user', content: text });
 
-    // Авто-контекст: прикрепляем содержимое открытого файла
+    // Авто-контекст: для режима чат — только чтение, для агент — полный доступ
     const config = vscode.workspace.getConfiguration('llmAssistant');
-    const includeOpenFile = config.get<boolean>('chat.includeOpenFile', true);
-    if (includeOpenFile) {
+    if (mode === 'agent' || config.get<boolean>('chat.includeOpenFile', true)) {
       const editor = vscode.window.activeTextEditor;
       if (editor) {
-        const fileName = editor.document.fileName;
-        const content = editor.document.getText();
         this.conversationManager.attachCodeContext({
-          filePath: fileName,
-          content,
+          filePath: editor.document.fileName,
+          content: editor.document.getText(),
         });
       }
     }
 
-    // Показываем сообщение пользователя в WebView
     this.postMessage({ type: 'userMessage', text });
 
-    // Получаем провайдера
-    const provider = this.providerManager.getDefault();
+    // Выбор провайдера: из UI или default
+    const provider = providerName
+      ? this.providerManager.getProvider(providerName)
+      : this.providerManager.getDefault();
     if (!provider) {
-      this.postMessage({
-        type: 'error',
-        text: 'Провайдер не настроен. Проверьте настройки llmAssistant.providers.',
-      });
+      this.postMessage({ type: 'error', text: 'Провайдер не настроен. Проверьте настройки llmAssistant.providers.' });
       return;
     }
 
-    // Получаем модель по умолчанию
-    const model = config.get<string>('defaultModel') ?? 'gpt-4o';
+    const model = modelName || config.get<string>('defaultModel') || 'gpt-4o';
 
-    // Создаём AbortController для отмены
     this.abortController = new AbortController();
 
     try {
-      // Отправляем историю в LLM (с учётом лимита токенов из настроек) и получаем стрим
-      const messages: ChatMessage[] = this.conversationManager.getMessagesForRequest();
-      const stream = provider.chat(
-        messages,
-        { model, stream: true },
-        this.abortController.signal
-      );
+      const systemPrompt = this.getSystemPrompt(mode);
+      const messages: ChatMessage[] = [
+        { role: 'system', content: systemPrompt },
+        ...this.conversationManager.getMessagesForHistory(),
+      ];
+
+      const stream = provider.chat(messages, { model, stream: true }, this.abortController.signal);
 
       let fullResponse = '';
-
-      // Стримим токены
       for await (const chunk of stream) {
         fullResponse += chunk;
         this.postMessage({ type: 'streamChunk', text: chunk });
       }
-
-      // Завершаем стрим
       this.postMessage({ type: 'done' });
-
-      // Сохраняем ответ ассистента
       this.conversationManager.addMessage({ role: 'assistant', content: fullResponse });
     } catch (error: any) {
       if (error.name === 'AbortError') {
         this.postMessage({ type: 'cancelled' });
       } else {
-        const errorMessage = error.message || 'Неизвестная ошибка';
-        this.postMessage({ type: 'error', text: `Ошибка: ${errorMessage}` });
+        this.postMessage({ type: 'error', text: `Ошибка: ${error.message || 'Неизвестная ошибка'}` });
         console.error('[ChatViewProvider] Ошибка запроса к LLM:', error);
       }
     } finally {
@@ -221,9 +149,20 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     }
   }
 
-  /**
-   * Отменить текущий запрос.
-   */
+  private getSystemPrompt(mode: string): string {
+    const config = vscode.workspace.getConfiguration('llmAssistant');
+    if (mode === 'agent') {
+      return config.get<string>('chat.agentSystemPrompt') ||
+        'Ты — AI-агент в VS Code с полным доступом к файлам и терминалу. ' +
+        'Ты можешь читать, редактировать и создавать файлы, выполнять команды. ' +
+        'Отвечай кратко, по-русски, по делу. Предлагай конкретные действия и исправления. Формат: markdown.';
+    }
+    return config.get<string>('chat.systemPrompt') ||
+      'Ты — AI-ассистент в VS Code. Отвечай кратко, по-русски, по делу. ' +
+      'Без воды и длинных вступлений. Ты НЕ имеешь доступа к файлам — только текст диалога. ' +
+      'Формат ответа: markdown.';
+  }
+
   private handleCancelRequest(): void {
     if (this.abortController) {
       this.abortController.abort();
@@ -231,16 +170,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     }
   }
 
-  /**
-   * Отправить историю сообщений в WebView.
-   */
   private sendHistoryToWebview(): void {
     if (!this.view) return;
-    const messages = this.conversationManager.getMessages();
-    this.postMessage({ type: 'history', messages });
+    this.postMessage({ type: 'history', messages: this.conversationManager.getMessages() });
   }
 
-  /** Отправить список сессий в WebView */
   private sendSessionListToWebview(): void {
     if (!this.view) return;
     const sessions = this.conversationManager.session.listSessions();
@@ -248,44 +182,35 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     this.postMessage({ type: 'sessionList', sessions, activeId });
   }
 
-  /**
-   * Отправить сообщение в WebView.
-   */
-  private postMessage(message: any): void {
-    if (this.view) {
-      this.view.webview.postMessage(message);
+  private sendProviderListToWebview(): void {
+    if (!this.view) return;
+    const config = vscode.workspace.getConfiguration('llmAssistant');
+    const providersConfig = config.get<Record<string, any>>('providers') ?? {};
+    // Отправляем только имя и модели (без apiKey!)
+    const providers: Record<string, { models: string[] }> = {};
+    for (const [name, cfg] of Object.entries(providersConfig)) {
+      providers[name] = { models: cfg.models ?? [] };
     }
+    const defaultProvider = config.get<string>('defaultProvider') ?? '';
+    this.postMessage({ type: 'providerList', providers, defaultProvider });
   }
 
-  /**
-   * Сгенерировать HTML для WebView.
-   * Читает файлы из src/webviews/chat/ и node_modules/marked/,
-   * собирает HTML с инлайновыми стилями и скриптами.
-   */
+  private postMessage(message: any): void {
+    if (this.view) this.view.webview.postMessage(message);
+  }
+
   private getHtmlForWebview(): string {
     try {
-      const htmlPath = vscode.Uri.joinPath(
-        this.context.extensionUri, 'src', 'webviews', 'chat', 'index.html'
-      );
-      const stylesPath = vscode.Uri.joinPath(
-        this.context.extensionUri, 'src', 'webviews', 'chat', 'styles.css'
-      );
-      const mainJsPath = vscode.Uri.joinPath(
-        this.context.extensionUri, 'src', 'webviews', 'chat', 'main.js'
-      );
-      const markedPath = vscode.Uri.joinPath(
-        this.context.extensionUri, 'src', 'webviews', 'chat', 'marked.min.js'
-      );
+      const base = this.context.extensionUri;
+      const htmlPath = vscode.Uri.joinPath(base, 'src', 'webviews', 'chat', 'index.html');
+      const stylesPath = vscode.Uri.joinPath(base, 'src', 'webviews', 'chat', 'styles.css');
+      const mainJsPath = vscode.Uri.joinPath(base, 'src', 'webviews', 'chat', 'main.js');
+      const markedPath = vscode.Uri.joinPath(base, 'src', 'webviews', 'chat', 'marked.min.js');
 
       let html = fs.readFileSync(htmlPath.fsPath, 'utf-8');
-      const styles = fs.readFileSync(stylesPath.fsPath, 'utf-8');
-      const markedSrc = fs.readFileSync(markedPath.fsPath, 'utf-8');
-      const mainJs = fs.readFileSync(mainJsPath.fsPath, 'utf-8');
-
-      html = html.replace('{{STYLES}}', styles);
-      html = html.replace('{{MARKED_LIB}}', markedSrc);
-      html = html.replace('{{SCRIPT}}', mainJs);
-
+      html = html.replace('{{STYLES}}', fs.readFileSync(stylesPath.fsPath, 'utf-8'));
+      html = html.replace('{{MARKED_LIB}}', fs.readFileSync(markedPath.fsPath, 'utf-8'));
+      html = html.replace('{{SCRIPT}}', fs.readFileSync(mainJsPath.fsPath, 'utf-8'));
       return html;
     } catch (error) {
       console.error('[ChatViewProvider] Ошибка чтения файлов WebView:', error);
