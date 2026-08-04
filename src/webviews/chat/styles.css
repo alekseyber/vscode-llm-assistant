@@ -78,12 +78,41 @@ body {
   margin-left: auto;
 }
 
+#header-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 #header-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent);
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 1px;
+  white-space: nowrap;
+}
+
+/* Контекст-бар в шапке */
+#context-bar {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.context-bar-fill {
+  flex: 1;
+  height: 4px;
+  background: var(--accent);
+  border-radius: 2px;
+  transition: width 0.3s;
+  min-width: 2px;
+}
+.context-bar-text {
+  font-size: 10px;
+  color: var(--text-secondary);
+  white-space: nowrap;
 }
 
 .session-select {
@@ -682,29 +711,71 @@ body {
   opacity: 0.7;
 }
 
-/* Индикатор заполнения контекста */
-.context-bar {
-  background: var(--bg-secondary);
-  padding: 4px 8px;
-  border-bottom: 1px solid var(--border);
+/* Быстрые действия */
+.quick-actions {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
-.context-bar-fill {
-  flex: 1;
-  height: 6px;
+.quick-actions button {
+  padding: 4px 10px;
+  font-size: 12px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+.quick-actions button:hover {
   background: var(--accent);
-  border-radius: 3px;
-  transition: width 0.3s;
-  min-width: 2px;
+  color: white;
+  border-color: var(--accent);
 }
-.context-bar-text {
-  font-size: 11px;
+
+/* Цветные плашки сообщений */
+.user-message .message-content {
+  background: rgba(0, 122, 204, 0.15) !important;
+  border-left: 3px solid var(--accent);
+}
+.assistant-message .message-content {
+  border-left: 3px solid transparent;
+}
+
+/* Сворачиваемые блоки кода */
+.message-content pre {
+  position: relative;
+}
+.code-toggle {
+  position: absolute;
+  top: 4px;
+  left: 8px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
   color: var(--text-secondary);
-  white-space: nowrap;
+  font-size: 11px;
+  cursor: pointer;
+  padding: 2px 8px;
+  z-index: 2;
+  opacity: 0;
+  transition: opacity 0.15s;
 }
+.message-content pre:hover .code-toggle {
+  opacity: 1;
+}
+.message-content pre.code-collapsed code {
+  display: none;
+}
+.message-content pre.code-collapsed::after {
+  content: '... (нажми чтобы развернуть)';
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+/* Контекст warning */
 .context-warning .context-bar-fill {
-  background: #f48771;
+  background: #f48771 !important;
 }

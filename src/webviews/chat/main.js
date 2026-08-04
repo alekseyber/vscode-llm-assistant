@@ -30,7 +30,7 @@
     if (contextBar) {
       const pct = Math.min(100, (msg.inputTokens / 4096) * 100);
       contextBar.querySelector('.context-bar-fill').style.width = pct + '%';
-      contextBar.querySelector('.context-bar-text').textContent = `${msg.inputTokens} / 4096 токенов`;
+      contextBar.querySelector('.context-bar-text').textContent = `${msg.inputTokens}/${4096}`;
       if (pct > 80) contextBar.className = 'context-bar context-warning';
       else contextBar.className = 'context-bar';
     }
@@ -346,6 +346,7 @@
     if (lastAssistantContentEl) {
       lastAssistantContentEl.innerHTML = renderMarkdown(streamingRawText);
       addCopyButtonsToCodeBlocks(lastAssistantMessageEl || lastAssistantContentEl);
+      addCodeToggles(lastAssistantMessageEl || lastAssistantContentEl);
     }
 
     if (lastAssistantMessageEl) {
@@ -518,6 +519,7 @@
     }
     // Кнопки копирования для блоков кода в истории
     addCopyButtonsToCodeBlocks(messagesContainer);
+    addCodeToggles(messagesContainer);
   }
 
   // ---------- Session Management ----------
@@ -794,8 +796,49 @@
   // Авто-изменение высоты textarea
   messageInput.addEventListener('input', () => {
     messageInput.style.height = 'auto';
-    messageInput.style.height = Math.min(messageInput.scrollHeight, 150) + 'px';
+    messageInput.style.height = Math.min(messageInput.scrollHeight, 200) + 'px';
   });
+
+  // Быстрые действия
+  const quickActions = document.getElementById('quick-actions');
+  if (quickActions) {
+    quickActions.querySelectorAll('button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const action = btn.dataset.action;
+        const prompts = {
+          fix: 'Исправь этот код',
+          explain: 'Объясни что делает этот код',
+          optimize: 'Оптимизируй этот код'
+        };
+        messageInput.value = prompts[action] || '';
+        sendUserMessage();
+        quickActions.style.display = 'none';
+      });
+    });
+  }
+
+  // Сворачивание блоков кода
+  messagesContainer.addEventListener('click', (e) => {
+    const toggle = e.target.closest('.code-toggle');
+    if (toggle) {
+      const pre = toggle.closest('pre');
+      pre.classList.toggle('code-collapsed');
+      toggle.textContent = pre.classList.contains('code-collapsed') ? '▶' : '▼';
+    }
+  });
+
+  // Добавить кнопки сворачивания ко всем блокам кода
+  function addCodeToggles(container) {
+    if (!container) return;
+    container.querySelectorAll('pre code').forEach(code => {
+      const pre = code.parentElement;
+      if (pre.querySelector('.code-toggle')) return;
+      const btn = document.createElement('button');
+      btn.className = 'code-toggle';
+      btn.textContent = '▼';
+      pre.appendChild(btn);
+    });
+  }
 
   // ---------- Initialize ----------
 

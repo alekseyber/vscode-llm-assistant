@@ -12,7 +12,11 @@
   <!-- Шапка -->
   <header id="chat-header">
     <div id="header-top">
-      <span id="header-title">LLM Assistant — Чат</span>
+      <span id="header-title">Чат</span>
+      <div id="context-bar" class="context-bar">
+        <div class="context-bar-fill" style="width:0%"></div>
+        <span class="context-bar-text">0/4096</span>
+      </div>
     </div>
     <div id="header-bottom">
       <div id="session-controls">
@@ -28,10 +32,11 @@
     </div>
   </header>
 
-  <!-- Индикатор контекста -->
-  <div id="context-bar" class="context-bar">
-    <div class="context-bar-fill" style="width:0%"></div>
-    <span class="context-bar-text">0 / 4096 токенов</span>
+  <!-- Быстрые действия для выделенного кода -->
+  <div id="quick-actions" class="quick-actions" style="display:none">
+    <button data-action="fix" title="Исправить (Ctrl+Shift+F)">🔧 Исправить</button>
+    <button data-action="explain" title="Объяснить (Ctrl+Shift+E)">💡 Объяснить</button>
+    <button data-action="optimize" title="Оптимизировать (Ctrl+Shift+O)">⚡ Оптимизировать</button>
   </div>
 
   <!-- Контейнер сообщений -->
