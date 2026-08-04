@@ -1,9 +1,13 @@
 {
   "name": "vscode-llm-assistant",
-  "displayName": "LLM Assistant",
+  "displayName": "VS Code LLM Assistant",
   "description": "AI-ассистент: чат, редактирование, автокомплит, агентный кодинг",
   "publisher": "alekseyber",
   "version": "0.1.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/alekseyber/vscode-llm-assistant.git"
+  },
   "engines": { "vscode": "^1.131.0" },
   "categories": ["Programming Languages", "Other"],
   "activationEvents": [ "onStartupFinished" ],
