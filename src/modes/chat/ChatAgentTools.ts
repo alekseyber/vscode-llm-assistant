@@ -3,6 +3,7 @@
 
 import * as vscode from 'vscode';
 import * as path from 'path';
+import { exec } from 'child_process';
 import { TextDecoder, TextEncoder } from 'util';
 
 export interface ChatTool {
@@ -180,7 +181,34 @@ const searchFilesTool: ChatTool = {
   },
 };
 
-export const CHAT_AGENT_TOOLS: ChatTool[] = [readFileTool, writeFileTool, replaceInFileTool, listFilesTool, searchFilesTool];
+const runTerminalTool: ChatTool = {
+  name: 'run_terminal',
+  description: 'Выполняет команду в терминале. timeout в секундах (макс 30). Рабочая папка — workspace.',
+  parameters: {
+    type: 'object',
+    properties: {
+      command: { type: 'string', description: 'Команда для выполнения' },
+      timeout: { type: 'number', description: 'Таймаут в секундах (по умолчанию 10)' },
+    },
+    required: ['command'],
+  },
+  async execute(args) {
+    const command = args.command as string;
+    const timeout = Math.min(30, Math.max(1, Math.floor((args.timeout as number) || 10)));
+    const cwd = getWorkspaceRoot();
+    return new Promise((resolve) => {
+      exec(command, { cwd, timeout: timeout * 1000, maxBuffer: 1024 * 1024 }, (error, stdout, stderr) => {
+        const parts: string[] = [];
+        if (stdout) parts.push(stdout.trim());
+        if (stderr) parts.push('[stderr] ' + stderr.trim());
+        if (error && !stdout && !stderr) parts.push('[ошибка] ' + error.message);
+        resolve(parts.join('\n') || '(выполнено)');
+      });
+    });
+  },
+};
+
+export const CHAT_AGENT_TOOLS: ChatTool[] = [readFileTool, writeFileTool, replaceInFileTool, listFilesTool, searchFilesTool, runTerminalTool];
 
 /** OpenAI function calling формат */
 export function getToolSchemas(): Array<Record<string, unknown>> {
