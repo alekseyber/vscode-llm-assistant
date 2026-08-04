@@ -102,7 +102,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     this.abortController = new AbortController();
 
     try {
-      const systemPrompt = this.getSystemPrompt(mode);
+      const systemPrompt = this.getSystemPrompt(mode, providerName);
       const messages: any[] = [
         { role: 'system', content: systemPrompt },
         ...this.conversationManager.getMessagesForHistory(),
@@ -223,13 +223,17 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     });
   }
 
-  private getSystemPrompt(mode: string): string {
+  private getSystemPrompt(mode: string, providerName?: string): string {
     const config = vscode.workspace.getConfiguration('llmAssistant');
+    // Кастомный промпт провайдера (если указан в settings)
+    if (providerName) {
+      const providersCfg = config.get<Record<string, any>>('providers') ?? {};
+      const providerCfg = providersCfg[providerName] ?? {};
+      if (providerCfg.systemPrompt) return providerCfg.systemPrompt;
+    }
     if (mode === 'agent') {
       return config.get<string>('chat.agentSystemPrompt') ||
-        'Ты — AI-агент в VS Code. У тебя есть доступ к файлам: read_file, write_file, replace_in_file. ' +
-        'Используй их когда нужно прочитать код или внести изменения. ' +
-        'Отвечай кратко, по-русски, по делу. После изменений в файлах — сообщи результат.';
+        'Ты — AI-агент в VS Code. Инструменты: list_files, search_files, read_file, write_file, replace_in_file. Отвечай кратко, по-русски.';
     }
     return config.get<string>('chat.systemPrompt') ||
       'Ты — AI-ассистент в VS Code. Отвечай кратко, по-русски, по делу. Без воды. Формат: markdown.';
