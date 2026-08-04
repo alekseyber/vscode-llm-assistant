@@ -635,46 +635,60 @@
 
   window.addEventListener('message', handleMessage);
 
-  // Прикрепление файлов
+  // Drag & drop файлов
+  document.addEventListener('dragover', (e) => { e.preventDefault(); });
+  document.addEventListener('drop', async (e) => {
+    e.preventDefault();
+    if (!e.dataTransfer?.files.length) return;
+    for (const file of e.dataTransfer.files) {
+      processAttachedFile(file);
+    }
+  });
+
+  // Прикрепление файлов (общая функция)
+  async function processAttachedFile(file) {
+    const isImage = file.type.startsWith('image/');
+    if (isImage) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const base64 = reader.result.split(',')[1];
+        const img = document.createElement('img');
+        img.src = reader.result;
+        img.className = 'chat-image-preview';
+        img.alt = file.name;
+        const container = document.createElement('div');
+        container.className = 'message assistant-message';
+        container.innerHTML = `<div class="message-role">📷 ${file.name}</div>`;
+        const contentDiv = document.createElement('div');
+        contentDiv.className = 'message-content';
+        contentDiv.appendChild(img);
+        container.appendChild(contentDiv);
+        if (welcomeMessage && !welcomeMessage.classList.contains('hidden')) {
+          welcomeMessage.classList.add('hidden');
+        }
+        messagesContainer.appendChild(container);
+        scrollToBottom();
+        postMessage({ type: 'attachFile', fileName: file.name, isImage: true, base64, mimeType: file.type });
+      };
+      reader.readAsDataURL(file);
+    } else {
+      const text = await file.text();
+      const preview = text.slice(0, 3000);
+      const truncated = text.length > 3000 ? `\n... (файл ${text.length} символов)` : '';
+      const fileMsg = `**📎 ${file.name}**\n\`\`\`\n${preview}${truncated}\n\`\`\``;
+      addMessage('assistant', fileMsg);
+      postMessage({ type: 'attachFile', fileName: file.name, content: text });
+    }
+  }
+
+  // Кнопка прикрепления
   const fileInput = document.getElementById('file-input');
   const btnAttach = document.getElementById('btn-attach');
   if (btnAttach && fileInput) {
     btnAttach.addEventListener('click', () => fileInput.click());
     fileInput.addEventListener('change', async () => {
       for (const file of fileInput.files) {
-        const isImage = file.type.startsWith('image/');
-        if (isImage) {
-          const reader = new FileReader();
-          reader.onload = () => {
-            const base64 = reader.result.split(',')[1];
-            // Показываем превью картинки
-            const img = document.createElement('img');
-            img.src = reader.result;
-            img.className = 'chat-image-preview';
-            img.alt = file.name;
-            const container = document.createElement('div');
-            container.className = 'message assistant-message';
-            container.innerHTML = `<div class="message-role">📷 ${file.name}</div>`;
-            const contentDiv = document.createElement('div');
-            contentDiv.className = 'message-content';
-            contentDiv.appendChild(img);
-            container.appendChild(contentDiv);
-            if (welcomeMessage && !welcomeMessage.classList.contains('hidden')) {
-              welcomeMessage.classList.add('hidden');
-            }
-            messagesContainer.appendChild(container);
-            scrollToBottom();
-            postMessage({ type: 'attachFile', fileName: file.name, isImage: true, base64, mimeType: file.type });
-          };
-          reader.readAsDataURL(file);
-        } else {
-          const text = await file.text();
-          const preview = text.slice(0, 3000);
-          const truncated = text.length > 3000 ? `\n... (файл ${text.length} символов)` : '';
-          const fileMsg = `**📎 ${file.name}**\n\`\`\`\n${preview}${truncated}\n\`\`\``;
-          addMessage('assistant', fileMsg);
-          postMessage({ type: 'attachFile', fileName: file.name, content: text });
-        }
+        await processAttachedFile(file);
       }
       fileInput.value = '';
     });
