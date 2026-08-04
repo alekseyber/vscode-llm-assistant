@@ -647,8 +647,23 @@
           const reader = new FileReader();
           reader.onload = () => {
             const base64 = reader.result.split(',')[1];
-            const fileMsg = `**📷 ${file.name}**\n![${file.name}](${reader.result})`;
-            addMessage('assistant', fileMsg);
+            // Показываем превью картинки
+            const img = document.createElement('img');
+            img.src = reader.result;
+            img.className = 'chat-image-preview';
+            img.alt = file.name;
+            const container = document.createElement('div');
+            container.className = 'message assistant-message';
+            container.innerHTML = `<div class="message-role">📷 ${file.name}</div>`;
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+            contentDiv.appendChild(img);
+            container.appendChild(contentDiv);
+            if (welcomeMessage && !welcomeMessage.classList.contains('hidden')) {
+              welcomeMessage.classList.add('hidden');
+            }
+            messagesContainer.appendChild(container);
+            scrollToBottom();
             postMessage({ type: 'attachFile', fileName: file.name, isImage: true, base64, mimeType: file.type });
           };
           reader.readAsDataURL(file);

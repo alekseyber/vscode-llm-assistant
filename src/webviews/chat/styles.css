@@ -659,3 +659,16 @@ body {
 .confirm-reject { background: var(--bg-primary); color: var(--text-secondary); border: 1px solid var(--border); }
 .confirm-approve:hover { opacity: 0.9; }
 .confirm-reject:hover { background: var(--bg-tertiary); }
+
+/* Превью изображений в чате */
+.chat-image-preview {
+  max-width: 300px;
+  max-height: 250px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+.chat-image-preview:hover {
+  transform: scale(1.02);
+}
