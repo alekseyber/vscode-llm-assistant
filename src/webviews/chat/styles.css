@@ -60,6 +60,31 @@ body {
   letter-spacing: 0.5px;
 }
 
+#session-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  margin: 0 12px;
+  max-width: 300px;
+}
+
+.session-select {
+  flex: 1;
+  padding: 4px 8px;
+  font-size: 12px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.session-select:focus {
+  outline: 1px solid var(--accent);
+}
+
 /* ---------- Messages Container ---------- */
 #messages-container {
   flex: 1;

@@ -1,211 +1,93 @@
 // ConversationManager — управление историей сообщений чата
-// Сохраняет/восстанавливает историю через context.workspaceState (VS Code Memento)
-// Позволяет прикреплять контекст кода (текущий файл, выделение)
-// Учитывает настройку llmAssistant.chat.maxContextTokens — обрезает историю при превышении
+// Делегирует хранение SessionManager, добавляет логику контекста и системного промпта
 
 import * as vscode from 'vscode';
 import { ChatMessage } from '../../providers/types';
+import { SessionManager } from './SessionManager';
 
-/**
- * Контекст кода, прикреплённый к сообщению.
- * Содержит информацию о файле и выделении.
- */
+/** Контекст кода */
 export interface CodeContext {
-  /** Путь к файлу относительно workspace */
   filePath: string;
-  /** Содержимое файла или выделенного фрагмента */
   content: string;
-  /** Начальная строка выделения (1-indexed) */
   selectionStart?: number;
-  /** Конечная строка выделения */
   selectionEnd?: number;
 }
 
-/**
- * Сообщение с опциональным контекстом кода.
- */
+/** Сообщение с опциональным контекстом */
 export interface ContextMessage extends ChatMessage {
-  /** Прикреплённый контекст кода (если есть) */
   context?: CodeContext;
 }
 
-/**
- * ConversationManager — управляет историей сообщений в чате.
- *
- * Хранит массив сообщений в памяти и периодически сохраняет его
- * в workspaceState (Memento) VS Code. При старте восстанавливает
- * последнюю сессию.
- *
- * Особенности:
- * - Автосохранение после каждого добавленного сообщения
- * - Поддержка контекста кода (выделенный текст, файл целиком)
- * - Ограничение по количеству сообщений (максимум 100)
- */
 export class ConversationManager {
-  /** Ключ для хранения в workspaceState */
-  private static readonly STORAGE_KEY = 'llmAssistant.chat.history';
-
-  /** Максимальное количество сообщений в истории */
   private static readonly MAX_MESSAGES = 100;
+  private sessionManager: SessionManager;
+  /** Контекст кода для следующего запроса */
+  private pendingContext: CodeContext | null = null;
 
-  /** Текущая история сообщений */
-  private messages: ContextMessage[] = [];
-
-  /** Состояние workspace для сохранения/восстановления */
-  private storage: vscode.Memento;
-
-  /**
-   * @param storage - workspaceState из ExtensionContext
-   */
   constructor(storage: vscode.Memento) {
-    this.storage = storage;
-    this.load(); // Восстанавливаем историю при создании
+    this.sessionManager = new SessionManager(storage);
   }
 
-  /**
-   * Получить все сообщения текущей сессии.
-   * @returns копия массива сообщений
-   */
+  get session(): SessionManager {
+    return this.sessionManager;
+  }
+
   getMessages(): ContextMessage[] {
-    return [...this.messages];
+    return this.sessionManager.getMessages();
   }
 
-  /**
-   * Получить историю для отправки в LLM с учётом лимита токенов.
-   *
-   * Читает настройку llmAssistant.chat.maxContextTokens (по умолчанию 4096)
-   * и обрезает историю: при превышении лимита удаляются самые старые
-   * сообщения, чтобы запрос уложился в контекстное окно модели.
-   * Настройка читается при каждом вызове — изменение применяется сразу.
-   *
-   * @returns массив сообщений, не превышающий лимит токенов
-   */
-  getMessagesForRequest(): ContextMessage[] {
+  /** Сообщения для отправки в LLM: system prompt + история + контекст */
+  getMessagesForRequest(): ChatMessage[] {
     const config = vscode.workspace.getConfiguration('llmAssistant');
     const maxTokens = config.get<number>('chat.maxContextTokens', 4096);
     const systemPrompt = config.get<string>('chat.systemPrompt', '');
 
-    // Системный промпт всегда первым сообщением
-    const systemMessage: ContextMessage = {
-      role: 'system',
-      content: systemPrompt,
-    };
-    const systemTokens = ConversationManager.estimateTokens(systemPrompt);
+    const systemMessage: ChatMessage = { role: 'system', content: systemPrompt };
+    const systemTokens = this.estimateTokens(systemPrompt);
 
-    // Идём с конца истории (самые новые сообщения) и набираем до лимита
-    const history: ContextMessage[] = [];
+    const messages = this.sessionManager.getMessages();
+    const history: ChatMessage[] = [];
     let totalTokens = systemTokens;
 
-    for (let i = this.messages.length - 1; i >= 0; i--) {
-      const message = this.messages[i];
-      const messageTokens = ConversationManager.estimateTokens(message.content)
-        + (message.context?.content
-          ? ConversationManager.estimateTokens(message.context.content)
-          : 0);
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const msg = messages[i];
+      const msgTokens = this.estimateTokens(msg.content);
 
-      // Если лимит превышен и хотя бы одно сообщение уже включено — останавливаемся
-      if (totalTokens + messageTokens > maxTokens && history.length > 0) {
-        break;
-      }
+      if (totalTokens + msgTokens > maxTokens && history.length > 0) break;
 
-      totalTokens += messageTokens;
-      // Добавляем контекст кода в текст сообщения
-      const contextStr = message.context?.content
-        ? `\n\n--- Файл: ${message.context.filePath} ---\n\`\`\`\n${message.context.content}\n\`\`\``
+      totalTokens += msgTokens;
+      // Добавляем контекст файла к пользовательским сообщениям
+      const contextStr = (msg as ContextMessage).context?.content
+        ? `\n\n--- Файл: ${(msg as ContextMessage).context!.filePath} ---\n\`\`\`\n${(msg as ContextMessage).context!.content}\n\`\`\``
         : '';
       history.unshift({
-        role: message.role,
-        content: message.content + contextStr,
+        role: msg.role,
+        content: msg.content + contextStr,
       });
     }
 
     return [systemMessage, ...history];
   }
 
-  /**
-   * Приблизительная оценка числа токенов в тексте.
-   * Грубая эвристика: ~4 символа на 1 токен (для кода и английского текста).
-   *
-   * @param text — текст для оценки
-   * @returns оценка числа токенов
-   */
-  private static estimateTokens(text: string): number {
-    return Math.ceil(text.length / 4);
-  }
-
-  /**
-   * Добавить сообщение в историю.
-   * Автоматически сохраняет историю после добавления.
-   * При превышении лимита удаляет самые старые сообщения.
-   *
-   * @param message - сообщение для добавления
-   */
   addMessage(message: ContextMessage): void {
-    this.messages.push(message);
-
-    // Ограничиваем размер истории — удаляем самые старые сообщения
-    if (this.messages.length > ConversationManager.MAX_MESSAGES) {
-      this.messages = this.messages.slice(-ConversationManager.MAX_MESSAGES);
+    // Добавляем pending-контекст к пользовательским сообщениям
+    if (message.role === 'user' && this.pendingContext) {
+      message.context = this.pendingContext;
+      this.pendingContext = null;
     }
-
-    this.save();
+    this.sessionManager.addMessage(message);
   }
 
-  /**
-   * Очистить историю сообщений.
-   * Удаляет все сообщения из памяти и из workspaceState.
-   */
   clearHistory(): void {
-    this.messages = [];
-    this.save();
+    this.sessionManager.clearActive();
   }
 
-  /**
-   * Прикрепить контекст кода к последнему пользовательскому сообщению.
-   * Используется, когда пользователь выделяет код и добавляет его в контекст.
-   *
-   * @param context - контекст кода (файл, выделение)
-   */
   attachCodeContext(context: CodeContext): void {
-    // Ищем последнее сообщение от пользователя
-    for (let i = this.messages.length - 1; i >= 0; i--) {
-      if (this.messages[i].role === 'user') {
-        this.messages[i].context = context;
-        break;
-      }
-    }
-    this.save();
+    // Сохраняем как pending — прикрепится к следующему сообщению пользователя
+    this.pendingContext = context;
   }
 
-  /**
-   * Сохранить историю в workspaceState.
-   * Вызывается автоматически после каждого изменения.
-   */
-  private save(): void {
-    try {
-      this.storage.update(
-        ConversationManager.STORAGE_KEY,
-        this.messages
-      );
-    } catch (error) {
-      console.error('[ConversationManager] Ошибка сохранения истории:', error);
-    }
-  }
-
-  /**
-   * Восстановить историю из workspaceState.
-   * Вызывается в конструкторе.
-   */
-  private load(): void {
-    try {
-      const saved = this.storage.get<ContextMessage[]>(
-        ConversationManager.STORAGE_KEY,
-        []
-      );
-      this.messages = saved;
-    } catch (error) {
-      console.error('[ConversationManager] Ошибка загрузки истории:', error);
-      this.messages = [];
-    }
+  private estimateTokens(text: string): number {
+    return Math.ceil(text.length / 4);
   }
 }

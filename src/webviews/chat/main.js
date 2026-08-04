@@ -435,6 +435,11 @@
         restoreHistory(message.messages);
         break;
 
+      case 'sessionList':
+        // Обновление списка сессий
+        updateSessionList(message.sessions, message.activeId);
+        break;
+
       default:
         console.warn('[WebView] Неизвестный тип сообщения:', message.type);
     }
@@ -460,6 +465,35 @@
     for (const msg of messages) {
       addMessage(msg.role, msg.content);
     }
+  }
+
+  // ---------- Session Management ----------
+
+  const sessionSelect = document.getElementById('session-select');
+  const btnNewSession = document.getElementById('btn-new-session');
+
+  function updateSessionList(sessions, activeId) {
+    if (!sessionSelect || !sessions) return;
+    sessionSelect.innerHTML = '';
+    for (const s of sessions) {
+      const opt = document.createElement('option');
+      opt.value = s.id;
+      opt.textContent = s.name + (s.messageCount > 0 ? ` (${s.messageCount})` : '');
+      if (s.id === activeId) opt.selected = true;
+      sessionSelect.appendChild(opt);
+    }
+  }
+
+  if (sessionSelect) {
+    sessionSelect.addEventListener('change', () => {
+      postMessage({ type: 'switchSession', sessionId: sessionSelect.value });
+    });
+  }
+
+  if (btnNewSession) {
+    btnNewSession.addEventListener('click', () => {
+      postMessage({ type: 'newSession' });
+    });
   }
 
   // ---------- Event Listeners ----------

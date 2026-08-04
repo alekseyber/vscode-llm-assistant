@@ -112,10 +112,30 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
       case 'clearHistory':
         this.conversationManager.clearHistory();
+        this.sendSessionListToWebview();
         break;
 
       case 'ready':
         this.sendHistoryToWebview();
+        this.sendSessionListToWebview();
+        break;
+
+      case 'newSession':
+        this.conversationManager.session.createSession();
+        this.sendHistoryToWebview();
+        this.sendSessionListToWebview();
+        break;
+
+      case 'switchSession':
+        if (message.sessionId) {
+          this.conversationManager.session.switchTo(message.sessionId);
+          this.sendHistoryToWebview();
+          this.sendSessionListToWebview();
+        }
+        break;
+
+      case 'listSessions':
+        this.sendSessionListToWebview();
         break;
 
       default:
@@ -218,6 +238,14 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     if (!this.view) return;
     const messages = this.conversationManager.getMessages();
     this.postMessage({ type: 'history', messages });
+  }
+
+  /** Отправить список сессий в WebView */
+  private sendSessionListToWebview(): void {
+    if (!this.view) return;
+    const sessions = this.conversationManager.session.listSessions();
+    const activeId = this.conversationManager.session.getActive()?.meta.id;
+    this.postMessage({ type: 'sessionList', sessions, activeId });
   }
 
   /**
