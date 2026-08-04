@@ -28,7 +28,6 @@
     // Индикатор заполнения контекста (4096 токенов по умолчанию)
     const contextBar = document.getElementById('context-bar');
     if (contextBar) {
-      contextBar.style.display = 'block';
       const pct = Math.min(100, (msg.inputTokens / 4096) * 100);
       contextBar.querySelector('.context-bar-fill').style.width = pct + '%';
       contextBar.querySelector('.context-bar-text').textContent = `${msg.inputTokens} / 4096 токенов`;
@@ -672,9 +671,18 @@
   window.addEventListener('message', handleMessage);
 
   // Drag & drop файлов
-  document.addEventListener('dragover', (e) => { e.preventDefault(); });
+  document.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    document.body.classList.add('drag-over');
+  });
+  document.addEventListener('dragleave', (e) => {
+    if (e.target === document.documentElement) {
+      document.body.classList.remove('drag-over');
+    }
+  });
   document.addEventListener('drop', async (e) => {
     e.preventDefault();
+    document.body.classList.remove('drag-over');
     if (!e.dataTransfer?.files.length) return;
     for (const file of e.dataTransfer.files) {
       processAttachedFile(file);

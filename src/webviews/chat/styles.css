@@ -673,7 +673,12 @@ body {
   transform: scale(1.02);
 }
 
-/* Бейдж использования токенов */
+/* Drag & drop подсветка */
+body.drag-over #messages-container {
+  outline: 2px dashed var(--accent);
+  outline-offset: -4px;
+  background: rgba(0, 122, 204, 0.05);
+}
 .token-badge {
   text-align: center;
   font-size: 11px;
