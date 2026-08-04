@@ -56,11 +56,16 @@ export class ProviderManager {
     this.providers.clear();
 
     for (const [name, providerCfg] of Object.entries(providersConfig)) {
-      // Сейчас поддерживаются только OpenAI-совместимые провайдеры
+      // Подстановка переменных окружения ${VAR}
+      let apiKey = providerCfg.apiKey ?? '';
+      apiKey = apiKey.replace(/\$\{(\w+)\}/g, (_, v) => process.env[v] || '');
+      let baseUrl = providerCfg.baseUrl ?? '';
+      baseUrl = baseUrl.replace(/\$\{(\w+)\}/g, (_, v) => process.env[v] || '');
+
       const provider = new OpenAIProvider({
         name,
-        baseUrl: providerCfg.baseUrl ?? '',
-        apiKey: providerCfg.apiKey ?? '',
+        baseUrl,
+        apiKey,
         models: providerCfg.models ?? [],
         supportsVision: (providerCfg as any).supportsVision ?? false,
       });
