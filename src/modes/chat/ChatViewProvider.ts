@@ -33,7 +33,6 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     };
     wv.webview.html = this.getHtmlForWebview();
     wv.webview.onDidReceiveMessage(m => this.handleWebviewMessage(m));
-    wv.onDidChangeVisibility(() => { if (wv.visible) this.sendHistoryToWebview(); });
   }
 
   private async handleWebviewMessage(message: any): Promise<void> {

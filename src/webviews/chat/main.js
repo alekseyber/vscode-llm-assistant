@@ -486,8 +486,11 @@
   const sessionSelect = document.getElementById('session-select');
   const btnNewSession = document.getElementById('btn-new-session');
 
+  let updatingSessionList = false;
+
   function updateSessionList(sessions, activeId) {
     if (!sessionSelect || !sessions) return;
+    updatingSessionList = true;
     sessionSelect.innerHTML = '';
     for (const s of sessions) {
       const opt = document.createElement('option');
@@ -496,10 +499,12 @@
       if (s.id === activeId) opt.selected = true;
       sessionSelect.appendChild(opt);
     }
+    updatingSessionList = false;
   }
 
   if (sessionSelect) {
     sessionSelect.addEventListener('change', () => {
+      if (updatingSessionList) return;
       postMessage({ type: 'switchSession', sessionId: sessionSelect.value });
     });
   }
