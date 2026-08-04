@@ -84,6 +84,10 @@ export class ConversationManager {
       this.pendingContext = null;
     }
     this.sessionManager.addMessage(message);
+    // Авто-имя сессии из первого сообщения
+    if (message.role === 'user') {
+      this.sessionManager.autoNameSession(this.sessionManager.getActive()?.meta.id || '');
+    }
   }
 
   clearHistory(): void {

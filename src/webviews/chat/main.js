@@ -500,7 +500,9 @@
     for (const s of sessions) {
       const opt = document.createElement('option');
       opt.value = s.id;
+      const date = new Date(s.createdAt).toLocaleString('ru-RU', { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' });
       opt.textContent = s.name + (s.messageCount > 0 ? ` (${s.messageCount})` : '');
+      opt.title = `Создана: ${date} | Двойной клик — переименовать`;
       if (s.id === activeId) opt.selected = true;
       sessionSelect.appendChild(opt);
     }
@@ -511,6 +513,15 @@
     sessionSelect.addEventListener('change', () => {
       if (updatingSessionList) return;
       postMessage({ type: 'switchSession', sessionId: sessionSelect.value });
+    });
+    // Двойной клик — переименовать
+    sessionSelect.addEventListener('dblclick', () => {
+      const id = sessionSelect.value;
+      const currentName = sessionSelect.options[sessionSelect.selectedIndex]?.textContent?.replace(/\s*\(\d+\)\s*$/, '') || '';
+      const newName = prompt('Новое имя сессии:', currentName);
+      if (newName && newName.trim()) {
+        postMessage({ type: 'renameSession', sessionId: id, name: newName.trim() });
+      }
     });
   }
 

@@ -75,10 +75,10 @@ export class SessionManager {
     }
   }
 
-  /** Создать новую сессию */
+  /** Создать новую сессию с авто-именем */
   createSession(name?: string): string {
     const id = `session_${Date.now()}`;
-    const sessionName = name ?? `Сессия ${this.sessions.size + 1}`;
+    const sessionName = name ?? `Новая сессия`;
     const session: Session = {
       meta: {
         id,
@@ -94,6 +94,23 @@ export class SessionManager {
     this.storage.update(ACTIVE_KEY, id);
     this.save();
     return id;
+  }
+
+  /** Переименовать сессию */
+  renameSession(id: string, name: string): void {
+    const s = this.sessions.get(id);
+    if (s) { s.meta.name = name; this.save(); }
+  }
+
+  /** Авто-имя из первого сообщения пользователя */
+  autoNameSession(id: string): void {
+    const s = this.sessions.get(id);
+    if (!s || s.meta.name !== 'Новая сессия') return;
+    const firstUserMsg = s.messages.find(m => m.role === 'user');
+    if (firstUserMsg) {
+      s.meta.name = firstUserMsg.content.slice(0, 30) + (firstUserMsg.content.length > 30 ? '...' : '');
+      this.save();
+    }
   }
 
   /** Удалить сессию */

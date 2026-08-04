@@ -61,6 +61,12 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
           this.sendSessionListToWebview();
         }
         break;
+      case 'renameSession':
+        if (message.sessionId && message.name) {
+          this.conversationManager.session.renameSession(message.sessionId, message.name);
+          this.sendSessionListToWebview();
+        }
+        break;
     }
   }
 
