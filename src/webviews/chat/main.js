@@ -642,12 +642,24 @@
     btnAttach.addEventListener('click', () => fileInput.click());
     fileInput.addEventListener('change', async () => {
       for (const file of fileInput.files) {
-        const text = await file.text();
-        const preview = text.slice(0, 3000);
-        const truncated = text.length > 3000 ? `\n... (файл ${text.length} символов, показаны первые 3000)` : '';
-        const fileMsg = `**📎 ${file.name}**\n\`\`\`\n${preview}${truncated}\n\`\`\``;
-        addMessage('assistant', fileMsg);
-        postMessage({ type: 'attachFile', fileName: file.name, content: text });
+        const isImage = file.type.startsWith('image/');
+        if (isImage) {
+          const reader = new FileReader();
+          reader.onload = () => {
+            const base64 = reader.result.split(',')[1];
+            const fileMsg = `**📷 ${file.name}**\n![${file.name}](${reader.result})`;
+            addMessage('assistant', fileMsg);
+            postMessage({ type: 'attachFile', fileName: file.name, isImage: true, base64, mimeType: file.type });
+          };
+          reader.readAsDataURL(file);
+        } else {
+          const text = await file.text();
+          const preview = text.slice(0, 3000);
+          const truncated = text.length > 3000 ? `\n... (файл ${text.length} символов)` : '';
+          const fileMsg = `**📎 ${file.name}**\n\`\`\`\n${preview}${truncated}\n\`\`\``;
+          addMessage('assistant', fileMsg);
+          postMessage({ type: 'attachFile', fileName: file.name, content: text });
+        }
       }
       fileInput.value = '';
     });

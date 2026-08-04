@@ -5,14 +5,12 @@
  * Конфигурация провайдера — читается из settings.json
  */
 export interface ProviderConfig {
-  /** Название провайдера (например, 'openai', 'deepseek') */
   name: string;
-  /** Базовый URL API (например, 'https://api.openai.com/v1') */
   baseUrl: string;
-  /** API ключ для аутентификации */
   apiKey: string;
-  /** Список доступных моделей */
   models: string[];
+  /** Поддержка vision (изображений) */
+  supportsVision?: boolean;
 }
 
 /**

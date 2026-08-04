@@ -62,6 +62,7 @@ export class ProviderManager {
         baseUrl: providerCfg.baseUrl ?? '',
         apiKey: providerCfg.apiKey ?? '',
         models: providerCfg.models ?? [],
+        supportsVision: (providerCfg as any).supportsVision ?? false,
       });
       this.providers.set(name, provider);
     }

@@ -15,6 +15,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   private readonly providerManager: ProviderManager;
   private readonly conversationManager: ConversationManager;
   private abortController: AbortController | null = null;
+  private pendingImage: { fileName: string; base64: string; mimeType: string } | null = null;
 
   constructor(ctx: vscode.ExtensionContext, pm: ProviderManager, cm: ConversationManager) {
     this.context = ctx;
@@ -58,10 +59,15 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         break;
       case 'listSessions': this.sendSessionListToWebview(); break;
       case 'attachFile':
-        this.conversationManager.attachCodeContext({
-          filePath: message.fileName,
-          content: message.content,
-        });
+        if (message.isImage && message.base64) {
+          // Vision: сохраняем как контекст для следующего сообщения
+          this.pendingImage = { fileName: message.fileName, base64: message.base64, mimeType: message.mimeType };
+        } else {
+          this.conversationManager.attachCodeContext({
+            filePath: message.fileName,
+            content: message.content,
+          });
+        }
         break;
       case 'deleteSession':
         if (message.sessionId) {
@@ -109,14 +115,31 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       ];
 
       if (mode === 'agent') {
-        await this.runAgentLoop(provider, model, messages);
+      await this.runAgentLoop(provider, model, messages);
+    } else {
+      // Vision: если есть изображение и провайдер поддерживает
+      const openaiProvider = provider as any;
+      if (this.pendingImage && openaiProvider.supportsVision) {
+        const userMsg: any = { role: 'user', content: [
+          { type: 'text', text },
+          { type: 'image_url', image_url: { url: `data:${this.pendingImage.mimeType};base64,${this.pendingImage.base64}` } }
+        ]};
+        messages.push(userMsg);
+        this.pendingImage = null;
+        const stream = openaiProvider.chatWithVision(messages, { model, stream: true }, this.abortController.signal);
+        let full = '';
+        for await (const chunk of stream) { full += chunk; this.postMessage({ type: 'streamChunk', text: chunk }); }
+        this.postMessage({ type: 'done' });
+        this.conversationManager.addMessage({ role: 'assistant', content: full });
       } else {
+        this.pendingImage = null;
         const stream = provider.chat(messages, { model, stream: true }, this.abortController.signal);
         let full = '';
         for await (const chunk of stream) { full += chunk; this.postMessage({ type: 'streamChunk', text: chunk }); }
         this.postMessage({ type: 'done' });
         this.conversationManager.addMessage({ role: 'assistant', content: full });
       }
+    }
     } catch (error: any) {
       if (error.name === 'AbortError') this.postMessage({ type: 'cancelled' });
       else { this.postMessage({ type: 'error', text: `Ошибка: ${error.message}` }); console.error('[ChatViewProvider]', error); }
