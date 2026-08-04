@@ -17,6 +17,7 @@ const testModules: string[] = [
   './tools.test',
   './context.test',
   './conversation.test',
+  './session.test',
 ];
 
 /**

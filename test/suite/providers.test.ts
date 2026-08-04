@@ -193,6 +193,32 @@ suite('ProviderManager', () => {
       assert.strictEqual(defaultProvider, undefined, 'При пустой конфигурации default должен быть undefined');
     });
 
+    test('refresh() подставляет ${VAR} из process.env', () => {
+      const cfg = createMockVscodeConfig();
+      process.env.TEST_KEY = 'my-test-key';
+      cfg.setProviders({
+        test: { baseUrl: 'https://test.com/v1', apiKey: '${TEST_KEY}', models: ['m1'] }
+      });
+
+      const manager = new ProviderManager();
+      const provider = manager.getProvider('test');
+      assert.ok(provider);
+      assert.strictEqual((provider as any).apiKey, 'my-test-key');
+      delete process.env.TEST_KEY;
+    });
+
+    test('refresh() оставляет ${VAR} если переменная не найдена', () => {
+      const cfg = createMockVscodeConfig();
+      cfg.setProviders({
+        test: { baseUrl: 'https://test.com/v1', apiKey: '${MISSING_VAR}', models: ['m1'] }
+      });
+
+      const manager = new ProviderManager();
+      const provider = manager.getProvider('test');
+      assert.ok(provider);
+      assert.strictEqual((provider as any).apiKey, '');
+    });
+
     test('Провайдер имеет список моделей из конфигурации', async () => {
       const cfg = createMockVscodeConfig();
       cfg.setProviders(mockProviderConfig as any);
