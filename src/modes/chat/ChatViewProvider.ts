@@ -20,6 +20,15 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     this.context = ctx;
     this.providerManager = pm;
     this.conversationManager = cm;
+    // Авто-обновление провайдеров при изменении настроек
+    ctx.subscriptions.push(
+      vscode.workspace.onDidChangeConfiguration(e => {
+        if (e.affectsConfiguration('llmAssistant.providers') || e.affectsConfiguration('llmAssistant.defaultProvider')) {
+          this.providerManager.refresh();
+          this.sendProviderListToWebview();
+        }
+      })
+    );
   }
 
   resolveWebviewView(wv: vscode.WebviewView, _ctx: vscode.WebviewViewResolveContext, _t: vscode.CancellationToken): void {
