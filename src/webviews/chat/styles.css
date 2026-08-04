@@ -674,11 +674,13 @@ body {
 }
 
 /* Drag & drop подсветка */
-body.drag-over #messages-container {
+#messages-container.drag-over {
   outline: 2px dashed var(--accent);
-  outline-offset: -4px;
+  outline-offset: -2px;
   background: rgba(0, 122, 204, 0.05);
 }
+
+/* Бейдж использования токенов */
 .token-badge {
   text-align: center;
   font-size: 11px;
@@ -692,24 +694,26 @@ body.drag-over #messages-container {
   position: sticky;
   top: 0;
   z-index: 10;
-  background: var(--bg-primary);
-  height: 4px;
-  border-radius: 2px;
-  margin-bottom: 8px;
+  background: var(--bg-secondary);
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 .context-bar-fill {
-  height: 100%;
+  flex: 1;
+  height: 6px;
   background: var(--accent);
-  border-radius: 2px;
+  border-radius: 3px;
   transition: width 0.3s;
   min-width: 2px;
 }
 .context-bar-text {
-  font-size: 10px;
+  font-size: 11px;
   color: var(--text-secondary);
-  display: block;
-  text-align: center;
-  margin-top: 2px;
+  white-space: nowrap;
 }
 .context-warning .context-bar-fill {
   background: #f48771;

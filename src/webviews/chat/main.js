@@ -670,22 +670,23 @@
 
   window.addEventListener('message', handleMessage);
 
-  // Drag & drop файлов
-  document.addEventListener('dragover', (e) => {
+  // Drag & drop файлов на контейнер сообщений
+  const dragTarget = messagesContainer;
+  dragTarget.addEventListener('dragover', (e) => {
     e.preventDefault();
-    document.body.classList.add('drag-over');
+    e.stopPropagation();
+    dragTarget.classList.add('drag-over');
   });
-  document.addEventListener('dragleave', (e) => {
-    if (e.target === document.documentElement) {
-      document.body.classList.remove('drag-over');
-    }
+  dragTarget.addEventListener('dragleave', () => {
+    dragTarget.classList.remove('drag-over');
   });
-  document.addEventListener('drop', async (e) => {
+  dragTarget.addEventListener('drop', async (e) => {
     e.preventDefault();
-    document.body.classList.remove('drag-over');
+    e.stopPropagation();
+    dragTarget.classList.remove('drag-over');
     if (!e.dataTransfer?.files.length) return;
     for (const file of e.dataTransfer.files) {
-      processAttachedFile(file);
+      await processAttachedFile(file);
     }
   });
 
