@@ -245,7 +245,7 @@ code --install-extension alekseyber.vscode-llm-assistant
 ## Часть 3. Автоматизированный этап «Релиз»
 
 **Cronjob:** `baafba05ca78` (durable, запуск по команде)
-**Скрипт:** `scripts/release.py` (в репозитории) + копия `/opt/data/scripts/release.py`
+**Скрипт:** `/opt/data/scripts/release.py` (в контейнере Hermes)
 
 ### Что делает release.py:
 
@@ -266,7 +266,7 @@ code --install-extension alekseyber.vscode-llm-assistant
 cronjob run baafba05ca78
 
 # Или вручную:
-cd ~/projects/vscode-llm-assistant && python3 scripts/release.py
+cd /opt/data && python3 scripts/release.py
 ```
 
 ---
@@ -290,7 +290,7 @@ cd ~/projects/vscode-llm-assistant && python3 scripts/release.py
 |-----|-----|
 | Расширение в Marketplace | https://marketplace.visualstudio.com/items?itemName=alekseyber.vscode-llm-assistant |
 | Workflow Publish | `.github/workflows/publish.yml` |
-| Скрипт релиза | `scripts/release.py` |
+| Скрипт релиза | `/opt/data/scripts/release.py` |
 | Инструкция пользователя | `docs/USER-GUIDE.md` |
 | Сводный отчёт | `reports/SUMMARY.md` |
 | Отчёт релиза | `reports/release-0.1.0-2026-08-04_15-12.md` |
