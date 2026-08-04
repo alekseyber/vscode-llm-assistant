@@ -9,6 +9,7 @@ import { ConversationManager } from './modes/chat/ConversationManager';
 import { EditController } from './modes/edit/EditController';
 import { AutocompleteController } from './modes/autocomplete/AutocompleteController';
 import { registerCommands } from './activation/registerCommands';
+import { debugLog } from './shared/logger';
 
 /** Глобальный экземпляр менеджера провайдеров */
 let providerManager: ProviderManager;
@@ -72,7 +73,7 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.workspace.onDidChangeConfiguration((e) => {
             if (e.affectsConfiguration('llmAssistant')) {
                 providerManager.refresh();
-                console.log('[LLM Assistant] Конфигурация обновлена');
+                debugLog('Конфигурация llmAssistant обновлена');
             }
         })
     );

@@ -153,8 +153,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     this.abortController = new AbortController();
 
     try {
-      // Отправляем историю в LLM и получаем стрим
-      const messages: ChatMessage[] = this.conversationManager.getMessages();
+      // Отправляем историю в LLM (с учётом лимита токенов из настроек) и получаем стрим
+      const messages: ChatMessage[] = this.conversationManager.getMessagesForRequest();
       const stream = provider.chat(
         messages,
         { model, stream: true },

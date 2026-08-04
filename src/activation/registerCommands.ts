@@ -228,7 +228,8 @@ async function startApplyMode(
 
   // Получаем модель и лимит шагов из настроек
   const config = vscode.workspace.getConfiguration('llmAssistant');
-  const model = config.get<string>('defaultModel') ?? 'gpt-4o';
+  // Модель для агента: приоритет у llmAssistant.agent.model, fallback на defaultModel
+  const model = config.get<string>('agent.model') ?? config.get<string>('defaultModel') ?? 'gpt-4o';
   const maxIterations = config.get<number>('apply.maxIterations', 20);
   const providerName = config.get<string>('defaultProvider') ?? 'openai';
 

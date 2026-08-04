@@ -59,6 +59,10 @@
           "type": "number", "default": 20,
           "description": "Максимум шагов агента"
         },
+        "llmAssistant.agent.model": {
+          "type": "string", "default": "gpt-4o",
+          "description": "Модель для агентного режима (apply). Если не задана — используется defaultModel"
+        },
         "llmAssistant.debug": {
           "type": "boolean", "default": false,
           "description": "Включить DEBUG логи"

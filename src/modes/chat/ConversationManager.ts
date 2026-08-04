@@ -1,6 +1,7 @@
 // ConversationManager — управление историей сообщений чата
 // Сохраняет/восстанавливает историю через context.workspaceState (VS Code Memento)
 // Позволяет прикреплять контекст кода (текущий файл, выделение)
+// Учитывает настройку llmAssistant.chat.maxContextTokens — обрезает историю при превышении
 
 import * as vscode from 'vscode';
 import { ChatMessage } from '../../providers/types';
@@ -67,6 +68,54 @@ export class ConversationManager {
    */
   getMessages(): ContextMessage[] {
     return [...this.messages];
+  }
+
+  /**
+   * Получить историю для отправки в LLM с учётом лимита токенов.
+   *
+   * Читает настройку llmAssistant.chat.maxContextTokens (по умолчанию 4096)
+   * и обрезает историю: при превышении лимита удаляются самые старые
+   * сообщения, чтобы запрос уложился в контекстное окно модели.
+   * Настройка читается при каждом вызове — изменение применяется сразу.
+   *
+   * @returns массив сообщений, не превышающий лимит токенов
+   */
+  getMessagesForRequest(): ContextMessage[] {
+    const config = vscode.workspace.getConfiguration('llmAssistant');
+    const maxTokens = config.get<number>('chat.maxContextTokens', 4096);
+
+    // Идём с конца истории (самые новые сообщения) и набираем до лимита
+    const result: ContextMessage[] = [];
+    let totalTokens = 0;
+
+    for (let i = this.messages.length - 1; i >= 0; i--) {
+      const message = this.messages[i];
+      const messageTokens = ConversationManager.estimateTokens(message.content)
+        + (message.context?.content
+          ? ConversationManager.estimateTokens(message.context.content)
+          : 0);
+
+      // Если лимит превышен и хотя бы одно сообщение уже включено — останавливаемся
+      if (totalTokens + messageTokens > maxTokens && result.length > 0) {
+        break;
+      }
+
+      totalTokens += messageTokens;
+      result.unshift(message);
+    }
+
+    return result;
+  }
+
+  /**
+   * Приблизительная оценка числа токенов в тексте.
+   * Грубая эвристика: ~4 символа на 1 токен (для кода и английского текста).
+   *
+   * @param text — текст для оценки
+   * @returns оценка числа токенов
+   */
+  private static estimateTokens(text: string): number {
+    return Math.ceil(text.length / 4);
   }
 
   /**
