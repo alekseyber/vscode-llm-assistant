@@ -24,6 +24,18 @@
     badge.className = 'token-badge';
     badge.innerHTML = `📊 ${msg.inputTokens}+${msg.outputTokens} токенов ≈ $${cost.toFixed(4)}`;
     messagesContainer.appendChild(badge);
+
+    // Индикатор заполнения контекста (4096 токенов по умолчанию)
+    const contextBar = document.getElementById('context-bar');
+    if (contextBar) {
+      contextBar.style.display = 'block';
+      const pct = Math.min(100, (msg.inputTokens / 4096) * 100);
+      contextBar.querySelector('.context-bar-fill').style.width = pct + '%';
+      contextBar.querySelector('.context-bar-text').textContent = `${msg.inputTokens} / 4096 токенов`;
+      if (pct > 80) contextBar.className = 'context-bar context-warning';
+      else contextBar.className = 'context-bar';
+    }
+
     scrollToBottom();
   }
   /** Флаг — идёт ли сейчас стриминг ответа */
