@@ -86,9 +86,15 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   }
 
   private async handleSendMessage(text: string, mode = 'chat', providerName?: string, modelName?: string): Promise<void> {
-    this.conversationManager.addMessage({ role: 'user', content: text });
-
     const config = vscode.workspace.getConfiguration('llmAssistant');
+    const isVision = !!this.pendingImage;
+
+    // Не добавляем в историю сразу если будет vision (изображение добавится вместе с текстом)
+    if (!isVision) {
+      this.conversationManager.addMessage({ role: 'user', content: text });
+    }
+
+    // Авто-контекст
     if (mode === 'agent' || config.get<boolean>('chat.includeOpenFile', true)) {
       const editor = vscode.window.activeTextEditor;
       if (editor) {
@@ -114,32 +120,37 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         ...this.conversationManager.getMessagesForHistory(),
       ];
 
-      if (mode === 'agent') {
-      await this.runAgentLoop(provider, model, messages);
-    } else {
-      // Vision: если есть изображение и провайдер поддерживает
+      // Vision: добавляем одно сообщение с текстом + изображением
       const openaiProvider = provider as any;
-      if (this.pendingImage && openaiProvider.supportsVision) {
+      if (isVision && openaiProvider.supportsVision) {
         const userMsg: any = { role: 'user', content: [
           { type: 'text', text },
-          { type: 'image_url', image_url: { url: `data:${this.pendingImage.mimeType};base64,${this.pendingImage.base64}` } }
+          { type: 'image_url', image_url: { url: `data:${this.pendingImage!.mimeType};base64,${this.pendingImage!.base64}` } }
         ]};
         messages.push(userMsg);
         this.pendingImage = null;
+
         const stream = openaiProvider.chatWithVision(messages, { model, stream: true }, this.abortController.signal);
         let full = '';
         for await (const chunk of stream) { full += chunk; this.postMessage({ type: 'streamChunk', text: chunk }); }
         this.postMessage({ type: 'done' });
+        // Сохраняем в историю после успешного ответа
+        this.conversationManager.addMessage({ role: 'user', content: text });
         this.conversationManager.addMessage({ role: 'assistant', content: full });
+        return;
+      }
+
+      this.pendingImage = null;
+
+      if (mode === 'agent') {
+        await this.runAgentLoop(provider, model, messages);
       } else {
-        this.pendingImage = null;
         const stream = provider.chat(messages, { model, stream: true }, this.abortController.signal);
         let full = '';
         for await (const chunk of stream) { full += chunk; this.postMessage({ type: 'streamChunk', text: chunk }); }
         this.postMessage({ type: 'done' });
         this.conversationManager.addMessage({ role: 'assistant', content: full });
       }
-    }
     } catch (error: any) {
       if (error.name === 'AbortError') this.postMessage({ type: 'cancelled' });
       else { this.postMessage({ type: 'error', text: `Ошибка: ${error.message}` }); console.error('[ChatViewProvider]', error); }
