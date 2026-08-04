@@ -232,7 +232,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         this.context.extensionUri, 'src', 'webviews', 'chat', 'main.js'
       );
       const markedPath = vscode.Uri.joinPath(
-        this.context.extensionUri, 'node_modules', 'marked', 'marked.min.js'
+        this.context.extensionUri, 'src', 'webviews', 'chat', 'marked.min.js'
       );
 
       let html = fs.readFileSync(htmlPath.fsPath, 'utf-8');
