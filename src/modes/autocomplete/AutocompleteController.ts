@@ -55,12 +55,9 @@ export class AutocompleteController {
     });
     this.disposables.push(configDisposable);
 
-    // Регистрируем команду переключения автокомплита
-    const toggleDisposable = vscode.commands.registerCommand(
-      'llmAssistant.autocomplete.toggle',
-      () => this.toggleAutocomplete()
-    );
-    this.disposables.push(toggleDisposable);
+    // Команда llmAssistant.autocomplete.toggle регистрируется централизованно
+    // в registerCommands.ts — здесь не дублируем, чтобы избежать ошибки
+    // "Command already exists" в VS Code extension host.
 
     // Регистрируем команду принятия предложения
     const acceptDisposable = vscode.commands.registerCommand(
@@ -297,9 +294,10 @@ ${context.suffix}
 
   /**
    * Переключить состояние автокомплита (вкл/выкл).
-   * Вызывается командой llmAssistant.autocomplete.toggle.
+   * Вызывается командой llmAssistant.autocomplete.toggle
+   * (регистрируется централизованно в registerCommands.ts).
    */
-  private toggleAutocomplete(): void {
+  public toggleAutocomplete(): void {
     const config = vscode.workspace.getConfiguration('llmAssistant');
     const current = config.get<boolean>('autocomplete.enabled', true);
     config.update('autocomplete.enabled', !current, vscode.ConfigurationTarget.Global);
