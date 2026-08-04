@@ -681,6 +681,30 @@
     postMessage({ type: 'cancelRequest' });
   });
 
+  // Поделиться с Hermes
+  const shareButton = document.getElementById('btn-share');
+  if (shareButton) {
+    shareButton.addEventListener('click', () => {
+      const msgs = [];
+      const allMessages = messagesContainer.querySelectorAll('.message');
+      allMessages.forEach(el => {
+        const role = el.querySelector('.message-role')?.textContent || '';
+        const content = el.querySelector('.message-content')?.textContent || '';
+        if (content.trim()) {
+          const prefix = role === 'Ты' ? '👤' : role === 'Ошибка' ? '⚠️' : '🤖';
+          msgs.push(`${prefix} **${role}**: ${content}`);
+        }
+      });
+      if (msgs.length === 0) return;
+      const text = `**Hermes, контекст сессии из VS Code LLM Assistant:**\n\n${msgs.join('\n\n')}`;
+      navigator.clipboard.writeText(text).then(() => {
+        const orig = shareButton.textContent;
+        shareButton.textContent = '✅';
+        setTimeout(() => shareButton.textContent = orig, 1500);
+      });
+    });
+  }
+
   // Авто-изменение высоты textarea
   messageInput.addEventListener('input', () => {
     messageInput.style.height = 'auto';
