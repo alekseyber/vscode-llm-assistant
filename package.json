@@ -3,7 +3,7 @@
   "displayName": "VS Code LLM Assistant",
   "description": "AI-ассистент: чат, редактирование, автокомплит, агентный кодинг",
   "publisher": "alekseyber",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "repository": {
     "type": "git",
     "url": "https://github.com/alekseyber/vscode-llm-assistant.git"
@@ -100,6 +100,7 @@
     "compile": "webpack --mode production",
     "watch": "webpack --mode development --watch",
     "lint": "eslint src/ test/",
+    "precommit": "npm run lint && npm run compile",
     "test": "node ./out/test/runTest.js",
     "package": "vsce package",
     "publish": "vsce publish"
