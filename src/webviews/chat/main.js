@@ -503,21 +503,24 @@
    * @param {Array<{role: string, content: string}>} messages - сообщения из истории
    */
   function restoreHistory(messages) {
-    if (!messages || messages.length === 0) return;
-
-    // Очищаем все сообщения, кроме приветственного
+    // Всегда очищаем контейнер
     const welcome = document.getElementById('welcome-message');
     messagesContainer.innerHTML = '';
     if (welcome) {
       messagesContainer.appendChild(welcome);
-      welcome.classList.remove('hidden');
     }
+
+    if (!messages || messages.length === 0) {
+      if (welcome) welcome.classList.remove('hidden');
+      return;
+    }
+
+    if (welcome) welcome.classList.remove('hidden');
 
     // Добавляем каждое сообщение
     for (const msg of messages) {
       addMessage(msg.role, msg.content);
     }
-    // Кнопки копирования для блоков кода в истории
     addCopyButtonsToCodeBlocks(messagesContainer);
     addCodeToggles(messagesContainer);
   }
