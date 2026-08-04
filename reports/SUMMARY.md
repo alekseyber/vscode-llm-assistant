@@ -7,6 +7,26 @@
 
 ---
 
+## 🚀 Релиз
+
+| Параметр | Значение |
+|----------|----------|
+| **Версия** | v0.1.0 |
+| **Статус** | ✅ Опубликовано в Marketplace |
+| **Название** | VS Code LLM Assistant |
+| **Издатель** | alekseyber |
+| **Тэг** | v0.1.0 |
+| **Ссылка** | https://marketplace.visualstudio.com/items?itemName=alekseyber.vscode-llm-assistant |
+| **Workflow** | Publish (GitHub Actions, Entra ID OIDC) — success |
+| **Авторизация** | Microsoft Entra ID + Managed Identity (`vscode-publisher`) |
+| **Отчёты** | `reports/release-0.1.0-2026-08-04_15-12.md` |
+
+**Этап «Релиз» (durable):** cronjob `baafba05ca78`, скрипт `scripts/release.py`
+- Запуск по команде: тэг → публикация → контроль логов GitHub Actions → проверка Marketplace → отчёт
+- Найденные проблемы при релизе: `@types/vscode` ^1.131.0 (не существовала) → ^1.125.0; displayName «LLM Assistant» занят → «VS Code LLM Assistant»
+
+---
+
 ## Сводка затрат
 
 | Задача | Название | Prompt | Completion | Всего | Стоимость | Статус |
@@ -55,7 +75,7 @@
 | **Общая стоимость** | ~$0.095 |
 | **Провайдер** | SiliconFlow (DeepSeek V4 Flash) |
 | **VS Code версия** | ^1.131.0 |
-| **Публикация** | Через Managed Identity + GitHub Actions |
+| **Публикация** | ✅ Опубликовано v0.1.0 (Entra ID + Managed Identity) |
 | **Время разработки** | ~8 часов (август 2026) |
 
 ---
