@@ -58,6 +58,17 @@ export interface LLMProvider {
   /** Выполнить запрос с tools (function calling) для ReAct-агента */
   createWithTools?(messages: any[], model: string, tools: any[], signal?: AbortSignal): Promise<any>;
 
+  /**
+   * Нестриминговый запрос к LLM — возвращает полный текст ответа.
+   * Используется для summary, классификации и других задач,
+   * где не нужен потоковый вывод.
+   */
+  chatComplete?(
+    messages: ChatMessage[],
+    options: CompletionOptions,
+    signal?: AbortSignal
+  ): Promise<string>;
+
   /** Получить список доступных моделей */
   models(): Promise<string[]>;
 }

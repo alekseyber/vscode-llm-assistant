@@ -35,6 +35,7 @@ const testFiles = [
   '../out/test/suite/tools.test.js',
   '../out/test/suite/context.test.js',
   '../out/test/suite/conversation.test.js',
+  '../out/test/suite/contextSummarizer.test.js',
 ];
 
 for (const file of testFiles) {

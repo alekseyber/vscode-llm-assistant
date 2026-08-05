@@ -1,11 +1,13 @@
 // Контроллер агента для Apply Mode
 // Реализует ReAct-цикл: system prompt → LLM → tool_call → execute → observe → repeat → финальный ответ
 // CancellationToken, maxIterations=20 (конфигурируется через settings)
+// Слой 04 Context Management: summary для длинных ReAct-сессий (>10 шагов)
 
 import * as vscode from 'vscode';
 import { ChatMessage, LLMProvider } from '../../providers/types';
 import { ToolSystem } from './ToolSystem';
 import { loadAgentsMd } from '../../shared/AgentsMdLoader';
+import { ContextSummarizer } from '../../shared/ContextSummarizer';
 
 /**
  * Системный промпт для ReAct-агента (из PLAN.md, секция «System Prompt для ReAct-агента»).
@@ -99,10 +101,16 @@ export interface AgentResult {
  *    c. Если финальный ответ → возвращает результат
  * 4. CancellationToken для отмены пользователем
  * 5. WebView-лог через onStep callback
+ * 6. Слой 04: если шагов > 10 и история большая — сжимает первые шаги в summary
  */
 export class AgentController {
   /** Реестр инструментов */
   private readonly toolSystem: ToolSystem;
+  /** Суммаризатор для сжатия длинной истории */
+  private readonly summarizer: ContextSummarizer = new ContextSummarizer();
+
+  /** Порог шагов, после которого запускается summary */
+  private static readonly SUMMARY_STEP_THRESHOLD = 10;
 
   constructor(toolSystem: ToolSystem) {
     this.toolSystem = toolSystem;
@@ -121,6 +129,13 @@ export class AgentController {
       steps.push(step);
       options.onStep?.(step);
     };
+
+    // Читаем настройки summary
+    const config = vscode.workspace.getConfiguration('llmAssistant');
+    const summaryEnabled = config.get<boolean>('chat.summaryEnabled', true);
+    const summaryModel = config.get<string>('chat.summaryModel', '') ||
+      config.get<string>('agent.model', '') ||
+      options.model;
 
     emit({ iteration: 0, type: 'info', message: `Агент запущен. Максимум шагов: ${maxIterations}` });
 
@@ -142,6 +157,8 @@ export class AgentController {
     ];
 
     let iterations = 0;
+    /** Было ли уже применено summary (только один раз за сессию) */
+    let summaryApplied = false;
 
     try {
       for (let i = 1; i <= maxIterations; i++) {
@@ -157,6 +174,19 @@ export class AgentController {
             limitExceeded: false,
             cancelled: true,
           };
+        }
+
+        // --- Слой 04: Summary для длинных ReAct-сессий ---
+        // Если шагов > порога, история большая, и summary ещё не применялось —
+        // сжимаем первые N шагов в summary и вставляем как системное сообщение
+        if (
+          summaryEnabled &&
+          !summaryApplied &&
+          i > AgentController.SUMMARY_STEP_THRESHOLD &&
+          messages.length > AgentController.SUMMARY_STEP_THRESHOLD * 2
+        ) {
+          await this.applySummary(messages, options, summaryModel, emit);
+          summaryApplied = true;
         }
 
         emit({ iteration: i, type: 'info', message: `Шаг ${i}: запрос к LLM...` });
@@ -225,6 +255,72 @@ export class AgentController {
         limitExceeded: false,
         cancelled: false,
       };
+    }
+  }
+
+  /**
+   * Сжать первые N шагов ReAct-истории в summary и заменить их.
+   * Оставляет system-сообщение, вставляет summary вторым сообщением,
+   * и сохраняет последние несколько шагов для контекста.
+   */
+  private async applySummary(
+    messages: ChatMessage[],
+    options: AgentRunOptions,
+    summaryModel: string,
+    emit: (step: AgentStep) => void,
+  ): Promise<void> {
+    try {
+      // Берём первые шаги (пропускаем system + user task)
+      // Индексы: 0 = system, 1 = user task, 2+ = диалог агента
+      const keepRecent = 6; // Оставляем последние 3 пары (assistant + user)
+      const totalToKeep = 2 + keepRecent; // system + task + recent
+
+      if (messages.length <= totalToKeep) {
+        return; // Недостаточно сообщений для сжатия
+      }
+
+      const messagesToCompress = messages.slice(2, messages.length - keepRecent);
+
+      if (messagesToCompress.length === 0) {
+        return;
+      }
+
+      emit({
+        iteration: 0,
+        type: 'info',
+        message: `Сжатие истории ReAct (${messagesToCompress.length} сообщений) в summary...`,
+      });
+
+      const summary = await this.summarizer.summarizeMessages(
+        messagesToCompress,
+        options.provider,
+        summaryModel,
+      );
+
+      if (summary) {
+        // Заменяем историю: system + summary + последние шаги
+        const systemMsg = messages[0];
+        const taskMsg = messages[1];
+        const recentMessages = messages.slice(messages.length - keepRecent);
+
+        // Очищаем и пересобираем массив
+        messages.length = 0;
+        messages.push(systemMsg);
+        messages.push({
+          role: 'system' as const,
+          content: `## Краткое содержание предыдущих шагов:\n${summary}`,
+        });
+        messages.push(taskMsg);
+        messages.push(...recentMessages);
+
+        emit({
+          iteration: 0,
+          type: 'info',
+          message: `История сжата: оставлено ${messages.length} сообщений`,
+        });
+      }
+    } catch {
+      // Если сжатие не удалось — продолжаем без него
     }
   }
 

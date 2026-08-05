@@ -49,4 +49,19 @@ export class OpenAIProvider extends BaseProvider {
       model, messages, tools: tools as any, tool_choice: 'auto',
     }, { signal });
   }
+
+  /**
+   * Нестриминговый запрос к LLM — возвращает полный текст ответа.
+   * Используется для summary (сжатия истории) и других задач без стриминга.
+   */
+  async chatComplete(messages: ChatMessage[], options: CompletionOptions, signal?: AbortSignal): Promise<string> {
+    const response = await this.client.chat.completions.create({
+      model: options.model,
+      messages: messages.map(m => ({ role: m.role, content: m.content })),
+      temperature: options.temperature ?? 0.3,
+      max_tokens: options.maxTokens ?? 2048,
+      stream: false,
+    }, { signal });
+    return response.choices?.[0]?.message?.content ?? '';
+  }
 }

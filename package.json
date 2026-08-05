@@ -116,6 +116,21 @@
           "default": true,
           "description": "Автоматически прикреплять содержимое открытого файла к запросу"
         },
+        "llmAssistant.chat.summaryEnabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Включить сжатие обрезанной истории в summary при переполнении контекста"
+        },
+        "llmAssistant.chat.summaryModel": {
+          "type": "string",
+          "default": "",
+          "description": "Модель для генерации summary (по умолчанию — текущая модель чата)"
+        },
+        "llmAssistant.chat.summaryTriggerTokens": {
+          "type": "number",
+          "default": 2048,
+          "description": "Минимальное количество токенов обрезанных сообщений для запуска summarization"
+        },
         "llmAssistant.chat.agentSystemPrompt": {
           "type": "string",
           "default": "Ты — AI-агент в VS Code. Инструменты: list_files, search_files, read_file, write_file, replace_in_file, run_terminal. Для изучения: list_files → search_files → read_file. Для запуска: run_terminal. Отвечай кратко, по-русски.",
