@@ -253,7 +253,7 @@
   "scripts": {
     "compile": "webpack --mode production",
     "watch": "webpack --mode development --watch",
-    "lint": "eslint src/ test/",
+    "lint": "eslint src/ test/ --ext .ts",
     "precommit": "npm run lint && npm run compile",
     "test": "node ./out/test/runTest.js",
     "test:mocked": "node test/run-mocked.js",

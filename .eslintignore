@@ -1,0 +1,7 @@
+out/
+dist/
+node_modules/
+.vscode-test/
+src/webviews/**/*.js
+test/run-mocked.js
+*.js.map
