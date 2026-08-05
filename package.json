@@ -225,7 +225,10 @@
           "description": "MCP-серверы для подключения. Каждый сервер: { name, command, args?, env? }",
           "items": {
             "type": "object",
-            "required": ["name", "command"],
+            "required": [
+              "name",
+              "command"
+            ],
             "properties": {
               "name": {
                 "type": "string",
@@ -237,7 +240,9 @@
               },
               "args": {
                 "type": "array",
-                "items": { "type": "string" },
+                "items": {
+                  "type": "string"
+                },
                 "description": "Аргументы командной строки"
               },
               "env": {
@@ -284,5 +289,10 @@
     "highlight.js": "^11.x",
     "marked": "^12.x",
     "openai": "^4.x"
+  },
+  "mocha": {
+    "ui": "tdd",
+    "timeout": 10000,
+    "color": true
   }
 }
