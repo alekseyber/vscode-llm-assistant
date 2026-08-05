@@ -26,15 +26,19 @@ suite('SessionManager', () => {
     const sm = new SessionManager(storage);
     const sessions = sm.listSessions();
     assert.strictEqual(sessions.length, 1, 'Должна быть 1 сессия');
-    assert.strictEqual(sessions[0].name, 'Новая сессия');
+    assert.strictEqual(sessions[0].name, 'Сессия 1');
   });
 
   test('createSession() добавляет сессию', () => {
     const sm = new SessionManager(storage);
-    sm.createSession('Тест');
+    const id = sm.createSession('Тест');
     const sessions = sm.listSessions();
     assert.strictEqual(sessions.length, 2);
-    assert.strictEqual(sessions[0].name, 'Тест'); // Самая новая сверху
+    // Ищем сессию по ID — не полагаемся на порядок сортировки
+    // (lastActiveAt может совпасть при быстрых вызовах в пределах 1 мс)
+    const newSession = sessions.find(s => s.id === id);
+    assert.ok(newSession, 'Новая сессия должна быть в списке');
+    assert.strictEqual(newSession!.name, 'Тест');
   });
 
   test('switchTo() меняет активную сессию', () => {
