@@ -141,6 +141,23 @@
           "default": 20,
           "description": "Максимум шагов агента"
         },
+        "llmAssistant.apply.allowedTools": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["read_file", "write_file", "replace_in_file", "patch_file", "list_files", "search_files", "run_terminal"]
+          },
+          "default": [],
+          "description": "Список разрешённых инструментов агента. Пустой массив = все инструменты разрешены."
+        },
+        "llmAssistant.apply.requireConfirmation": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": ["write_file", "replace_in_file", "run_terminal"],
+          "description": "Инструменты, требующие подтверждения пользователя перед выполнением"
+        },
         "llmAssistant.agent.model": {
           "type": "string",
           "default": "gpt-4o",

@@ -7,6 +7,7 @@ import { ConversationManager } from './ConversationManager';
 import { ChatMessage } from '../../providers/types';
 import { getToolSchemas, getTool } from './ChatAgentTools';
 import { loadAgentsMd } from '../../shared/AgentsMdLoader';
+import { loadToolAllowListConfig, isConfirmationRequired } from '../apply/ToolAllowList';
 
 export class ChatViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = 'llmAssistant.chat';
@@ -173,8 +174,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   private async runAgentLoop(provider: any, model: string, messages: any[], onRetry?: (attempt: number, maxRetries: number, delayMs: number, errorMsg: string) => void): Promise<void> {
     const MAX_ITER = 5;
     const tools = getToolSchemas();
-    const config = vscode.workspace.getConfiguration('llmAssistant');
-    const requireConfirmation = config.get<boolean>('agent.requireConfirmation', true);
+    const allowListConfig = loadToolAllowListConfig();
 
     for (let i = 0; i < MAX_ITER; i++) {
       if (this.abortController?.signal.aborted) break;
@@ -203,10 +203,9 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         }
 
         const args = JSON.parse(tc.function.arguments);
-        const isDangerous = tc.function.name === 'write_file' || tc.function.name === 'replace_in_file';
 
-        // Запрос подтверждения для опасных операций
-        if (isDangerous && requireConfirmation) {
+        // Запрос подтверждения через allow-list конфигурацию
+        if (isConfirmationRequired(tc.function.name, allowListConfig)) {
           const approved = await this.requestConfirmation(tc.function.name, args);
           if (!approved) {
             messages.push({ role: 'tool', tool_call_id: tc.id, content: 'Операция отклонена пользователем.' });

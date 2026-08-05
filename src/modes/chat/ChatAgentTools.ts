@@ -5,6 +5,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { exec } from 'child_process';
 import { TextDecoder, TextEncoder } from 'util';
+import { getAllowedTools, loadToolAllowListConfig } from '../apply/ToolAllowList';
 
 export interface ChatTool {
   name: string;
@@ -210,9 +211,15 @@ const runTerminalTool: ChatTool = {
 
 export const CHAT_AGENT_TOOLS: ChatTool[] = [readFileTool, writeFileTool, replaceInFileTool, listFilesTool, searchFilesTool, runTerminalTool];
 
-/** OpenAI function calling формат */
+/** Получить отфильтрованные по allow-list инструменты */
+function getAllowedChatTools(): ChatTool[] {
+  const config = loadToolAllowListConfig();
+  return getAllowedTools(CHAT_AGENT_TOOLS, config);
+}
+
+/** OpenAI function calling формат (с учётом allow-list) */
 export function getToolSchemas(): Array<Record<string, unknown>> {
-  return CHAT_AGENT_TOOLS.map(t => ({
+  return getAllowedChatTools().map(t => ({
     type: 'function' as const,
     function: {
       name: t.name,
@@ -222,6 +229,7 @@ export function getToolSchemas(): Array<Record<string, unknown>> {
   }));
 }
 
+/** Получить инструмент по имени (только если он в allow-list) */
 export function getTool(name: string): ChatTool | undefined {
-  return CHAT_AGENT_TOOLS.find(t => t.name === name);
+  return getAllowedChatTools().find(t => t.name === name);
 }

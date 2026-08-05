@@ -18,6 +18,7 @@ import { AutocompleteController } from '../modes/autocomplete/AutocompleteContro
 import { AgentController } from '../modes/apply/AgentController';
 import { ToolSystem } from '../modes/apply/ToolSystem';
 import { createTools } from '../modes/apply/ToolDefinitions';
+import { getAllowedTools, loadToolAllowListConfig } from '../modes/apply/ToolAllowList';
 
 /**
  * Зависимости, необходимые для регистрации команд.
@@ -241,8 +242,12 @@ async function startApplyMode(
   outputChannel.appendLine(`[INFO] Провайдер: ${providerName}, модель: ${model}, maxIterations: ${maxIterations}`);
 
   // Создаём систему инструментов и агента (ReAct-цикл)
+  // Применяем allow-list: фильтруем инструменты по настройкам
   const toolSystem = new ToolSystem();
-  toolSystem.registerAll(createTools());
+  const allTools = createTools();
+  const allowListConfig = loadToolAllowListConfig();
+  const allowedTools = getAllowedTools(allTools, allowListConfig);
+  toolSystem.registerAll(allowedTools);
   const agentController = new AgentController(toolSystem);
 
   // AbortController для отмены агента пользователем

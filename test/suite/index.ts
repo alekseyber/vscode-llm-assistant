@@ -21,6 +21,7 @@ const testModules: string[] = [
   './agentsMd.test',
   './contextSummarizer.test',
   './retryHandler.test',
+  './toolAllowList.test',
 ];
 
 /**
