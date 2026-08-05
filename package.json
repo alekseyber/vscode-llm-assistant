@@ -145,7 +145,15 @@
           "type": "array",
           "items": {
             "type": "string",
-            "enum": ["read_file", "write_file", "replace_in_file", "patch_file", "list_files", "search_files", "run_terminal"]
+            "enum": [
+              "read_file",
+              "write_file",
+              "replace_in_file",
+              "patch_file",
+              "list_files",
+              "search_files",
+              "run_terminal"
+            ]
           },
           "default": [],
           "description": "Список разрешённых инструментов агента. Пустой массив = все инструменты разрешены."
@@ -155,7 +163,11 @@
           "items": {
             "type": "string"
           },
-          "default": ["write_file", "replace_in_file", "run_terminal"],
+          "default": [
+            "write_file",
+            "replace_in_file",
+            "run_terminal"
+          ],
           "description": "Инструменты, требующие подтверждения пользователя перед выполнением"
         },
         "llmAssistant.agent.model": {
@@ -197,6 +209,34 @@
           "type": "object",
           "default": {},
           "description": "Настройки провайдеров (baseUrl, apiKey, models)"
+        },
+        "llmAssistant.mcp.servers": {
+          "type": "array",
+          "default": [],
+          "description": "MCP-серверы для подключения. Каждый сервер: { name, command, args?, env? }",
+          "items": {
+            "type": "object",
+            "required": ["name", "command"],
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "Уникальное имя сервера (используется как префикс для инструментов)"
+              },
+              "command": {
+                "type": "string",
+                "description": "Команда для запуска (npx, node, python, etc.)"
+              },
+              "args": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Аргументы командной строки"
+              },
+              "env": {
+                "type": "object",
+                "description": "Переменные окружения для процесса сервера"
+              }
+            }
+          }
         }
       }
     }
@@ -207,10 +247,12 @@
     "lint": "eslint src/ test/",
     "precommit": "npm run lint && npm run compile",
     "test": "node ./out/test/runTest.js",
+    "test:mocked": "node test/run-mocked.js",
     "package": "vsce package",
     "publish": "vsce publish"
   },
   "devDependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "@types/mocha": "^10.x",
     "@types/node": "^20.x",
     "@types/sinon": "^17.x",

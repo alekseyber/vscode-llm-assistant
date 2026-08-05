@@ -22,6 +22,7 @@ const testModules: string[] = [
   './contextSummarizer.test',
   './retryHandler.test',
   './toolAllowList.test',
+  './mcpClient.test',
 ];
 
 /**
