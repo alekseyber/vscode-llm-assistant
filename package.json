@@ -136,6 +136,11 @@
           "default": true,
           "description": "Запрашивать подтверждение перед записью/изменением файлов"
         },
+        "llmAssistant.agentsMd.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Автоматически добавлять AGENTS.md из корня workspace в system prompt агента и чата"
+        },
         "llmAssistant.debug": {
           "type": "boolean",
           "default": false,

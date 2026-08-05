@@ -4,6 +4,7 @@
 import * as vscode from 'vscode';
 import { ChatMessage } from '../../providers/types';
 import { SessionManager } from './SessionManager';
+import { loadAgentsMd } from '../../shared/AgentsMdLoader';
 
 /** Контекст кода */
 export interface CodeContext {
@@ -36,11 +37,17 @@ export class ConversationManager {
     return this.sessionManager.getMessages();
   }
 
-  /** Сообщения для отправки в LLM: system prompt + история + контекст */
-  getMessagesForRequest(): ChatMessage[] {
+  /** Сообщения для отправки в LLM: system prompt + AGENTS.md + история + контекст */
+  async getMessagesForRequest(): Promise<ChatMessage[]> {
     const config = vscode.workspace.getConfiguration('llmAssistant');
     const maxTokens = config.get<number>('chat.maxContextTokens', 4096);
-    const systemPrompt = config.get<string>('chat.systemPrompt', '');
+    let systemPrompt = config.get<string>('chat.systemPrompt', '');
+
+    // Автоинжект AGENTS.md (слой 01 System Policy)
+    const agentsMd = await loadAgentsMd();
+    if (agentsMd) {
+      systemPrompt += `\n\n## Правила проекта (AGENTS.md):\n${agentsMd}`;
+    }
 
     const systemMessage: ChatMessage = { role: 'system', content: systemPrompt };
     const history = this.buildHistoryMessages(maxTokens, this.estimateTokens(systemPrompt));

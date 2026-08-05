@@ -175,7 +175,7 @@ export class ChatPanel {
 
     try {
       // Отправляем историю в LLM (с учётом лимита токенов из настроек)
-      const messages: ChatMessage[] = this.conversationManager.getMessagesForRequest();
+      const messages: ChatMessage[] = await this.conversationManager.getMessagesForRequest();
       const stream = provider.chat(
         messages,
         { model, stream: true },

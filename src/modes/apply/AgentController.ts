@@ -5,6 +5,7 @@
 import * as vscode from 'vscode';
 import { ChatMessage, LLMProvider } from '../../providers/types';
 import { ToolSystem } from './ToolSystem';
+import { loadAgentsMd } from '../../shared/AgentsMdLoader';
 
 /**
  * Системный промпт для ReAct-агента (из PLAN.md, секция «System Prompt для ReAct-агента»).
@@ -124,9 +125,15 @@ export class AgentController {
     emit({ iteration: 0, type: 'info', message: `Агент запущен. Максимум шагов: ${maxIterations}` });
 
     // Формируем системный промпт с подстановкой лимита и описания инструментов
-    const systemPrompt = SYSTEM_PROMPT_TEMPLATE
+    let systemPrompt = SYSTEM_PROMPT_TEMPLATE
       .replace('{maxIterations}', String(maxIterations))
       .replace('{toolsDescription}', this.toolSystem.getToolsDescription());
+
+    // Автоинжект AGENTS.md (слой 01 System Policy)
+    const agentsMd = await loadAgentsMd();
+    if (agentsMd) {
+      systemPrompt += `\n\n## Правила проекта (AGENTS.md):\n${agentsMd}`;
+    }
 
     // История сообщений для LLM: system + user
     const messages: ChatMessage[] = [

@@ -148,7 +148,7 @@ suite('ConversationManager', () => {
     assert.strictEqual(messages[0].context, undefined, 'Assistant сообщение не должно иметь контекста');
   });
 
-  test('getMessagesForRequest() возвращает последние сообщения в лимите токенов', () => {
+  test('getMessagesForRequest() возвращает последние сообщения в лимите токенов', async () => {
     // Добавляем несколько сообщений
     manager.addMessage(createMessage('user', 'Первое сообщение'));
     manager.addMessage(createMessage('assistant', 'Первый ответ'));
@@ -156,12 +156,12 @@ suite('ConversationManager', () => {
     manager.addMessage(createMessage('assistant', 'Второй ответ'));
     manager.addMessage(createMessage('user', 'Третий запрос'));
 
-    const messages = manager.getMessagesForRequest();
+    const messages = await manager.getMessagesForRequest();
 
-    // Должны быть все 5 сообщений (они короткие, не превышают лимит)
-    assert.strictEqual(messages.length, 5);
-    assert.strictEqual(messages[0].content, 'Первое сообщение');
-    assert.strictEqual(messages[4].content, 'Третий запрос');
+    // Должны быть system message + 5 сообщений = 6
+    assert.strictEqual(messages.length, 6);
+    assert.strictEqual(messages[1].content, 'Первое сообщение');
+    assert.strictEqual(messages[5].content, 'Третий запрос');
   });
 
   test('constructor() загружает сохранённую историю из хранилища', () => {
@@ -203,7 +203,7 @@ suite('ConversationManager', () => {
     assert.strictEqual(messages[99].content, 'Сообщение 104');
   });
 
-  test('getMessagesForRequest() учитывает контекст кода в оценке токенов', () => {
+  test('getMessagesForRequest() учитывает контекст кода в оценке токенов', async () => {
     // Создаём сообщение с большим контекстом кода
     const largeCodeContext: CodeContext = {
       filePath: '/test/large.ts',
@@ -230,7 +230,7 @@ suite('ConversationManager', () => {
     manager2.addMessage(createMessage('user', 'Что делает этот код?', largeCodeContext));
     manager2.addMessage(createMessage('assistant', 'Короткий ответ.'));
 
-    const messages = manager2.getMessagesForRequest();
+    const messages = await manager2.getMessagesForRequest();
 
     // Должно быть только последнее сообщение, т.к. контекст кода большой
     assert.strictEqual(messages.length, 1, 'Должно остаться только последнее сообщение');
