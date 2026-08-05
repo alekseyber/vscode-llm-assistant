@@ -1,94 +1,165 @@
-# VS Code LLM Assistant v0.5.3
+# VS Code LLM Assistant v0.6.0
 
 **AI-ассистент для VS Code** — 4 режима работы с LLM через любые OpenAI-совместимые API.
 
 | Режим | Клавиши | Назначение |
 |-------|---------|-----------|
-| 💬 **Chat** | `Ctrl+Shift+L` | Боковая панель чата с контекстом кода |
+| 💬 **Chat** | Боковая панель | Чат с контекстом кода, стриминг, история |
 | ✏️ **Edit** | `Ctrl+I` | Выделил код → инструкция → diff → Accept/Reject |
 | ⚡ **Autocomplete** | Tab/Escape | Ghost text на паузе печати |
-| 🤖 **Agent** | Вкладка в чате | ReAct-агент с 6 инструментами |
+| 🤖 **Agent** | Вкладка в чате | ReAct-агент с инструментами и MCP |
 
-## Возможности
+## Возможности v0.6.0
 
+### 🏗 Harness-слои агента
+- **AGENTS.md автоинжект** — правила проекта из `AGENTS.md` в корне workspace автоматически добавляются в system prompt
+- **Context Summary** — при переполнении контекста старые сообщения сжимаются в summary
+- **Ретраи + таймауты** — exponential backoff при 429/5xx/сетевых ошибках, настраиваемый таймаут
+- **Allow-list инструментов** — ограничение доступных агенту инструментов через настройки или `.vscode/llm-assistant.json`
+- **MCP-клиент** — подключение внешних инструментов через Model Context Protocol (stdio-серверы)
+- **Run History Dashboard** — вкладка «История» с таблицей всех запусков, фильтром и деталями
+
+### Существующие возможности
 - **Мульти-провайдер**: DeepSeek, Hermes, SiliconFlow, OpenAI и любые OpenAI-совместимые API
 - **6 инструментов агента**: `list_files`, `search_files`, `read_file`, `write_file`, `replace_in_file`, `run_terminal`
-- **Подтверждение операций**: git-diff диалог перед записью/изменением файлов
+- **Подтверждение операций**: диалог подтверждения перед записью/изменением файлов
 - **Vision**: анализ изображений через Qwen3-VL (SiliconFlow)
-- **Сессии**: авто-именование, переключение, удаление, переименование
+- **Сессии**: авто-именование, переключение, удаление, переименование, сохранение между сессиями VS Code
+- **Индикатор контекста**: полоска заполнения с цветовой индикацией (синяя <80%, оранжевая >80%, красная пульсирующая >100%)
 - **Стоимость токенов**: отображение после каждого ответа
-- **Индикатор контекста**: полоска заполнения контекстного окна
 - **Быстрые действия**: 🔧 Исправить, 💡 Объяснить, ⚡ Оптимизировать
-- **Сворачивание кода**: блоки кода с кнопкой ▼/▶
-- **Экспорт сессии**: сохранение в .md
+- **Экспорт сессии**: сохранение в .md и копирование в буфер
 - **Интеграция с Hermes**: кнопка «Поделиться» для передачи контекста
+- **Дебаг-режим**: подробное логирование system prompt и запросов в Output Channel
 
-## Конфигурация провайдеров
+---
 
-Поддерживаются любые OpenAI-совместимые API. Настройка в `settings.json` VS Code:
+## Полная конфигурация
+
+Все настройки в `settings.json` VS Code (User или Workspace).
+
+### Провайдеры (`llmAssistant.providers`)
 
 ```json
 {
   "llmAssistant.providers": {
-    "deepseek": {
-      "baseUrl": "https://api.deepseek.com/v1",
-      "apiKey": "${DEEPSEEK_API_KEY}",
-      "models": ["deepseek-chat"]
-    },
-    "vision": {
-      "baseUrl": "https://api.siliconflow.com/v1",
-      "apiKey": "${SILICON_FLOW_AI_API_KEY}",
-      "models": ["Qwen/Qwen3-VL-32B-Instruct"],
-      "supportsVision": true
-    },
-    "hermes": {
-      "baseUrl": "https://hermes-ai-api.alexfdev.ru/v1",
-      "apiKey": "***",
-      "models": ["deepseek-v4-pro"],
-      "systemPrompt": "Кастомный промпт для этого провайдера"
+    "my-provider": {
+      "baseUrl": "https://api.example.com/v1",
+      "apiKey": "${API_KEY}",
+      "models": ["model-name-1", "model-name-2"],
+      "supportsVision": false,
+      "systemPrompt": "Опциональный кастомный промпт"
     }
-  },
-  "llmAssistant.defaultProvider": "deepseek",
-  "llmAssistant.defaultModel": "deepseek-chat"
+  }
 }
 ```
 
-- `apiKey` поддерживает `${ENV_VAR}` — подстановку из переменных окружения
-- `supportsVision: true` — для vision-моделей (изображения)
-- `systemPrompt` — кастомный промпт для конкретного провайдера
+| Поле | Тип | Описание |
+|------|-----|----------|
+| `baseUrl` | string | URL API (OpenAI-совместимый) |
+| `apiKey` | string | Ключ API. Поддерживает `${ENV_VAR}` |
+| `models` | string[] | Список доступных моделей |
+| `supportsVision` | boolean | `true` для vision-моделей (изображения) |
+| `systemPrompt` | string | Кастомный промпт для этого провайдера |
 
-## Настройки
+### Основные настройки
 
-| Ключ | По умолчанию | Описание |
-|------|-------------|----------|
-| `llmAssistant.defaultProvider` | `"openai"` | Провайдер по умолчанию |
-| `llmAssistant.defaultModel` | `"gpt-4o"` | Модель по умолчанию |
-| `llmAssistant.chat.maxContextTokens` | 4096 | Максимум токенов контекста |
-| `llmAssistant.chat.systemPrompt` | (текст) | Системный промпт для чата |
-| `llmAssistant.chat.agentSystemPrompt` | (текст) | Системный промпт для агента |
-| `llmAssistant.chat.includeOpenFile` | `true` | Прикреплять открытый файл к запросу |
-| `llmAssistant.agent.requireConfirmation` | `true` | Запрашивать подтверждение перед записью |
-| `llmAssistant.autocomplete.enabled` | `true` | Включить автокомплит |
-| `llmAssistant.autocomplete.debounceMs` | 500 | Задержка перед запросом (мс) |
+| Ключ | Тип | По умолчанию | Описание |
+|------|-----|-------------|----------|
+| `llmAssistant.defaultProvider` | string | `"openai"` | Провайдер по умолчанию |
+| `llmAssistant.defaultModel` | string | `"gpt-4o"` | Модель по умолчанию |
+| `llmAssistant.debug` | boolean | `false` | Дебаг-логирование в Output Channel `LLM Assistant` |
+
+### Чат (`llmAssistant.chat`)
+
+| Ключ | Тип | По умолчанию | Описание |
+|------|-----|-------------|----------|
+| `chat.systemPrompt` | string | `"Ты — AI-ассистент..."` | Системный промпт для чата |
+| `chat.agentSystemPrompt` | string | `"Ты — AI-агент..."` | Системный промпт для агента |
+| `chat.maxContextTokens` | number | `4096` | Максимум токенов контекста |
+| `chat.includeOpenFile` | boolean | `true` | Прикреплять открытый файл к запросу |
+| `chat.summaryEnabled` | boolean | `true` | Включить summary при переполнении |
+| `chat.summaryModel` | string | `""` (текущая) | Модель для генерации summary |
+| `chat.summaryTriggerTokens` | number | `256` | Порог токенов для запуска summary |
+
+### AGENTS.md (`llmAssistant.agentsMd`)
+
+| Ключ | Тип | По умолчанию | Описание |
+|------|-----|-------------|----------|
+| `agentsMd.enabled` | boolean | `true` | Автоинжект AGENTS.md из корня workspace |
+
+### Ретраи (`llmAssistant.retry`)
+
+| Ключ | Тип | По умолчанию | Описание |
+|------|-----|-------------|----------|
+| `retry.enabled` | boolean | `true` | Включить ретраи |
+| `retry.maxRetries` | number | `3` | Максимум повторных попыток |
+| `retry.requestTimeout` | number | `60` | Таймаут запроса (секунды) |
+
+### Агент / Allow-list (`llmAssistant.apply`)
+
+| Ключ | Тип | По умолчанию | Описание |
+|------|-----|-------------|----------|
+| `apply.allowedTools` | string[] | `[]` (все) | Список разрешённых инструментов |
+| `apply.requireConfirmation` | string[] | `["write_file","replace_in_file","run_terminal"]` | Инструменты, требующие подтверждения |
+
+**Возможные значения для `allowedTools`:** `read_file`, `write_file`, `replace_in_file`, `list_files`, `search_files`, `run_terminal`, `patch_file`
+
+**Приоритет конфигурации:** `.vscode/llm-assistant.json` (workspace) > глобальные настройки VS Code.
+
+Пример `.vscode/llm-assistant.json`:
+```json
+{
+  "allowedTools": ["read_file", "search_files"],
+  "requireConfirmation": ["run_terminal"]
+}
+```
+
+### MCP (`llmAssistant.mcp`)
+
+| Ключ | Тип | По умолчанию | Описание |
+|------|-----|-------------|----------|
+| `mcp.servers` | object[] | `[]` | Список MCP-серверов |
+
+**Формат сервера:**
+```json
+{
+  "name": "filesystem",
+  "command": "npx",
+  "args": ["-y", "@modelcontextprotocol/server-filesystem", "/path/to/dir"],
+  "env": { "VAR": "value" },
+  "enabled": true
+}
+```
+
+| Поле | Тип | Описание |
+|------|-----|----------|
+| `name` | string | Уникальное имя сервера |
+| `command` | string | Исполняемый файл (npx, node, python) |
+| `args` | string[] | Аргументы командной строки |
+| `env` | object | Переменные окружения |
+| `enabled` | boolean | `false` чтобы временно отключить без удаления |
+
+### Автокомплит (`llmAssistant.autocomplete`)
+
+| Ключ | Тип | По умолчанию | Описание |
+|------|-----|-------------|----------|
+| `autocomplete.enabled` | boolean | `true` | Включить автокомплит |
+| `autocomplete.debounceMs` | number | `500` | Задержка перед запросом (мс) |
+
+---
 
 ## Разработка
 
 - **Стек:** TypeScript, VS Code Extension API, WebView, Webpack
-- **Тесты:** Mocha + Sinon, GitHub Actions CI
+- **Тесты:** Mocha + Sinon (187 тестов), GitHub Actions CI
 - **Репозиторий:** github.com/alekseyber/vscode-llm-assistant
-
-### Запуск дебага
 
 ```bash
 npm install
-npm run compile
-# VS Code → F5 → Extension Development Host
-```
-
-### Запуск тестов
-
-```bash
-npm test  # внутри VS Code
+npm run compile        # Сборка
+npm run test:mocked    # Тесты без VS Code
+npm run lint           # Линтер
 ```
 
 ## Лицензия

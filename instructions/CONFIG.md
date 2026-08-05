@@ -1,0 +1,140 @@
+# Инструкция по установке и настройке VS Code LLM Assistant v0.6.0
+
+## Установка
+
+### Из Marketplace
+```
+code --install-extension alekseyber.vscode-llm-assistant
+```
+
+### Из .vsix (ручная)
+```
+code --install-extension vscode-llm-assistant-0.6.0.vsix
+```
+
+## Быстрый старт
+
+1. Открой VS Code → Settings (`Cmd/Ctrl + ,`)
+2. Добавь конфигурацию провайдера в `settings.json`
+3. Открой чат: иконка плагина в Activity Bar → 💬 Чат
+4. Напиши сообщение — готово
+
+## Минимальная конфигурация
+
+```json
+{
+  "llmAssistant.providers": {
+    "deepseek": {
+      "baseUrl": "https://api.deepseek.com/v1",
+      "apiKey": "sk-your-key",
+      "models": ["deepseek-chat"]
+    }
+  },
+  "llmAssistant.defaultProvider": "deepseek",
+  "llmAssistant.defaultModel": "deepseek-chat"
+}
+```
+
+## Рекомендуемая конфигурация
+
+```json
+{
+  "llmAssistant.providers": {
+    "deepseek": {
+      "baseUrl": "https://api.deepseek.com/v1",
+      "apiKey": "${DEEPSEEK_API_KEY}",
+      "models": ["deepseek-chat"]
+    },
+    "siliconflow": {
+      "baseUrl": "https://api.siliconflow.com/v1",
+      "apiKey": "${SF_API_KEY}",
+      "models": ["deepseek-ai/DeepSeek-V4-Flash-0731"]
+    },
+    "vision": {
+      "baseUrl": "https://api.siliconflow.com/v1",
+      "apiKey": "${SF_API_KEY}",
+      "models": ["Qwen/Qwen3-VL-32B-Instruct"],
+      "supportsVision": true
+    }
+  },
+  "llmAssistant.defaultProvider": "siliconflow",
+  "llmAssistant.defaultModel": "deepseek-ai/DeepSeek-V4-Flash-0731",
+  "llmAssistant.chat.maxContextTokens": 4096,
+  "llmAssistant.chat.summaryEnabled": true,
+  "llmAssistant.chat.summaryTriggerTokens": 256,
+  "llmAssistant.retry.enabled": true,
+  "llmAssistant.retry.maxRetries": 3,
+  "llmAssistant.retry.requestTimeout": 60,
+  "llmAssistant.apply.requireConfirmation": ["write_file", "run_terminal"],
+  "llmAssistant.autocomplete.enabled": true,
+  "llmAssistant.agentsMd.enabled": true,
+  "llmAssistant.debug": false
+}
+```
+
+## AGENTS.md
+
+Создай файл `AGENTS.md` в корне проекта. Его содержимое будет автоматически добавлено в system prompt:
+
+```markdown
+## Правила
+- Всегда отвечай с эмодзи 🚀
+- Называй меня «Капитан»
+- Комментарии в коде — на русском
+```
+
+Отключение: `"llmAssistant.agentsMd.enabled": false`
+
+## MCP-серверы
+
+Пример подключения filesystem-сервера:
+
+```json
+{
+  "llmAssistant.mcp.servers": [
+    {
+      "name": "filesystem",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/path/to/project"],
+      "enabled": true
+    }
+  ]
+}
+```
+
+Временное отключение: `"enabled": false`
+
+## Allow-list инструментов
+
+Ограничение доступных агенту инструментов (глобально):
+```json
+{ "llmAssistant.apply.allowedTools": ["read_file", "search_files"] }
+```
+
+Ограничение для конкретного проекта (`.vscode/llm-assistant.json`):
+```json
+{ "allowedTools": ["read_file"], "requireConfirmation": [] }
+```
+
+## Режимы работы
+
+| Режим | Как активировать |
+|-------|-----------------|
+| 💬 Чат | Боковая панель, селект «💬 Чат» |
+| 🤖 Агент | Селект «🤖 Агент» (требует провайдера с function calling) |
+| ✏️ Edit | `Ctrl+I` на выделенном коде |
+| ⚡ Autocomplete | Пауза при печати |
+
+## Дебаг
+
+Включи `"llmAssistant.debug": true`, открой **View → Output → LLM Assistant** — там будет полный лог system prompt, AGENTS.md, отправляемых сообщений, MCP-подключений.
+
+## Тестирование
+
+```bash
+git clone https://github.com/alekseyber/vscode-llm-assistant.git
+cd vscode-llm-assistant
+npm install
+npm run compile
+npm run test:mocked    # 187 тестов
+```
