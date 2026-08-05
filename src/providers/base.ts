@@ -1,7 +1,7 @@
 // Абстрактный базовый класс для всех LLM-провайдеров
 // Определяет общую структуру: конструктор, базовые поля, методы chat() и models()
 
-import { ChatMessage, CompletionOptions, LLMProvider } from './types';
+import { ChatMessage, CompletionOptions, LLMProvider, RetryCallback } from './types';
 
 /**
  * Абстрактный BaseProvider — шаблон для всех OpenAI-совместимых провайдеров.
@@ -41,7 +41,8 @@ export abstract class BaseProvider implements LLMProvider {
   abstract chat(
     messages: ChatMessage[],
     options: CompletionOptions,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    onRetry?: RetryCallback
   ): AsyncIterable<string>;
 
   /**

@@ -161,6 +161,21 @@
           "default": false,
           "description": "Включить DEBUG логи"
         },
+        "llmAssistant.retry.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Включить автоматические повторные попытки при ошибках API (429, 5xx, сетевые ошибки)"
+        },
+        "llmAssistant.retry.maxRetries": {
+          "type": "number",
+          "default": 3,
+          "description": "Максимальное количество повторных попыток при ошибках"
+        },
+        "llmAssistant.retry.requestTimeout": {
+          "type": "number",
+          "default": 60,
+          "description": "Таймаут запроса в секундах (по истечении — ретрай)"
+        },
         "llmAssistant.providers": {
           "type": "object",
           "default": {},

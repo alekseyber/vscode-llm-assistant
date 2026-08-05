@@ -1,6 +1,9 @@
 // Типы данных для системы провайдеров LLM
 // Определяет интерфейсы для конфигурации, сообщений, опций и провайдеров
 
+import { RetryCallback } from '../shared/RetryHandler';
+export type { RetryCallback } from '../shared/RetryHandler';
+
 /**
  * Конфигурация провайдера — читается из settings.json
  */
@@ -52,11 +55,12 @@ export interface LLMProvider {
   chat(
     messages: ChatMessage[],
     options: CompletionOptions,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    onRetry?: RetryCallback
   ): AsyncIterable<string>;
 
   /** Выполнить запрос с tools (function calling) для ReAct-агента */
-  createWithTools?(messages: any[], model: string, tools: any[], signal?: AbortSignal): Promise<any>;
+  createWithTools?(messages: any[], model: string, tools: any[], signal?: AbortSignal, onRetry?: RetryCallback): Promise<any>;
 
   /**
    * Нестриминговый запрос к LLM — возвращает полный текст ответа.
@@ -66,7 +70,8 @@ export interface LLMProvider {
   chatComplete?(
     messages: ChatMessage[],
     options: CompletionOptions,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    onRetry?: RetryCallback
   ): Promise<string>;
 
   /** Получить список доступных моделей */

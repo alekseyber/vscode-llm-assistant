@@ -113,6 +113,17 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     const model = modelName || config.get<string>('defaultModel') || 'gpt-4o';
     this.abortController = new AbortController();
 
+    // Колбэк для уведомления WebView о ретраях
+    const onRetry = (attempt: number, maxRetries: number, delayMs: number, _errorMsg: string) => {
+      this.postMessage({
+        type: 'retryStatus',
+        attempt,
+        maxRetries,
+        delayMs,
+        text: `Повторная попытка ${attempt}/${maxRetries}...`,
+      });
+    };
+
     try {
       const systemPrompt = await this.getSystemPrompt(mode, providerName);
       const messages: any[] = [
@@ -130,7 +141,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         messages.push(userMsg);
         this.pendingImage = null;
 
-        const stream = openaiProvider.chatWithVision(messages, { model, stream: true }, this.abortController.signal);
+        const stream = openaiProvider.chatWithVision(messages, { model, stream: true }, this.abortController.signal, onRetry);
         let full = '';
         for await (const chunk of stream) { full += chunk; this.postMessage({ type: 'streamChunk', text: chunk }); }
         this.postMessage({ type: 'done' });
@@ -143,9 +154,9 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       this.pendingImage = null;
 
       if (mode === 'agent') {
-        await this.runAgentLoop(provider, model, messages);
+        await this.runAgentLoop(provider, model, messages, onRetry);
       } else {
-        const stream = provider.chat(messages, { model, stream: true }, this.abortController.signal);
+        const stream = provider.chat(messages, { model, stream: true }, this.abortController.signal, onRetry);
         let full = '';
         for await (const chunk of stream) { full += chunk; this.postMessage({ type: 'streamChunk', text: chunk }); }
         this.postMessage({ type: 'done' });
@@ -159,7 +170,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   }
 
   /** ReAct-цикл с инструментами (только для агентного режима) */
-  private async runAgentLoop(provider: any, model: string, messages: any[]): Promise<void> {
+  private async runAgentLoop(provider: any, model: string, messages: any[], onRetry?: (attempt: number, maxRetries: number, delayMs: number, errorMsg: string) => void): Promise<void> {
     const MAX_ITER = 5;
     const tools = getToolSchemas();
     const config = vscode.workspace.getConfiguration('llmAssistant');
@@ -168,7 +179,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     for (let i = 0; i < MAX_ITER; i++) {
       if (this.abortController?.signal.aborted) break;
 
-      const response = await (provider as any).createWithTools(messages, model, tools, this.abortController?.signal);
+      const response = await (provider as any).createWithTools(messages, model, tools, this.abortController?.signal, onRetry);
 
       const choice = response.choices[0];
       const toolCalls = choice.message.tool_calls;

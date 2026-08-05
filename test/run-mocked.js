@@ -36,6 +36,7 @@ const testFiles = [
   '../out/test/suite/context.test.js',
   '../out/test/suite/conversation.test.js',
   '../out/test/suite/contextSummarizer.test.js',
+  '../out/test/suite/retryHandler.test.js',
 ];
 
 for (const file of testFiles) {
