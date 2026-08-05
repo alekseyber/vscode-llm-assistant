@@ -77,7 +77,9 @@ export class SessionManager {
 
   /** Создать новую сессию с авто-именем */
   createSession(name?: string): string {
-    const id = `session_${Date.now()}`;
+    // crypto.randomUUID() — гарантирует уникальность даже при быстрых вызовах
+    // Date.now() может дать одинаковый timestamp в пределах одной миллисекунды
+    const id = `session_${crypto.randomUUID()}`;
     const sessionName = name ?? `Новая сессия`;
     const session: Session = {
       meta: {
