@@ -19,6 +19,8 @@ import { AgentController } from '../modes/apply/AgentController';
 import { ToolSystem } from '../modes/apply/ToolSystem';
 import { createTools } from '../modes/apply/ToolDefinitions';
 import { getAllowedTools, loadToolAllowListConfig } from '../modes/apply/ToolAllowList';
+import { RunHistoryStore, generateRunId } from '../shared/RunHistoryStore';
+import { HistoryViewProvider } from '../modes/history/HistoryViewProvider';
 
 /**
  * Зависимости, необходимые для регистрации команд.
@@ -35,6 +37,10 @@ export interface CommandDependencies {
   editController: EditController;
   /** Контроллер Autocomplete */
   autocompleteController: AutocompleteController;
+  /** Хранилище истории запусков (слой 07 Product Shell) */
+  runHistoryStore: RunHistoryStore;
+  /** Провайдер вкладки «История» (для обновления таблицы) */
+  historyViewProvider: HistoryViewProvider;
 }
 
 /**
@@ -45,7 +51,7 @@ export interface CommandDependencies {
  * @param deps - зависимости (контекст, менеджеры, контроллеры режимов)
  */
 export function registerCommands(deps: CommandDependencies): void {
-  const { context, providerManager, conversationManager, editController, autocompleteController } = deps;
+  const { context, providerManager, conversationManager, editController, autocompleteController, runHistoryStore, historyViewProvider } = deps;
 
   // ── 1. llmAssistant.chat.focus (Ctrl+Shift+L) — открыть/сфокусировать чат ──
   context.subscriptions.push(
@@ -80,7 +86,7 @@ export function registerCommands(deps: CommandDependencies): void {
   // ── 5. llmAssistant.apply.start (Ctrl+Shift+A) — запустить агентный режим ──
   context.subscriptions.push(
     vscode.commands.registerCommand('llmAssistant.apply.start', () => {
-      startApplyMode(context, providerManager);
+      startApplyMode(context, providerManager, runHistoryStore, historyViewProvider);
     })
   );
 
@@ -91,7 +97,17 @@ export function registerCommands(deps: CommandDependencies): void {
     })
   );
 
-  console.log('[registerCommands] Зарегистрировано 6 команд: chat.focus, chat.addSelection, edit.selection, autocomplete.toggle, apply.start, selectProvider');
+  // ── 7. llmAssistant.openHistory — открыть вкладку «История» ──
+  context.subscriptions.push(
+    vscode.commands.registerCommand('llmAssistant.openHistory', () => {
+      // Фокусируем вкладку «История» в Activity Bar
+      vscode.commands.executeCommand('llmAssistant.chat.focus');
+      // Затем фокусируем историю через стандартный механизм VS Code
+      vscode.commands.executeCommand('workbench.view.extension.llmAssistant');
+    })
+  );
+
+  console.log('[registerCommands] Зарегистрировано 7 команд: chat.focus, chat.addSelection, edit.selection, autocomplete.toggle, apply.start, selectProvider, openHistory');
 }
 
 /**
@@ -188,18 +204,22 @@ async function selectProvider(providerManager: ProviderManager): Promise<void> {
  *
  * Flow:
  * 1. Запрашиваем задачу у пользователя (InputBox)
- * 2. Создаём ToolSystem с 5 инструментами (read_file, write_file, patch_file,
- *    search_files, run_terminal) и AgentController (ReAct-цикл)
+ * 2. Создаём ToolSystem с инструментами и AgentController (ReAct-цикл)
  * 3. Запускаем агента с прогресс-индикатором и отменой по кнопке
  * 4. Каждый шаг агента логируется в Output Channel "LLM Assistant — Агент"
- * 5. Финальный ответ показываем пользователю
+ * 5. Записываем запуск в историю (RunHistoryStore)
+ * 6. Финальный ответ показываем пользователю
  *
  * @param context - контекст расширения (для Output Channel)
  * @param providerManager - менеджер провайдеров
+ * @param runHistoryStore - хранилище истории запусков
+ * @param historyViewProvider - провайдер вкладки «История» (для обновления)
  */
 async function startApplyMode(
   context: vscode.ExtensionContext,
-  providerManager: ProviderManager
+  providerManager: ProviderManager,
+  runHistoryStore: RunHistoryStore,
+  historyViewProvider: HistoryViewProvider,
 ): Promise<void> {
   // Получаем провайдера по умолчанию
   const provider = providerManager.getDefault();
@@ -252,6 +272,8 @@ async function startApplyMode(
 
   // AbortController для отмены агента пользователем
   const abortController = new AbortController();
+  const runId = generateRunId();
+  const startTime = Date.now();
 
   try {
     // Запускаем агента с прогресс-индикатором (cancellable)
@@ -309,6 +331,30 @@ async function startApplyMode(
       vscode.window.showInformationMessage('Агент завершил задачу. Подробности в Output Channel "LLM Assistant — Агент".');
     }
 
+    // Запись в историю запусков (слой 07 Product Shell)
+    const duration = Date.now() - startTime;
+    const status = result.cancelled ? 'cancelled' as const
+      : result.limitExceeded ? 'limit_exceeded' as const
+      : 'success' as const;
+
+    runHistoryStore.recordRun({
+      id: runId,
+      timestamp: startTime,
+      mode: 'agent',
+      task: task.slice(0, 100),
+      provider: providerName,
+      model,
+      steps: result.iterations,
+      tokensIn: 0,   // AgentController пока не возвращает статистику токенов
+      tokensOut: 0,
+      cost: 0,
+      duration,
+      status,
+    });
+
+    // Обновляем таблицу истории
+    historyViewProvider.refresh();
+
     // Показываем итог в отдельном сообщении, если это не просто статус
     if (!result.limitExceeded && !result.cancelled && result.answer) {
       outputChannel.appendLine('[INFO] === Финальный ответ ===');
@@ -318,5 +364,23 @@ async function startApplyMode(
     const errorMessage = error?.message || 'Неизвестная ошибка';
     outputChannel.appendLine(`[ERROR] ${errorMessage}`);
     vscode.window.showErrorMessage(`Ошибка агента: ${errorMessage}`);
+
+    // Запись ошибки в историю
+    runHistoryStore.recordRun({
+      id: runId,
+      timestamp: startTime,
+      mode: 'agent',
+      task: task.slice(0, 100),
+      provider: providerName,
+      model,
+      steps: 0,
+      tokensIn: 0,
+      tokensOut: 0,
+      cost: 0,
+      duration: Date.now() - startTime,
+      status: 'error',
+      error: errorMessage,
+    });
+    historyViewProvider.refresh();
   }
 }

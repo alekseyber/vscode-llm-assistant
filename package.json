@@ -44,6 +44,10 @@
       {
         "command": "llmAssistant.selectProvider",
         "title": "LLM Assistant: Выбрать провайдер"
+      },
+      {
+        "command": "llmAssistant.openHistory",
+        "title": "LLM Assistant: Открыть историю запусков"
       }
     ],
     "keybindings": [
@@ -75,6 +79,11 @@
           "type": "webview",
           "id": "llmAssistant.chat",
           "name": "Чат"
+        },
+        {
+          "type": "webview",
+          "id": "llmAssistant.history",
+          "name": "История"
         }
       ]
     },

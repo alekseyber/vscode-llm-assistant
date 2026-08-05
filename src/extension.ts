@@ -10,6 +10,8 @@ import { EditController } from './modes/edit/EditController';
 import { AutocompleteController } from './modes/autocomplete/AutocompleteController';
 import { registerCommands } from './activation/registerCommands';
 import { debugLog } from './shared/logger';
+import { RunHistoryStore } from './shared/RunHistoryStore';
+import { HistoryViewProvider, HISTORY_VIEW_TYPE } from './modes/history/HistoryViewProvider';
 
 /** Глобальный экземпляр менеджера провайдеров */
 let providerManager: ProviderManager;
@@ -22,6 +24,12 @@ let editController: EditController;
 
 /** Глобальный экземпляр контроллера Autocomplete (ghost text) */
 let autocompleteController: AutocompleteController;
+
+/** Глобальный экземпляр хранилища истории запусков (слой 07 Product Shell) */
+let runHistoryStore: RunHistoryStore;
+
+/** Глобальный экземпляр провайдера вкладки «История» */
+let historyViewProvider: HistoryViewProvider;
 
 /**
  * Точка входа. Вызывается VS Code при активации расширения.
@@ -39,14 +47,23 @@ export function activate(context: vscode.ExtensionContext) {
     editController = new EditController(providerManager);
     autocompleteController = new AutocompleteController(providerManager);
 
+    // Инициализация хранилища истории запусков (слой 07 Product Shell)
+    runHistoryStore = new RunHistoryStore(context.globalState);
+
     // ── 2. Регистрация WebView Provider ──
-    const chatViewProvider = new ChatViewProvider(context, providerManager, conversationManager);
+    const chatViewProvider = new ChatViewProvider(context, providerManager, conversationManager, runHistoryStore);
     context.subscriptions.push(
         vscode.window.registerWebviewViewProvider(ChatViewProvider.viewType, chatViewProvider)
     );
 
+    // Регистрация провайдера вкладки «История» (Activity Bar)
+    historyViewProvider = new HistoryViewProvider(runHistoryStore);
+    context.subscriptions.push(
+        vscode.window.registerWebviewViewProvider(HISTORY_VIEW_TYPE, historyViewProvider)
+    );
+
     // ── 3. Команды ──
-    registerCommands({ context, providerManager, conversationManager, editController, autocompleteController });
+    registerCommands({ context, providerManager, conversationManager, editController, autocompleteController, runHistoryStore, historyViewProvider });
 
     // ── 4. Конфигурация ──
     context.subscriptions.push(

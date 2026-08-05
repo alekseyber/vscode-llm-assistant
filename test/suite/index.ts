@@ -23,6 +23,7 @@ const testModules: string[] = [
   './retryHandler.test',
   './toolAllowList.test',
   './mcpClient.test',
+  './runHistoryStore.test',
 ];
 
 /**

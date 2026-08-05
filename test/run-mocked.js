@@ -38,6 +38,7 @@ const testFiles = [
   '../out/test/suite/contextSummarizer.test.js',
   '../out/test/suite/retryHandler.test.js',
   '../out/test/suite/mcpClient.test.js',
+  '../out/test/suite/runHistoryStore.test.js',
 ];
 
 for (const file of testFiles) {

@@ -8,6 +8,7 @@ import { ChatMessage } from '../../providers/types';
 import { getToolSchemas, getTool } from './ChatAgentTools';
 import { loadAgentsMd } from '../../shared/AgentsMdLoader';
 import { loadToolAllowListConfig, isConfirmationRequired } from '../apply/ToolAllowList';
+import { RunHistoryStore, generateRunId, RunEntry } from '../../shared/RunHistoryStore';
 
 export class ChatViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = 'llmAssistant.chat';
@@ -15,13 +16,15 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   private readonly context: vscode.ExtensionContext;
   private readonly providerManager: ProviderManager;
   private readonly conversationManager: ConversationManager;
+  private readonly runHistoryStore: RunHistoryStore;
   private abortController: AbortController | null = null;
   private pendingImage: { fileName: string; base64: string; mimeType: string } | null = null;
 
-  constructor(ctx: vscode.ExtensionContext, pm: ProviderManager, cm: ConversationManager) {
+  constructor(ctx: vscode.ExtensionContext, pm: ProviderManager, cm: ConversationManager, runHistoryStore: RunHistoryStore) {
     this.context = ctx;
     this.providerManager = pm;
     this.conversationManager = cm;
+    this.runHistoryStore = runHistoryStore;
     // Авто-обновление провайдеров при изменении настроек
     ctx.subscriptions.push(
       vscode.workspace.onDidChangeConfiguration(e => {
@@ -89,6 +92,15 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   private async handleSendMessage(text: string, mode = 'chat', providerName?: string, modelName?: string): Promise<void> {
     const config = vscode.workspace.getConfiguration('llmAssistant');
     const isVision = !!this.pendingImage;
+    const isAgentMode = mode === 'agent';
+    const runId = generateRunId();
+    const startTime = Date.now();
+
+    // Определяем провайдера и модель для записи в историю
+    const provider = providerName ? this.providerManager.getProvider(providerName) : this.providerManager.getDefault();
+    if (!provider) { this.postMessage({ type: 'error', text: 'Провайдер не настроен.' }); return; }
+    const model = modelName || config.get<string>('defaultModel') || 'gpt-4o';
+    const providerDisplayName = providerName || config.get<string>('defaultProvider') || 'unknown';
 
     // Не добавляем в историю сразу если будет vision (изображение добавится вместе с текстом)
     if (!isVision) {
@@ -96,7 +108,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     }
 
     // Авто-контекст
-    if (mode === 'agent' || config.get<boolean>('chat.includeOpenFile', true)) {
+    if (isAgentMode || config.get<boolean>('chat.includeOpenFile', true)) {
       const editor = vscode.window.activeTextEditor;
       if (editor) {
         this.conversationManager.attachCodeContext({
@@ -108,10 +120,6 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
     this.postMessage({ type: 'userMessage', text });
 
-    const provider = providerName ? this.providerManager.getProvider(providerName) : this.providerManager.getDefault();
-    if (!provider) { this.postMessage({ type: 'error', text: 'Провайдер не настроен.' }); return; }
-
-    const model = modelName || config.get<string>('defaultModel') || 'gpt-4o';
     this.abortController = new AbortController();
 
     // Колбэк для уведомления WebView о ретраях
@@ -125,12 +133,20 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       });
     };
 
+    let inTokens = 0;
+    let outTokens = 0;
+
     try {
       const systemPrompt = await this.getSystemPrompt(mode, providerName);
       const messages: any[] = [
         { role: 'system', content: systemPrompt },
         ...this.conversationManager.getMessagesForHistory(),
       ];
+
+      // Оценка входных токенов (символы / 4)
+      inTokens = Math.ceil(
+        messages.reduce((s: number, m: any) =>
+          s + (typeof m.content === 'string' ? m.content.length : JSON.stringify(m.content).length), 0) / 4);
 
       // Vision: добавляем одно сообщение с текстом + изображением
       const openaiProvider = provider as any;
@@ -149,6 +165,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         // Сохраняем в историю после успешного ответа
         this.conversationManager.addMessage({ role: 'user', content: text });
         this.conversationManager.addMessage({ role: 'assistant', content: full });
+        outTokens = Math.ceil(full.length / 4);
+        this.recordChatRun(runId, startTime, text, providerDisplayName, model, 'chat', inTokens, outTokens, 1, 'success');
         return;
       }
 
@@ -156,6 +174,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
       if (mode === 'agent') {
         await this.runAgentLoop(provider, model, messages, onRetry);
+        this.recordChatRun(runId, startTime, text, providerDisplayName, model, 'agent', inTokens, 0, 1, 'success');
       } else {
         const stream = provider.chat(messages, { model, stream: true }, this.abortController.signal, onRetry);
         let full = '';
@@ -163,11 +182,64 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         this.postMessage({ type: 'done' });
         this.conversationManager.addMessage({ role: 'assistant', content: full });
         this.postTokens(messages, full, model);
+        outTokens = Math.ceil(full.length / 4);
+        this.recordChatRun(runId, startTime, text, providerDisplayName, model, 'chat', inTokens, outTokens, 1, 'success');
       }
     } catch (error: any) {
-      if (error.name === 'AbortError') this.postMessage({ type: 'cancelled' });
-      else { this.postMessage({ type: 'error', text: `Ошибка: ${error.message}` }); console.error('[ChatViewProvider]', error); }
+      const duration = Date.now() - startTime;
+      if (error.name === 'AbortError') {
+        this.postMessage({ type: 'cancelled' });
+        this.recordChatRun(runId, startTime, text, providerDisplayName, model, isAgentMode ? 'agent' : 'chat', inTokens, 0, 0, 'cancelled');
+      } else {
+        this.postMessage({ type: 'error', text: `Ошибка: ${error.message}` });
+        console.error('[ChatViewProvider]', error);
+        this.recordChatRun(runId, startTime, text, providerDisplayName, model, isAgentMode ? 'agent' : 'chat', inTokens, 0, 0, 'error', error.message);
+      }
     } finally { this.abortController = null; }
+  }
+
+  /** Записать запуск чата/агента в историю (слой 07 Product Shell) */
+  private recordChatRun(
+    runId: string,
+    startTime: number,
+    task: string,
+    provider: string,
+    model: string,
+    mode: RunEntry['mode'],
+    tokensIn: number,
+    tokensOut: number,
+    steps: number,
+    status: RunEntry['status'],
+    error?: string,
+  ): void {
+    const duration = Date.now() - startTime;
+    // Приблизительная стоимость (цены по умолчанию)
+    const prices: Record<string, { input: number; output: number }> = {
+      'deepseek-chat': { input: 0.14, output: 0.28 },
+      'deepseek-v4-pro': { input: 0.435, output: 0.87 },
+      'deepseek-v4-flash': { input: 0.14, output: 0.28 },
+      'gpt-4o': { input: 2.50, output: 10.00 },
+    };
+    const price = prices[model] || { input: 0.5, output: 1.0 };
+    const cost = (tokensIn / 1_000_000) * price.input + (tokensOut / 1_000_000) * price.output;
+
+    const entry: RunEntry = {
+      id: runId,
+      timestamp: startTime,
+      mode,
+      task: task.slice(0, 100),
+      provider,
+      model,
+      steps,
+      tokensIn,
+      tokensOut,
+      cost: Math.round(cost * 1e6) / 1e6,
+      duration,
+      status,
+      ...(error ? { error } : {}),
+    };
+
+    this.runHistoryStore.recordRun(entry);
   }
 
   /** ReAct-цикл с инструментами (только для агентного режима) */
