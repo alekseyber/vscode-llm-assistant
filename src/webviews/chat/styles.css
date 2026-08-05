@@ -95,14 +95,13 @@ body {
 
 /* Контекст-бар в шапке */
 #context-bar {
-  flex: 1;
   display: flex;
   align-items: center;
-  gap: 6px;
-  min-width: 0;
+  gap: 4px;
+  width: 120px;
+  flex-shrink: 0;
 }
 .context-bar-fill {
-  flex: 1;
   height: 4px;
   background: var(--accent);
   border-radius: 2px;
@@ -778,4 +777,14 @@ body {
 /* Контекст warning */
 .context-warning .context-bar-fill {
   background: #f48771 !important;
+}
+
+/* Переполнение контекста (>100%) — красный с пульсацией */
+.context-overflow .context-bar-fill {
+  background: #e74c3c !important;
+  animation: overflow-pulse 1s ease-in-out infinite;
+}
+@keyframes overflow-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
 }

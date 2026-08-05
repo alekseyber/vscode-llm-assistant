@@ -52,7 +52,7 @@ function setupMockConfig(sandbox: sinon.SinonSandbox, overrides: Record<string, 
       if (key === 'chat.maxContextTokens') return 4096;
       if (key === 'chat.summaryEnabled') return true;
       if (key === 'chat.summaryModel') return '';
-      if (key === 'chat.summaryTriggerTokens') return 2048;
+      if (key === 'chat.summaryTriggerTokens') return 256;
       if (key === 'chat.systemPrompt') return 'Ты — AI-ассистент.';
       if (key === 'defaultModel') return 'gpt-4o';
       return defaultValue;

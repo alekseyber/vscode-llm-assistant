@@ -56,23 +56,40 @@ export class ConversationManager {
     const systemMessage: ChatMessage = { role: 'system', content: systemPrompt };
     let usedTokens = this.estimateTokens(systemPrompt);
 
+    const debug = config.get<boolean>('debug', false);
+
     // Собираем историю с учётом лимита токенов, получаем обрезанные сообщения
     const { history, trimmed } = this.buildHistoryWithTrimmed(maxTokens, usedTokens);
 
     // --- Слой 04: Summary при переполнении контекста ---
     const summaryEnabled = config.get<boolean>('chat.summaryEnabled', true);
     const summaryModel = config.get<string>('chat.summaryModel', '') ||
-      config.get<string>('defaultModel', 'gpt-4o');
-    const summaryTriggerTokens = config.get<number>('chat.summaryTriggerTokens', 2048);
+      config.get<string>('defaultModel', '');
+    const summaryTriggerTokens = config.get<number>('chat.summaryTriggerTokens', 256);
+
+    if (debug) {
+      console.warn(`[LLM Assistant] Summary check: maxTokens=${maxTokens}, usedBySystem=${usedTokens}, historyMsgs=${history.length}, trimmed=${trimmed.length}, summaryEnabled=${summaryEnabled}, hasProvider=${!!provider}, model=${summaryModel}`);
+    }
 
     if (summaryEnabled && trimmed.length > 0 && provider) {
       // Оцениваем токены обрезанных сообщений
       const trimmedTokens = trimmed.reduce((sum, m) => sum + this.estimateTokens(m.content), 0);
 
+      if (debug) {
+        console.warn(`[LLM Assistant] Summary trigger: trimmedTokens=${trimmedTokens}, trigger=${summaryTriggerTokens}, willSummarize=${trimmedTokens >= summaryTriggerTokens}`);
+      }
+
       if (trimmedTokens >= summaryTriggerTokens) {
         try {
+          if (debug) console.warn('[LLM Assistant] Вызов summarizer.summarizeMessages()...');
           const summary = await this.summarizer.summarizeMessages(trimmed, provider, summaryModel);
+          if (debug) console.warn(`[LLM Assistant] Summary результат: ${summary ? 'OK (' + summary.length + ' символов)' : 'null/пусто'}`);
           if (summary) {
+            // Дебаг: логируем summary
+            const debug = config.get<boolean>('debug', false);
+            if (debug) {
+              console.log(`[LLM Assistant] Summary сгенерирован (${trimmedTokens} токенов обрезано): ${summary.slice(0, 200)}...`);
+            }
             const summaryMessage: ChatMessage = {
               role: 'system',
               content: `## Краткое содержание предыдущего диалога:\n${summary}`,
@@ -81,8 +98,9 @@ export class ConversationManager {
             const result = [systemMessage, summaryMessage, ...history];
             return result;
           }
-        } catch {
+        } catch (err) {
           // Если суммаризация упала — молча продолжаем без summary
+          if (debug) console.warn('[LLM Assistant] Summary ОШИБКА:', err);
         }
       }
     }

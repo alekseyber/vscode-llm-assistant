@@ -24,6 +24,8 @@ export interface McpServerConfig {
   args?: string[];
   /** Переменные окружения для процесса сервера */
   env?: Record<string, string>;
+  /** Если false — сервер пропускается при загрузке (по умолчанию true) */
+  enabled?: boolean;
 }
 
 /**
@@ -201,7 +203,8 @@ export function loadMcpConfig(): McpServerConfig[] {
     const vscode = require('vscode');
     const config = vscode.workspace.getConfiguration('llmAssistant');
     const servers: McpServerConfig[] = config.get('mcp.servers', []);
-    return servers;
+    // Фильтруем: серверы с enabled: false пропускаем
+    return servers.filter(s => s.enabled !== false);
   } catch {
     // Если VS Code API недоступен (юнит-тесты) — возвращаем пустой список
     return [];

@@ -35,8 +35,13 @@ const testFiles = [
   '../out/test/suite/tools.test.js',
   '../out/test/suite/context.test.js',
   '../out/test/suite/conversation.test.js',
+  '../out/test/suite/session.test.js',
+  '../out/test/suite/agentsMd.test.js',
+  '../out/test/suite/agentsMdIntegration.test.js',
   '../out/test/suite/contextSummarizer.test.js',
+  '../out/test/suite/summaryIntegration.test.js',
   '../out/test/suite/retryHandler.test.js',
+  '../out/test/suite/toolAllowList.test.js',
   '../out/test/suite/mcpClient.test.js',
   '../out/test/suite/runHistoryStore.test.js',
 ];

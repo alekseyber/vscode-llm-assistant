@@ -42,7 +42,7 @@ export class HistoryViewProvider implements vscode.WebviewViewProvider {
     }
   }
 
-  private handleMessage(message: any): void {
+  private async handleMessage(message: any): Promise<void> {
     switch (message.type) {
       case 'ready':
         // Отправляем текущую историю при загрузке
@@ -50,8 +50,15 @@ export class HistoryViewProvider implements vscode.WebviewViewProvider {
         break;
 
       case 'clearHistory':
-        this.store.clearHistory();
-        this.postMessage({ type: 'refresh', runs: [] });
+        const answer = await vscode.window.showWarningMessage(
+          'Очистить всю историю запусков?',
+          { modal: true },
+          'Да',
+        );
+        if (answer === 'Да') {
+          this.store.clearHistory();
+          this.refresh();
+        }
         break;
 
       case 'getDetails':
@@ -68,8 +75,11 @@ export class HistoryViewProvider implements vscode.WebviewViewProvider {
   }
 
   private postMessage(msg: any): void {
+    console.warn(`[History] postMessage: ${msg.type}`);
     if (this.view) {
       this.view.webview.postMessage(msg);
+    } else {
+      console.warn('[History] view is undefined!');
     }
   }
 
@@ -290,9 +300,7 @@ export class HistoryViewProvider implements vscode.WebviewViewProvider {
 
       // --- Очистка истории ---
       btnClear.addEventListener('click', function() {
-        if (confirm('Очистить всю историю запусков?')) {
-          post({ type: 'clearHistory' });
-        }
+        post({ type: 'clearHistory' });
       });
 
       // --- Рендер таблицы ---

@@ -54,6 +54,8 @@ export function loadToolAllowListConfig(): ToolAllowListConfig {
   const allowedTools = vsConfig.get<string[]>('apply.allowedTools');
   const requireConfirmation = vsConfig.get<string[]>('apply.requireConfirmation');
 
+  console.warn(`[ToolAllowList] Global config: allowedTools=${JSON.stringify(allowedTools)}, requireConfirmation=${JSON.stringify(requireConfirmation)}`);
+
   return {
     allowedTools: allowedTools && allowedTools.length > 0 ? allowedTools : undefined,
     requireConfirmation: requireConfirmation ?? DEFAULT_CONFIG.requireConfirmation,
@@ -70,16 +72,19 @@ export function loadToolAllowListConfig(): ToolAllowListConfig {
 function loadWorkspaceConfig(): ToolAllowListConfig | null {
   const folder = vscode.workspace.workspaceFolders?.[0];
   if (!folder) {
+    console.warn('[ToolAllowList] Нет workspace folders');
     return null;
   }
 
   const configPath = path.join(folder.uri.fsPath, '.vscode', 'llm-assistant.json');
   try {
     if (!fs.existsSync(configPath)) {
+      console.warn(`[ToolAllowList] Файл не найден: ${configPath}`);
       return null;
     }
     const raw = fs.readFileSync(configPath, 'utf-8');
     const parsed = JSON.parse(raw);
+    console.warn(`[ToolAllowList] Загружен workspace-конфиг: allowedTools=${JSON.stringify(parsed.allowedTools)}, requireConfirmation=${JSON.stringify(parsed.requireConfirmation)}`);
 
     // Валидация: поля должны быть массивами строк
     return {

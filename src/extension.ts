@@ -50,16 +50,16 @@ export function activate(context: vscode.ExtensionContext) {
     // Инициализация хранилища истории запусков (слой 07 Product Shell)
     runHistoryStore = new RunHistoryStore(context.globalState);
 
-    // ── 2. Регистрация WebView Provider ──
-    const chatViewProvider = new ChatViewProvider(context, providerManager, conversationManager, runHistoryStore);
-    context.subscriptions.push(
-        vscode.window.registerWebviewViewProvider(ChatViewProvider.viewType, chatViewProvider)
-    );
-
-    // Регистрация провайдера вкладки «История» (Activity Bar)
+    // Регистрация провайдера вкладки «История» (Activity Bar) — ДО ChatViewProvider
     historyViewProvider = new HistoryViewProvider(runHistoryStore);
     context.subscriptions.push(
         vscode.window.registerWebviewViewProvider(HISTORY_VIEW_TYPE, historyViewProvider)
+    );
+
+    // ── 2. Регистрация WebView Provider ──
+    const chatViewProvider = new ChatViewProvider(context, providerManager, conversationManager, runHistoryStore, historyViewProvider);
+    context.subscriptions.push(
+        vscode.window.registerWebviewViewProvider(ChatViewProvider.viewType, chatViewProvider)
     );
 
     // ── 3. Команды ──

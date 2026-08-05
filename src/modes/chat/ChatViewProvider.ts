@@ -8,7 +8,9 @@ import { ChatMessage } from '../../providers/types';
 import { getToolSchemas, getTool } from './ChatAgentTools';
 import { loadAgentsMd } from '../../shared/AgentsMdLoader';
 import { loadToolAllowListConfig, isConfirmationRequired } from '../apply/ToolAllowList';
+import { McpClient, loadMcpConfig } from '../apply/McpClient';
 import { RunHistoryStore, generateRunId, RunEntry } from '../../shared/RunHistoryStore';
+import { HistoryViewProvider } from '../history/HistoryViewProvider';
 
 export class ChatViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = 'llmAssistant.chat';
@@ -19,12 +21,17 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   private readonly runHistoryStore: RunHistoryStore;
   private abortController: AbortController | null = null;
   private pendingImage: { fileName: string; base64: string; mimeType: string } | null = null;
+  private readonly historyViewProvider?: HistoryViewProvider;
+  private debugChannel: vscode.OutputChannel;
 
-  constructor(ctx: vscode.ExtensionContext, pm: ProviderManager, cm: ConversationManager, runHistoryStore: RunHistoryStore) {
+  constructor(ctx: vscode.ExtensionContext, pm: ProviderManager, cm: ConversationManager, runHistoryStore: RunHistoryStore, historyViewProvider?: HistoryViewProvider) {
     this.context = ctx;
     this.providerManager = pm;
     this.conversationManager = cm;
     this.runHistoryStore = runHistoryStore;
+    this.historyViewProvider = historyViewProvider;
+    this.debugChannel = vscode.window.createOutputChannel('LLM Assistant');
+    ctx.subscriptions.push(this.debugChannel);
     // Авто-обновление провайдеров при изменении настроек
     ctx.subscriptions.push(
       vscode.workspace.onDidChangeConfiguration(e => {
@@ -138,15 +145,28 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
     try {
       const systemPrompt = await this.getSystemPrompt(mode, providerName);
-      const messages: any[] = [
-        { role: 'system', content: systemPrompt },
-        ...this.conversationManager.getMessagesForHistory(),
-      ];
+      const historyMessages = await this.conversationManager.getMessagesForRequest(provider);
+      const messages: any[] = historyMessages;
+      if (messages.length === 0 || messages[0].role !== 'system') {
+        messages.unshift({ role: 'system', content: systemPrompt });
+      } else if (messages[0].content !== systemPrompt) {
+        messages[0].content = systemPrompt;
+      }
 
       // Оценка входных токенов (символы / 4)
       inTokens = Math.ceil(
         messages.reduce((s: number, m: any) =>
           s + (typeof m.content === 'string' ? m.content.length : JSON.stringify(m.content).length), 0) / 4);
+
+      const debug = vscode.workspace.getConfiguration('llmAssistant').get<boolean>('debug', false);
+      if (debug) {
+        this.debugChannel.appendLine(`[DEBUG] === Отправка запроса (${mode}, ${messages.length} сообщений, ~${inTokens} токенов) ===`);
+        for (let i = 0; i < messages.length; i++) {
+          const m = messages[i];
+          const content = typeof m.content === 'string' ? m.content : JSON.stringify(m.content);
+          this.debugChannel.appendLine(`[DEBUG] [${i}] ${m.role}: ${content.slice(0, 300)}${content.length > 300 ? '...' : ''}`);
+        }
+      }
 
       // Vision: добавляем одно сообщение с текстом + изображением
       const openaiProvider = provider as any;
@@ -173,6 +193,14 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       this.pendingImage = null;
 
       if (mode === 'agent') {
+        // Проверяем, поддерживает ли провайдер function calling
+        const agentProvider = provider as any;
+        if (!agentProvider.createWithTools) {
+          this.postMessage({ type: 'error', text: `⚠️ Провайдер «${providerDisplayName}» не поддерживает режим Агента. Переключите провайдера на SiliconFlow или DeepSeek.` });
+          this.conversationManager.addMessage({ role: 'assistant', content: `⚠️ Провайдер «${providerDisplayName}» не поддерживает режим Агента.` });
+          this.recordChatRun(runId, startTime, text, providerDisplayName, model, 'agent', inTokens, 0, 0, 'error', 'Нет createWithTools');
+          return;
+        }
         await this.runAgentLoop(provider, model, messages, onRetry);
         this.recordChatRun(runId, startTime, text, providerDisplayName, model, 'agent', inTokens, 0, 1, 'success');
       } else {
@@ -240,6 +268,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     };
 
     this.runHistoryStore.recordRun(entry);
+    this.historyViewProvider?.refresh();
   }
 
   /** ReAct-цикл с инструментами (только для агентного режима) */
@@ -247,6 +276,30 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     const MAX_ITER = 5;
     const tools = getToolSchemas();
     const allowListConfig = loadToolAllowListConfig();
+
+    try {
+      const mcpConfigs = loadMcpConfig();
+      this.debugChannel.appendLine(`[DEBUG] MCP configs loaded: ${mcpConfigs.length}`);
+      if (mcpConfigs.length > 0) {
+        for (const cfg of mcpConfigs) {
+          try {
+            const client = new McpClient(cfg);
+            const result = await client.connect();
+            const mcpTools = result.tools.map((t: any) => ({
+              type: 'function', function: { name: t.name, description: t.description, parameters: t.parameters }
+            }));
+            const filteredMcpTools = allowListConfig.allowedTools?.length
+              ? mcpTools.filter((t: any) => allowListConfig.allowedTools!.includes(t.function.name)) : mcpTools;
+            tools.push(...filteredMcpTools);
+            this.debugChannel.appendLine(`[INFO] MCP connected: ${cfg.name} (${filteredMcpTools.length}/${mcpTools.length} tools)`);
+          } catch (err: any) {
+            this.debugChannel.appendLine(`[WARN] MCP ${cfg.name}: ${err.message}`);
+          }
+        }
+      }
+    } catch (err: any) {
+      this.debugChannel.appendLine(`[WARN] MCP config error: ${err.message}`);
+    }
 
     for (let i = 0; i < MAX_ITER; i++) {
       if (this.abortController?.signal.aborted) break;
@@ -366,6 +419,13 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     const agentsMd = await loadAgentsMd();
     if (agentsMd) {
       prompt += `\n\n## Правила проекта (AGENTS.md):\n${agentsMd}`;
+    }
+
+    const debug = vscode.workspace.getConfiguration('llmAssistant').get<boolean>('debug', false);
+    if (debug) {
+      this.debugChannel.appendLine(`[DEBUG] === System Prompt (${mode} mode) ===`);
+      this.debugChannel.appendLine(prompt);
+      this.debugChannel.appendLine('[DEBUG] === Конец System Prompt ===');
     }
 
     return prompt;

@@ -60,7 +60,7 @@ const RETRYABLE_NETWORK_CODES = new Set([
 /**
  * Фразы в тексте ошибки, указывающие на сетевую проблему.
  */
-const NETWORK_PHRASES = ['fetch failed', 'network error', 'connection reset'];
+const NETWORK_PHRASES = ['fetch failed', 'network error', 'connection reset', 'connection error', 'connection refused', 'econnrefused'];
 
 /**
  * Определяет, является ли ошибка retryable (можно повторить запрос).

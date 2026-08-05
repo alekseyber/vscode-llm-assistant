@@ -7,6 +7,9 @@
 
   // ---------- Token Usage ----------
 
+  // Максимальное количество токенов контекста (обновляется из настроек)
+  let maxContextTokens = 4096;
+
   // Цены за 1M токенов (примерные)
   const MODEL_PRICES = {
     'deepseek-chat': { input: 0.14, output: 0.28 },
@@ -25,17 +28,42 @@
     badge.innerHTML = `📊 ${msg.inputTokens}+${msg.outputTokens} токенов ≈ $${cost.toFixed(4)}`;
     messagesContainer.appendChild(badge);
 
-    // Индикатор заполнения контекста (4096 токенов по умолчанию)
+    // Индикатор заполнения контекста
     const contextBar = document.getElementById('context-bar');
     if (contextBar) {
-      const pct = Math.min(100, (msg.inputTokens / 4096) * 100);
+      const rawPct = (msg.inputTokens / maxContextTokens) * 100;
+      const pct = Math.min(100, rawPct);
       contextBar.querySelector('.context-bar-fill').style.width = pct + '%';
-      contextBar.querySelector('.context-bar-text').textContent = `${msg.inputTokens}/${4096}`;
-      if (pct > 80) contextBar.className = 'context-bar context-warning';
-      else contextBar.className = 'context-bar';
+      contextBar.querySelector('.context-bar-text').textContent = `${msg.inputTokens}/${maxContextTokens}`;
+      if (rawPct > 100) {
+        // Переполнение — красный
+        contextBar.className = 'context-bar context-overflow';
+      } else if (rawPct > 80) {
+        contextBar.className = 'context-bar context-warning';
+      } else {
+        contextBar.className = 'context-bar';
+      }
     }
 
     scrollToBottom();
+  }
+  /** Показать статус ретрая в WebView */
+  function showRetryStatus(msg) {
+    const indicator = document.getElementById('streaming-indicator');
+    if (indicator) {
+      indicator.classList.remove('hidden');
+      indicator.querySelector('.loading-dots').textContent = `⚠️ ${msg.text}`;
+      indicator.style.background = '#fce4c9';
+    }
+  }
+  /** Сбросить индикатор ретрая (после успеха или начала нового запроса) */
+  function hideRetryStatus() {
+    const indicator = document.getElementById('streaming-indicator');
+    if (indicator) {
+      indicator.querySelector('.loading-dots').textContent = 'LLM печатает';
+      indicator.style.background = '';
+      indicator.classList.add('hidden');
+    }
   }
   /** Флаг — идёт ли сейчас стриминг ответа */
   let isStreaming = false;
@@ -328,6 +356,10 @@
    * Добавить токен (чанк) к текущему стриминг-сообщению.
    */
   function appendStreamChunk(chunk) {
+    // Первый чанк — ретраи закончились, сбрасываем индикатор
+    if (!lastAssistantContentEl) {
+      hideRetryStatus();
+    }
     if (!lastAssistantContentEl) {
       addMessage('assistant', '', true);
       if (!lastAssistantContentEl) return;
@@ -489,7 +521,12 @@
         break;
 
       case 'tokens':
+        if (message.maxTokens) maxContextTokens = message.maxTokens;
         showTokenUsage(message);
+        break;
+
+      case 'retryStatus':
+        showRetryStatus(message);
         break;
 
       default:
@@ -510,12 +547,21 @@
       messagesContainer.appendChild(welcome);
     }
 
+    // Сбрасываем контекст-бар при переключении сессии
+    const contextBar = document.getElementById('context-bar');
+    if (contextBar) {
+      contextBar.querySelector('.context-bar-fill').style.width = '0%';
+      contextBar.querySelector('.context-bar-text').textContent = `0 / ${maxContextTokens}`;
+      contextBar.className = 'context-bar';
+    }
+
     if (!messages || messages.length === 0) {
       if (welcome) welcome.classList.remove('hidden');
       return;
     }
 
-    if (welcome) welcome.classList.remove('hidden');
+    // Скрываем приветствие — есть история сообщений
+    if (welcome) welcome.classList.add('hidden');
 
     // Добавляем каждое сообщение
     for (const msg of messages) {
@@ -784,10 +830,20 @@
 
   function buildSessionText() {
     const msgs = [];
-    const allMessages = messagesContainer.querySelectorAll('.message');
+    const allMessages = messagesContainer.querySelectorAll('.message:not(#welcome-message)');
     allMessages.forEach(el => {
+      // Пропускаем токен-бейджи
+      if (el.classList.contains('token-badge')) return;
       const role = el.querySelector('.message-role')?.textContent || '';
-      const content = el.querySelector('.message-content')?.textContent || '';
+      const contentEl = el.querySelector('.message-content');
+      if (!contentEl) return;
+      // Для пользовательских — textContent, для ассистента — рендерим HTML в чистый текст
+      let content;
+      if (role === 'Ты') {
+        content = contentEl.textContent;
+      } else {
+        content = extractTextFromHtml(contentEl.innerHTML);
+      }
       if (content.trim()) {
         const prefix = role === 'Ты' ? '### 👤 Пользователь' : role === 'Ошибка' ? '### ⚠️ Ошибка' : '### 🤖 Ассистент';
         msgs.push(`${prefix}\n\n${content}`);
