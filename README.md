@@ -135,7 +135,7 @@
 | Поле | Тип | Описание |
 |------|-----|----------|
 | `name` | string | Уникальное имя сервера |
-| `command` | string | Исполняемый файл (npx, node, python) |
+| `command` | string | Исполняемый файл (npx, node, python3 — spawn в PATH) |
 | `args` | string[] | Аргументы командной строки |
 | `env` | object | Переменные окружения |
 | `enabled` | boolean | `false` чтобы временно отключить без удаления |

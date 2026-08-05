@@ -18,7 +18,7 @@ import type { Tool } from './ToolSystem';
 export interface McpServerConfig {
   /** Уникальное имя сервера (используется как префикс для имён инструментов) */
   name: string;
-  /** Исполняемый файл (например 'npx', 'node', 'python') */
+  /** Исполняемый файл (npx, node, python3 — любой spawn-able бинарник) */
   command: string;
   /** Аргументы командной строки */
   args?: string[];

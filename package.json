@@ -236,7 +236,7 @@
               },
               "command": {
                 "type": "string",
-                "description": "Команда для запуска (npx, node, python, etc.)"
+                "description": "Команда для запуска (npx, node, python3 — spawn в PATH)"
               },
               "args": {
                 "type": "array",
