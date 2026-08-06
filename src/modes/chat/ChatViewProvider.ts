@@ -109,12 +109,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     const model = modelName || config.get<string>('defaultModel') || 'gpt-4o';
     const providerDisplayName = providerName || config.get<string>('defaultProvider') || 'unknown';
 
-    // Не добавляем в историю сразу если будет vision (изображение добавится вместе с текстом)
-    if (!isVision) {
-      this.conversationManager.addMessage({ role: 'user', content: text });
-    }
-
-    // Авто-контекст
+    // Авто-контекст — должен быть ПЕРЕД addMessage, чтобы прикрепиться к ТЕКУЩЕМУ сообщению
     if (isAgentMode || config.get<boolean>('chat.includeOpenFile', true)) {
       const editor = vscode.window.activeTextEditor;
       if (editor) {
@@ -123,6 +118,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
           content: editor.document.getText(),
         });
       }
+    }
+
+    // Не добавляем в историю сразу если будет vision (изображение добавится вместе с текстом)
+    if (!isVision) {
+      this.conversationManager.addMessage({ role: 'user', content: text });
     }
 
     this.postMessage({ type: 'userMessage', text });

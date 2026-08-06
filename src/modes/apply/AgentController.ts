@@ -179,14 +179,20 @@ export class AgentController {
         // --- Слой 04: Summary для длинных ReAct-сессий ---
         // Если шагов > порога, история большая, и summary ещё не применялось —
         // сжимаем первые N шагов в summary и вставляем как системное сообщение
+        const debug = config.get<boolean>('debug', false);
         if (
           summaryEnabled &&
           !summaryApplied &&
           i > AgentController.SUMMARY_STEP_THRESHOLD &&
           messages.length > AgentController.SUMMARY_STEP_THRESHOLD * 2
         ) {
+          if (debug) {
+            console.warn(`[LLM Assistant] Agent summary trigger: i=${i}, threshold=${AgentController.SUMMARY_STEP_THRESHOLD}, messages=${messages.length}, minMessages=${AgentController.SUMMARY_STEP_THRESHOLD * 2}`);
+          }
           await this.applySummary(messages, options, summaryModel, emit);
           summaryApplied = true;
+        } else if (debug && i === AgentController.SUMMARY_STEP_THRESHOLD + 1) {
+          console.warn(`[LLM Assistant] Agent summary CHECK: enabled=${summaryEnabled}, applied=${summaryApplied}, i=${i}>${AgentController.SUMMARY_STEP_THRESHOLD}=${i > AgentController.SUMMARY_STEP_THRESHOLD}, messages=${messages.length}>${AgentController.SUMMARY_STEP_THRESHOLD * 2}=${messages.length > AgentController.SUMMARY_STEP_THRESHOLD * 2}`);
         }
 
         emit({ iteration: i, type: 'info', message: `Шаг ${i}: запрос к LLM...` });

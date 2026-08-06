@@ -128,6 +128,12 @@ export class ConversationManager {
     const trimmed: ChatMessage[] = [];
     let totalTokens = usedTokens;
 
+    // Диагностика: логируем входные параметры
+    const debug = vscode.workspace.getConfiguration('llmAssistant').get<boolean>('debug', false);
+    if (debug) {
+      console.warn(`[LLM Assistant] buildHistory: allMessages=${messages.length}, maxTokens=${maxTokens}, usedBySystem=${usedTokens}, budget=${maxTokens - usedTokens}`);
+    }
+
     for (let i = messages.length - 1; i >= 0; i--) {
       const msg = messages[i];
       const msgTokens = this.estimateTokens(msg.content);
@@ -146,6 +152,9 @@ export class ConversationManager {
             role: messages[j].role,
             content: messages[j].content, // Без контекста кода — для summary не нужен
           });
+        }
+        if (debug) {
+          console.warn(`[LLM Assistant] buildHistory: trimmed=${trimmed.length} (messages[0..${i}]), kept=${history.length}, totalTokens=${totalTokens}/${maxTokens}`);
         }
         break;
       }
@@ -173,6 +182,13 @@ export class ConversationManager {
     }
     // Инвалидируем кеш summary при добавлении новых сообщений
     this.summarizer.invalidateCache();
+
+    // Диагностика: логируем состояние после каждого addMessage
+    const debug = vscode.workspace.getConfiguration('llmAssistant').get<boolean>('debug', false);
+    if (debug) {
+      const allMsgs = this.sessionManager.getMessages();
+      console.warn(`[LLM Assistant] addMessage: role=${message.role}, totalMessages=${allMsgs.length}, activeSession=${this.sessionManager.getActive()?.meta.id?.slice(0,16) ?? 'none'}`);
+    }
   }
 
   clearHistory(): void {
