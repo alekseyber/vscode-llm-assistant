@@ -90,22 +90,23 @@ export class AgentOrchestrator {
    *
    * @param task — описание задачи (цель, роли, стратегия)
    * @param provider — провайдер LLM для воркеров
+   * @param extraTools — дополнительные инструменты (MCP) для всех воркеров
    * @returns MultiAgentResult — сводный результат
    */
-  async execute(task: MultiAgentTask, provider: any): Promise<MultiAgentResult> {
+  async execute(task: MultiAgentTask, provider: any, extraTools?: any[]): Promise<MultiAgentResult> {
     this.log(`Оркестратор '${task.id}': старт, стратегия=${task.strategy}, воркеров=${task.roles.length}`);
 
     const workers: WorkerTaskResult[] = [];
 
     switch (task.strategy) {
       case 'parallel':
-        await this.runParallel(task, provider, workers);
+        await this.runParallel(task, provider, workers, extraTools);
         break;
       case 'sequential':
-        await this.runSequential(task, provider, workers);
+        await this.runSequential(task, provider, workers, extraTools);
         break;
       case 'pipeline':
-        await this.runPipeline(task, provider, workers);
+        await this.runPipeline(task, provider, workers, extraTools);
         break;
       default:
         throw new Error(`Неизвестная стратегия: ${task.strategy}`);
@@ -139,13 +140,14 @@ export class AgentOrchestrator {
     task: MultiAgentTask,
     provider: any,
     workers: WorkerTaskResult[],
+    extraTools?: any[],
   ): Promise<void> {
     this.log(`Параллельный запуск ${task.roles.length} воркеров...`);
 
     const promises = task.roles.map(async (role) => {
       const wt: WorkerTaskResult = { roleName: role.name, result: { answer: '', steps: [], iterations: 0, inputTokens: 0, outputTokens: 0 } };
       try {
-        const worker = new AgentWorker(role, provider);
+        const worker = new AgentWorker(role, provider, { extraTools });
         this.onWorkerStart?.(role.name);
         wt.result = await worker.run(this.buildSubTask(task.goal, role));
         // Сохраняем результат в общий контекст
@@ -171,13 +173,14 @@ export class AgentOrchestrator {
     task: MultiAgentTask,
     provider: any,
     workers: WorkerTaskResult[],
+    extraTools?: any[],
   ): Promise<void> {
     let previousResult = '';
 
     for (const role of task.roles) {
       const wt: WorkerTaskResult = { roleName: role.name, result: { answer: '', steps: [], iterations: 0, inputTokens: 0, outputTokens: 0 } };
       try {
-        const worker = new AgentWorker(role, provider);
+        const worker = new AgentWorker(role, provider, { extraTools });
         this.onWorkerStart?.(role.name);
 
         // Формируем задачу с контекстом от предыдущего воркера
@@ -211,13 +214,14 @@ export class AgentOrchestrator {
     task: MultiAgentTask,
     provider: any,
     workers: WorkerTaskResult[],
+    extraTools?: any[],
   ): Promise<void> {
     const artifacts: string[] = [];
 
     for (const role of task.roles) {
       const wt: WorkerTaskResult = { roleName: role.name, result: { answer: '', steps: [], iterations: 0, inputTokens: 0, outputTokens: 0 } };
       try {
-        const worker = new AgentWorker(role, provider);
+        const worker = new AgentWorker(role, provider, { extraTools });
         this.onWorkerStart?.(role.name);
 
         let subTask = this.buildSubTask(task.goal, role);

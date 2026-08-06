@@ -395,6 +395,30 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
     this.postMessage({ type: 'streamChunk', text: `🎭 **Оркестратор запущен** (${roles.length} воркеров: ${roles.map(r => r.name).join(' → ')})\n\n` });
 
+    // --- Загрузка MCP-инструментов для оркестратора ---
+    const mcpTools: any[] = [];
+    const config = vscode.workspace.getConfiguration('llmAssistant');
+    try {
+      const mcpConfigs = loadMcpConfig();
+      if (mcpConfigs.length > 0) {
+        for (const cfg of mcpConfigs) {
+          try {
+            const client = new McpClient(cfg);
+            const result = await client.connect();
+            const rawMcpTools = result.tools.map((t: any) => ({
+              type: 'function', function: { name: t.name, description: t.description, parameters: t.parameters }
+            }));
+            mcpTools.push(...rawMcpTools);
+            this.debugChannel.appendLine(`[Orchestrator] MCP connected: ${cfg.name} (${rawMcpTools.length} tools)`);
+          } catch (err: any) {
+            this.debugChannel.appendLine(`[WARN] MCP ${cfg.name}: ${err.message}`);
+          }
+        }
+      }
+    } catch (err: any) {
+      this.debugChannel.appendLine(`[WARN] MCP config error: ${err.message}`);
+    }
+
     const orchestrator = new AgentOrchestrator(
       (msg) => { this.debugChannel.appendLine(`[Orchestrator] ${msg}`); },
       // onWorkerStart — стримим в чат: «🔄 architect работает...»
@@ -417,7 +441,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       orchestratorView.updateWorker(role.name, { status: 'pending' });
     }
 
-    const result = await orchestrator.execute(task, provider);
+    const result = await orchestrator.execute(task, provider, mcpTools.length > 0 ? mcpTools : undefined);
 
     // Обновляем статусы и показываем результаты
     for (const wt of result.workers) {
