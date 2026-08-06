@@ -276,12 +276,15 @@ export class AgentController {
     emit: (step: AgentStep) => void,
   ): Promise<void> {
     try {
+      const debug = vscode.workspace.getConfiguration('llmAssistant').get<boolean>('debug', false);
+
       // Берём первые шаги (пропускаем system + user task)
       // Индексы: 0 = system, 1 = user task, 2+ = диалог агента
       const keepRecent = 6; // Оставляем последние 3 пары (assistant + user)
       const totalToKeep = 2 + keepRecent; // system + task + recent
 
       if (messages.length <= totalToKeep) {
+        if (debug) console.warn(`[LLM Assistant] Agent applySummary SKIP: messages=${messages.length} <= ${totalToKeep}`);
         return; // Недостаточно сообщений для сжатия
       }
 
@@ -297,6 +300,8 @@ export class AgentController {
         message: `Сжатие истории ReAct (${messagesToCompress.length} сообщений) в summary...`,
       });
 
+      if (debug) console.warn(`[LLM Assistant] Agent applySummary: compressing ${messagesToCompress.length} messages, model=${summaryModel}`);
+
       const summary = await this.summarizer.summarizeMessages(
         messagesToCompress,
         options.provider,
@@ -304,6 +309,8 @@ export class AgentController {
       );
 
       if (summary) {
+        if (debug) console.warn(`[LLM Assistant] Agent applySummary: summary OK (${summary.length} chars), rebuilding messages...`);
+
         // Заменяем историю: system + summary + последние шаги
         const systemMsg = messages[0];
         const taskMsg = messages[1];
@@ -319,14 +326,18 @@ export class AgentController {
         messages.push(taskMsg);
         messages.push(...recentMessages);
 
+        if (debug) console.warn(`[LLM Assistant] Agent applySummary: rebuilt messages=[${messages.map(m => m.role).join(', ')}], total=${messages.length}`);
+
         emit({
           iteration: 0,
           type: 'info',
           message: `История сжата: оставлено ${messages.length} сообщений`,
         });
       }
-    } catch {
+    } catch (err) {
       // Если сжатие не удалось — продолжаем без него
+      const debug = vscode.workspace.getConfiguration('llmAssistant').get<boolean>('debug', false);
+      if (debug) console.warn('[LLM Assistant] Agent applySummary ERROR:', err);
     }
   }
 
