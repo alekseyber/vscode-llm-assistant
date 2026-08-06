@@ -110,7 +110,7 @@ export class AgentController {
   private readonly summarizer: ContextSummarizer = new ContextSummarizer();
 
   /** Порог шагов, после которого запускается summary */
-  private static readonly SUMMARY_STEP_THRESHOLD = 3;
+  private static readonly SUMMARY_STEP_THRESHOLD = 1;
 
   constructor(toolSystem: ToolSystem) {
     this.toolSystem = toolSystem;
@@ -280,7 +280,7 @@ export class AgentController {
 
       // Берём первые шаги (пропускаем system + user task)
       // Индексы: 0 = system, 1 = user task, 2+ = диалог агента
-      const keepRecent = 6; // Оставляем последние 3 пары (assistant + user)
+      const keepRecent = 2; // Оставляем последнюю пару (assistant + tool_result)
       const totalToKeep = 2 + keepRecent; // system + task + recent
 
       if (messages.length <= totalToKeep) {
