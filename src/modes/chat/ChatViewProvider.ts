@@ -439,19 +439,31 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
     this.postMessage({ type: 'streamChunk', text: `🎭 **Оркестратор запущен** (${roles.length} воркеров: ${roles.map(r => r.name).join(' → ')})\n\n` });
 
-    const orchestrator = new AgentOrchestrator((msg) => {
-      this.debugChannel.appendLine(`[Orchestrator] ${msg}`);
-    });
+    const orchestrator = new AgentOrchestrator(
+      (msg) => { this.debugChannel.appendLine(`[Orchestrator] ${msg}`); },
+      // onWorkerStart — стримим в чат: «🔄 architect работает...»
+      (roleName) => {
+        this.postMessage({ type: 'streamChunk', text: `\n🔄 **${roleName}** работает...\n` });
+        orchestratorView.updateWorker(roleName, { status: 'running' });
+      },
+      // onWorkerDone — стримим: «✅ architect» или «❌ architect»
+      (roleName, error) => {
+        const status = error ? 'error' : 'done';
+        orchestratorView.updateWorker(roleName, { status });
+        if (error) {
+          this.postMessage({ type: 'streamChunk', text: `❌ **${roleName}**: ${error}\n` });
+        }
+      },
+    );
 
     // Отмечаем воркеров как running
     for (const role of roles) {
-      orchestratorView.updateWorker(role.name, { status: 'running' });
+      orchestratorView.updateWorker(role.name, { status: 'pending' });
     }
 
-    let currentWorkerName = '';
     const result = await orchestrator.execute(task, provider);
 
-    // Обновляем статусы воркеров
+    // Обновляем статусы и показываем результаты
     for (const wt of result.workers) {
       orchestratorView.updateWorker(wt.roleName, {
         status: wt.error ? 'error' : 'done',

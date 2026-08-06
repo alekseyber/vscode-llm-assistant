@@ -67,11 +67,21 @@ export interface MultiAgentResult {
 export class AgentOrchestrator {
   /** Колбэк для логирования шагов оркестратора */
   private onLog?: (msg: string) => void;
+  /** Колбэк: воркер начал работу */
+  private onWorkerStart?: (roleName: string) => void;
+  /** Колбэк: воркер завершил (успех или ошибка) */
+  private onWorkerDone?: (roleName: string, error?: string) => void;
   /** Общий контекст для коммуникации между воркерами */
   readonly sharedContext: AgentSharedContext;
 
-  constructor(onLog?: (msg: string) => void) {
+  constructor(
+    onLog?: (msg: string) => void,
+    onWorkerStart?: (roleName: string) => void,
+    onWorkerDone?: (roleName: string, error?: string) => void,
+  ) {
     this.onLog = onLog;
+    this.onWorkerStart = onWorkerStart;
+    this.onWorkerDone = onWorkerDone;
     this.sharedContext = new AgentSharedContext();
   }
 
@@ -136,12 +146,15 @@ export class AgentOrchestrator {
       const wt: WorkerTaskResult = { roleName: role.name, result: { answer: '', steps: [], iterations: 0, inputTokens: 0, outputTokens: 0 } };
       try {
         const worker = new AgentWorker(role, provider);
+        this.onWorkerStart?.(role.name);
         wt.result = await worker.run(this.buildSubTask(task.goal, role));
         // Сохраняем результат в общий контекст
         this.sharedContext.put(`result:${role.name}`, wt.result.answer, role.name);
+        this.onWorkerDone?.(role.name);
         this.log(`Воркер '${role.name}': завершён (${wt.result.iterations} итераций)`);
       } catch (e: any) {
         wt.error = e.message || String(e);
+        this.onWorkerDone?.(role.name, wt.error);
         this.log(`Воркер '${role.name}': ОШИБКА — ${wt.error}`);
       }
       return wt;
@@ -165,6 +178,7 @@ export class AgentOrchestrator {
       const wt: WorkerTaskResult = { roleName: role.name, result: { answer: '', steps: [], iterations: 0, inputTokens: 0, outputTokens: 0 } };
       try {
         const worker = new AgentWorker(role, provider);
+        this.onWorkerStart?.(role.name);
 
         // Формируем задачу с контекстом от предыдущего воркера
         let subTask = this.buildSubTask(task.goal, role);
@@ -174,11 +188,13 @@ export class AgentOrchestrator {
 
         wt.result = await worker.run(subTask);
         previousResult = wt.result.answer;
+        this.onWorkerDone?.(role.name);
         // Сохраняем результат в общий контекст
         this.sharedContext.put(`result:${role.name}`, wt.result.answer, role.name);
         this.log(`Воркер '${role.name}': завершён (${wt.result.iterations} итераций)`);
       } catch (e: any) {
         wt.error = e.message || String(e);
+        this.onWorkerDone?.(role.name, wt.error);
         this.log(`Воркер '${role.name}': ОШИБКА — ${wt.error}`);
         workers.push(wt);
         break; // При ошибке в sequential — останавливаем цепочку
@@ -202,6 +218,7 @@ export class AgentOrchestrator {
       const wt: WorkerTaskResult = { roleName: role.name, result: { answer: '', steps: [], iterations: 0, inputTokens: 0, outputTokens: 0 } };
       try {
         const worker = new AgentWorker(role, provider);
+        this.onWorkerStart?.(role.name);
 
         let subTask = this.buildSubTask(task.goal, role);
         if (artifacts.length > 0) {
@@ -215,6 +232,7 @@ export class AgentOrchestrator {
         this.log(`Воркер '${role.name}': завершён (${wt.result.iterations} итераций)`);
       } catch (e: any) {
         wt.error = e.message || String(e);
+        this.onWorkerDone?.(role.name, wt.error);
         this.log(`Воркер '${role.name}': ОШИБКА — ${wt.error}`);
         workers.push(wt);
         break;
