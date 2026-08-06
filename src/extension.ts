@@ -67,7 +67,7 @@ export function activate(context: vscode.ExtensionContext) {
     );
 
     // ── 2. Регистрация WebView Provider ──
-    const chatViewProvider = new ChatViewProvider(context, providerManager, conversationManager, runHistoryStore, historyViewProvider);
+    const chatViewProvider = new ChatViewProvider(context, providerManager, conversationManager, runHistoryStore, historyViewProvider, orchestratorViewProvider);
     context.subscriptions.push(
         vscode.window.registerWebviewViewProvider(ChatViewProvider.viewType, chatViewProvider)
     );

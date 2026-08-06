@@ -10,8 +10,11 @@ import { loadAgentsMd } from '../../shared/AgentsMdLoader';
 import { loadToolAllowListConfig, isConfirmationRequired } from '../apply/ToolAllowList';
 import { McpClient, loadMcpConfig } from '../apply/McpClient';
 import { ContextSummarizer } from '../../shared/ContextSummarizer';
+import { AgentWorker, AgentRole } from '../apply/AgentWorker';
+import { AgentOrchestrator, MultiAgentTask } from '../apply/AgentOrchestrator';
 import { RunHistoryStore, generateRunId, RunEntry } from '../../shared/RunHistoryStore';
 import { HistoryViewProvider } from '../history/HistoryViewProvider';
+import { OrchestratorViewProvider, OrchestratorTaskInfo, WorkerInfo } from '../orchestrator/OrchestratorViewProvider';
 
 export class ChatViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = 'llmAssistant.chat';
@@ -23,14 +26,16 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   private abortController: AbortController | null = null;
   private pendingImage: { fileName: string; base64: string; mimeType: string } | null = null;
   private readonly historyViewProvider?: HistoryViewProvider;
+  private readonly orchestratorViewProvider?: OrchestratorViewProvider;
   private debugChannel: vscode.OutputChannel;
 
-  constructor(ctx: vscode.ExtensionContext, pm: ProviderManager, cm: ConversationManager, runHistoryStore: RunHistoryStore, historyViewProvider?: HistoryViewProvider) {
+  constructor(ctx: vscode.ExtensionContext, pm: ProviderManager, cm: ConversationManager, runHistoryStore: RunHistoryStore, historyViewProvider?: HistoryViewProvider, orchestratorViewProvider?: OrchestratorViewProvider) {
     this.context = ctx;
     this.providerManager = pm;
     this.conversationManager = cm;
     this.runHistoryStore = runHistoryStore;
     this.historyViewProvider = historyViewProvider;
+    this.orchestratorViewProvider = orchestratorViewProvider;
     this.debugChannel = vscode.window.createOutputChannel('LLM Assistant');
     ctx.subscriptions.push(this.debugChannel);
     // Авто-обновление провайдеров при изменении настроек
@@ -104,10 +109,18 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     const runId = generateRunId();
     const startTime = Date.now();
 
-    // Определяем провайдера и модель для записи в историю
+    // Определяем провайдера и модель
     const provider = providerName ? this.providerManager.getProvider(providerName) : this.providerManager.getDefault();
     if (!provider) { this.postMessage({ type: 'error', text: 'Провайдер не настроен.' }); return; }
     const model = modelName || config.get<string>('defaultModel') || 'gpt-4o';
+
+    // --- @orchestrate: запуск multi-agent оркестратора ---
+    const orchestrateMatch = text.match(/^@orchestrate\s+(.+)/);
+    if (orchestrateMatch && isAgentMode) {
+      await this.handleOrchestrate(orchestrateMatch[1], provider, model);
+      return;
+    }
+
     const providerDisplayName = providerName || config.get<string>('defaultProvider') || 'unknown';
 
     // Авто-контекст — должен быть ПЕРЕД addMessage, чтобы прикрепиться к ТЕКУЩЕМУ сообщению
@@ -383,6 +396,84 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       }
     }
     this.postMessage({ type: 'done' });
+  }
+
+  /** Запустить multi-agent оркестрацию по команде @orchestrate */
+  private async handleOrchestrate(taskText: string, provider: any, model: string): Promise<void> {
+    const orchestratorView = this.orchestratorViewProvider;
+    if (!orchestratorView) {
+      this.postMessage({ type: 'error', text: 'Оркестратор не доступен' });
+      return;
+    }
+
+    // Определяем роли на основе задачи (можно расширить)
+    const roles: AgentRole[] = [
+      { name: 'architect', systemPrompt: 'Ты — архитектор. Спроектируй решение, опиши структуру. Отвечай кратко, по-русски.' },
+      { name: 'coder', systemPrompt: 'Ты — программист. Напиши код по спецификации. Отвечай кратко, по-русски.' },
+      { name: 'reviewer', systemPrompt: 'Ты — ревьюер. Проверь код, найди ошибки, предложи улучшения. Отвечай кратко, по-русски.' },
+    ];
+
+    const task: MultiAgentTask = {
+      id: `orch_${Date.now()}`,
+      goal: taskText,
+      roles,
+      strategy: 'sequential',
+    };
+
+    // Показываем задачу в панели оркестратора
+    orchestratorView.showTask({
+      taskId: task.id,
+      goal: task.goal,
+      strategy: task.strategy,
+      workers: roles.map(r => ({
+        roleName: r.name,
+        status: 'pending' as const,
+        steps: 0,
+        inputTokens: 0,
+        outputTokens: 0,
+      })),
+      totalWorkers: roles.length,
+      completedWorkers: 0,
+      progress: 0,
+    });
+
+    this.postMessage({ type: 'streamChunk', text: `🎭 **Оркестратор запущен** (${roles.length} воркеров: ${roles.map(r => r.name).join(' → ')})\n\n` });
+
+    const orchestrator = new AgentOrchestrator((msg) => {
+      this.debugChannel.appendLine(`[Orchestrator] ${msg}`);
+    });
+
+    // Отмечаем воркеров как running
+    for (const role of roles) {
+      orchestratorView.updateWorker(role.name, { status: 'running' });
+    }
+
+    let currentWorkerName = '';
+    const result = await orchestrator.execute(task, provider);
+
+    // Обновляем статусы воркеров
+    for (const wt of result.workers) {
+      orchestratorView.updateWorker(wt.roleName, {
+        status: wt.error ? 'error' : 'done',
+        steps: wt.result.iterations,
+        answer: wt.result.answer,
+        error: wt.error,
+        inputTokens: wt.result.inputTokens,
+        outputTokens: wt.result.outputTokens,
+      });
+
+      this.postMessage({
+        type: 'streamChunk',
+        text: `\n### ${wt.roleName}${wt.error ? ' ❌' : ' ✅'}\n${wt.error ? `Ошибка: ${wt.error}` : wt.result.answer}\n`,
+      });
+    }
+
+    this.postMessage({ type: 'streamChunk', text: `\n---\n🎭 **Оркестрация завершена.** Токенов: ${result.totalInputTokens}+${result.totalOutputTokens}\n` });
+    this.postMessage({ type: 'done' });
+
+    // Сохраняем ответ в историю
+    this.conversationManager.addMessage({ role: 'user', content: `@orchestrate ${taskText}` });
+    this.conversationManager.addMessage({ role: 'assistant', content: result.summary });
   }
 
   /** Запросить подтверждение у пользователя для опасной операции */
