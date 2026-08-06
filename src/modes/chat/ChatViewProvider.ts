@@ -9,6 +9,7 @@ import { getToolSchemas, getTool } from './ChatAgentTools';
 import { loadAgentsMd } from '../../shared/AgentsMdLoader';
 import { loadToolAllowListConfig, isConfirmationRequired } from '../apply/ToolAllowList';
 import { McpClient, loadMcpConfig } from '../apply/McpClient';
+import { ContextSummarizer } from '../../shared/ContextSummarizer';
 import { RunHistoryStore, generateRunId, RunEntry } from '../../shared/RunHistoryStore';
 import { HistoryViewProvider } from '../history/HistoryViewProvider';
 
@@ -303,6 +304,38 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
     for (let i = 0; i < MAX_ITER; i++) {
       if (this.abortController?.signal.aborted) break;
+
+      // --- Слой 04: Summary для длинных цепочек инструментов ---
+      // Если накопилось >4 сообщений сверх system+task — сжимаем старые в summary
+      const debug = vscode.workspace.getConfiguration('llmAssistant').get<boolean>('debug', false);
+      const summaryEnabled = vscode.workspace.getConfiguration('llmAssistant').get<boolean>('chat.summaryEnabled', true);
+      if (summaryEnabled && i >= 2 && messages.length > 6) {
+        try {
+          const systemMsg = messages[0];
+          const taskMsg = messages[1];
+          const oldMessages = messages.slice(2, -4); // всё кроме system, task, и последних 2 пар
+          const recentMessages = messages.slice(-4);
+          if (oldMessages.length > 0 && debug) {
+            console.warn(`[LLM Assistant] Agent summary: compressing ${oldMessages.length} old messages...`);
+          }
+          if (oldMessages.length > 0) {
+            const summarizer = new ContextSummarizer();
+            const summaryModel = vscode.workspace.getConfiguration('llmAssistant').get<string>('chat.summaryModel', '') ||
+              model;
+            const summary = await summarizer.summarizeMessages(oldMessages, provider, summaryModel);
+            if (summary) {
+              messages.length = 0;
+              messages.push(systemMsg);
+              messages.push({ role: 'system', content: `## Краткое содержание предыдущих шагов:\n${summary}` });
+              messages.push(taskMsg);
+              messages.push(...recentMessages);
+              if (debug) console.warn(`[LLM Assistant] Agent summary: rebuilt messages=[${messages.map((m: any) => m.role).join(', ')}], total=${messages.length}`);
+            }
+          }
+        } catch (e) {
+          if (debug) console.warn('[LLM Assistant] Agent summary ERROR:', e);
+        }
+      }
 
       const response = await (provider as any).createWithTools(messages, model, tools, this.abortController?.signal, onRetry);
 
