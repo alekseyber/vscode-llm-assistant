@@ -1,4 +1,4 @@
-# VS Code LLM Assistant v0.6.0
+# VS Code LLM Assistant v0.7.0
 
 **AI-ассистент для VS Code** — 4 режима работы с LLM через любые OpenAI-совместимые API.
 
@@ -7,13 +7,22 @@
 | 💬 **Chat** | Боковая панель | Чат с контекстом кода, стриминг, история |
 | ✏️ **Edit** | `Ctrl+I` | Выделил код → инструкция → diff → Accept/Reject |
 | ⚡ **Autocomplete** | Tab/Escape | Ghost text на паузе печати |
-| 🤖 **Agent** | Вкладка в чате | ReAct-агент с инструментами и MCP |
+| 🤖 **Agent** | Вкладка в чате | ReAct-агент с инструментами, MCP и multi-agent оркестрацией |
 
-## Возможности v0.6.0
+## Что нового в v0.7.0
 
-### 🏗 Harness-слои агента
+### 🎭 Multi-Agent Harness (MVP)
+- **Вкладка «Оркестратор»** — панель для мониторинга multi-agent задач
+- **`@orchestrate` команда** — запуск цепочки агентов в 🤖 Агенте
+- **3 стратегии**: parallel, sequential, pipeline
+- **Роли**: architect → coder → reviewer (настраиваемые)
+- **Живой прогресс**: древовидный UI со статусами (pending/running/done/error)
+- **SharedContext**: обмен артефактами между воркерами
+- **226 тестов** (включая 39 новых для multi-agent)
+
+### 🏗 Harness-слои агента (v0.6.0+)
 - **AGENTS.md автоинжект** — правила проекта из `AGENTS.md` в корне workspace автоматически добавляются в system prompt
-- **Context Summary** — при переполнении контекста старые сообщения сжимаются в summary
+- **Context Summary** — при переполнении контекста старые сообщения сжимаются в summary (чат + агент)
 - **Ретраи + таймауты** — exponential backoff при 429/5xx/сетевых ошибках, настраиваемый таймаут
 - **Allow-list инструментов** — ограничение доступных агенту инструментов через настройки или `.vscode/llm-assistant.json`
 - **MCP-клиент** — подключение внешних инструментов через Model Context Protocol (stdio-серверы)
@@ -140,7 +149,7 @@
 | `env` | object | Переменные окружения |
 | `enabled` | boolean | `false` чтобы временно отключить без удаления |
 
-### Автокомплит (`llmAssistant.autocomplete`)
+### Autocomplete (`llmAssistant.autocomplete`)
 
 | Ключ | Тип | По умолчанию | Описание |
 |------|-----|-------------|----------|
@@ -149,16 +158,44 @@
 
 ---
 
+## Multi-Agent — оркестратор (`@orchestrate`)
+
+В 🤖 Агенте используй команду `@orchestrate`:
+
+```
+@orchestrate Создай REST API для списка задач на TypeScript
+```
+
+**Что происходит:**
+1. Создаётся цепочка из 3 воркеров: **architect → coder → reviewer**
+2. Каждый воркер получает контекст от предыдущего
+3. Результаты стримятся в чат и во вкладку «🎭 Оркестратор»
+4. История сохраняется в сессию
+
+**Стратегии:**
+| Стратегия | Описание |
+|-----------|----------|
+| `sequential` | Каждый следующий получает результат предыдущего |
+| `parallel` | Все работают одновременно |
+| `pipeline` | Как sequential, но артефакты сохраняются в SharedContext |
+
+**Вкладка «Оркестратор»:**
+- Дерево воркеров с иконками (⏳ ожидание, 🔄 выполняется, ✅ готово, ❌ ошибка)
+- Прогресс-бар
+- Детали по клику (шаги, токены, ответ)
+
+---
+
 ## Разработка
 
 - **Стек:** TypeScript, VS Code Extension API, WebView, Webpack
-- **Тесты:** Mocha + Sinon (187 тестов), GitHub Actions CI
+- **Тесты:** Mocha + Sinon (226 тестов), GitHub Actions CI
 - **Репозиторий:** github.com/alekseyber/vscode-llm-assistant
 
 ```bash
 npm install
 npm run compile        # Сборка
-npm run test:mocked    # Тесты без VS Code
+npm run test:mocked    # Тесты без VS Code (226 шт.)
 npm run lint           # Линтер
 ```
 

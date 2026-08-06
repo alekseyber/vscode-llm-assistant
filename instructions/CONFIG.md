@@ -1,4 +1,4 @@
-# Инструкция по установке и настройке VS Code LLM Assistant v0.6.0
+# Инструкция по установке и настройке VS Code LLM Assistant v0.7.0
 
 ## Установка
 
@@ -9,7 +9,7 @@ code --install-extension alekseyber.vscode-llm-assistant
 
 ### Из .vsix (ручная)
 ```
-code --install-extension vscode-llm-assistant-0.6.0.vsix
+code --install-extension vscode-llm-assistant-0.7.0.vsix
 ```
 
 ## Быстрый старт
@@ -122,12 +122,27 @@ code --install-extension vscode-llm-assistant-0.6.0.vsix
 |-------|-----------------|
 | 💬 Чат | Боковая панель, селект «💬 Чат» |
 | 🤖 Агент | Селект «🤖 Агент» (требует провайдера с function calling) |
+| 🎭 Оркестратор | Вкладка в Activity Bar (рядом с Чат и История) |
 | ✏️ Edit | `Ctrl+I` на выделенном коде |
 | ⚡ Autocomplete | Пауза при печати |
 
+## Multi-Agent оркестрация — `@orchestrate`
+
+В 🤖 Агенте используй команду:
+
+```
+@orchestrate Создай REST API для списка задач на TypeScript
+```
+
+**Как это работает:**
+1. Создаётся цепочка из 3 воркеров: **architect → coder → reviewer**
+2. Каждый воркер получает контекст от предыдущего
+3. Результаты видны в чате и во вкладке «🎭 Оркестратор»
+4. История сохраняется в сессию
+
 ## Дебаг
 
-Включи `"llmAssistant.debug": true`, открой **View → Output → LLM Assistant** — там будет полный лог system prompt, AGENTS.md, отправляемых сообщений, MCP-подключений.
+Включи `"llmAssistant.debug": true`, открой **View → Output → LLM Assistant** — там будет полный лог system prompt, AGENTS.md, отправляемых сообщений, MCP-подключений и логов оркестратора.
 
 ## Тестирование
 
@@ -136,5 +151,5 @@ git clone https://github.com/alekseyber/vscode-llm-assistant.git
 cd vscode-llm-assistant
 npm install
 npm run compile
-npm run test:mocked    # 187 тестов
+npm run test:mocked    # 226 тестов
 ```
