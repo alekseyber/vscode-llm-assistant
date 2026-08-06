@@ -45,6 +45,7 @@ const testFiles = [
   '../out/test/suite/mcpClient.test.js',
   '../out/test/suite/runHistoryStore.test.js',
   '../out/test/suite/agentWorker.test.js',
+  '../out/test/suite/agentOrchestrator.test.js',
 ];
 
 for (const file of testFiles) {

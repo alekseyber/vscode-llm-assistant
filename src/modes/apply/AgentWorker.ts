@@ -50,6 +50,8 @@ export interface WorkerResult {
   /** Потраченные токены (оценка) */
   inputTokens: number;
   outputTokens: number;
+  /** Ошибка, если агент упал */
+  error?: string;
 }
 
 /**
@@ -205,7 +207,9 @@ export class AgentWorker {
         }
       } catch (e: any) {
         emit({ iteration: i, type: 'error', message: `Ошибка LLM: ${e.message}` });
-        break;
+        const errMsg = e.message || String(e);
+        // Пробрасываем ошибку наверх — оркестратор должен знать о падении воркера
+        throw new Error(errMsg);
       }
     }
 

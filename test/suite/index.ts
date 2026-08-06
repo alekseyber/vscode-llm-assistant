@@ -33,6 +33,7 @@ const testModules: string[] = [
   './mcpClient.test',
   './runHistoryStore.test',
   './agentWorker.test',
+  './agentOrchestrator.test',
 ];
 
 /**
