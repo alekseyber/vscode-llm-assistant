@@ -188,13 +188,6 @@ export class AgentWorker {
         }
       }
 
-      // Оценка входных токенов
-      const inTok = messages.reduce((s, m) => {
-        const text = typeof m.content === 'string' ? m.content : JSON.stringify(m.content ?? '');
-        return s + text.length;
-      }, 0) / 4;
-      inputTokens += Math.ceil(inTok);
-
       try {
         // Вызов LLM с инструментами
         const response = await this.provider.createWithTools(
@@ -207,12 +200,16 @@ export class AgentWorker {
           break;
         }
 
+        // Используем реальные токены из API, если доступны
+        inputTokens += response.usage?.prompt_tokens ?? 0;
+
         const toolCalls = choice.message?.tool_calls;
 
         // Нет tool calls — финальный ответ
         if (!toolCalls || toolCalls.length === 0) {
           const content = choice.message?.content || '';
-          outputTokens += Math.ceil(content.length / 4);
+          // Реальные выходные токены из usage, или оценка chars/4
+          outputTokens += response.usage?.completion_tokens ?? Math.ceil(content.length / 4);
           finalAnswer = content;
           emit({ iteration: i, type: 'response', message: content.slice(0, 200) });
           messages.push({ role: 'assistant', content });
