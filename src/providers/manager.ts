@@ -2,7 +2,7 @@
 // и предоставляет доступ к провайдерам по имени
 
 import * as vscode from 'vscode';
-import { LLMProvider, ProviderConfig } from './types';
+import { LLMProvider, ProviderConfig, ModelEntry, PricingMap, extractModelNames, buildPricingMap } from './types';
 import { OpenAIProvider } from './openai';
 
 /**
@@ -37,6 +37,8 @@ import { OpenAIProvider } from './openai';
 export class ProviderManager {
   /** Карта провайдеров: имя → LLMProvider */
   private providers: Map<string, LLMProvider> = new Map();
+  /** Карта цен моделей (из конфига + fallback) */
+  private _pricingMap: PricingMap = new Map();
 
   constructor() {
     // При создании сразу читаем конфигурацию
@@ -54,6 +56,7 @@ export class ProviderManager {
     const providersConfig = config.get<Record<string, Omit<ProviderConfig, 'name'>>>('providers') ?? {};
 
     this.providers.clear();
+    this._pricingMap.clear();
 
     for (const [name, providerCfg] of Object.entries(providersConfig)) {
       // Подстановка переменных окружения ${VAR}
@@ -62,15 +65,30 @@ export class ProviderManager {
       let baseUrl = providerCfg.baseUrl ?? '';
       baseUrl = baseUrl.replace(/\$\{(\w+)\}/g, (_, v) => process.env[v] || '');
 
+      // Модели: могут быть строками или объектами с pricing
+      const rawModels: ModelEntry[] = (providerCfg.models ?? []) as ModelEntry[];
+      const modelNames = extractModelNames(rawModels);
+
+      // Строим карту цен для этого провайдера и сливаем в общую
+      const providerPricing = buildPricingMap(rawModels);
+      for (const [m, p] of providerPricing) {
+        this._pricingMap.set(m, p);
+      }
+
       const provider = new OpenAIProvider({
         name,
         baseUrl,
         apiKey,
-        models: providerCfg.models ?? [],
+        models: modelNames, // Только имена моделей (строки)
         supportsVision: (providerCfg as any).supportsVision ?? false,
       });
       this.providers.set(name, provider);
     }
+  }
+
+  /** Получить карту цен моделей */
+  get pricingMap(): PricingMap {
+    return this._pricingMap;
   }
 
   /**

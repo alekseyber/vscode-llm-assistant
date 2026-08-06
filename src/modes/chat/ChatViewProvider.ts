@@ -4,7 +4,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import { ProviderManager } from '../../providers/manager';
 import { ConversationManager } from './ConversationManager';
-import { ChatMessage } from '../../providers/types';
+import { ChatMessage, calculateCost } from '../../providers/types';
 import { loadAgentsMd } from '../../shared/AgentsMdLoader';
 import { loadRoleAgentsMd, loadOrchestratorRoles } from '../../shared/RoleAgentsMdLoader';
 import { loadToolAllowListConfig, isConfirmationRequired } from '../apply/ToolAllowList';
@@ -254,15 +254,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     error?: string,
   ): void {
     const duration = Date.now() - startTime;
-    // Приблизительная стоимость (цены по умолчанию)
-    const prices: Record<string, { input: number; output: number }> = {
-      'deepseek-chat': { input: 0.14, output: 0.28 },
-      'deepseek-v4-pro': { input: 0.435, output: 0.87 },
-      'deepseek-v4-flash': { input: 0.14, output: 0.28 },
-      'gpt-4o': { input: 2.50, output: 10.00 },
-    };
-    const price = prices[model] || { input: 0.5, output: 1.0 };
-    const cost = (tokensIn / 1_000_000) * price.input + (tokensOut / 1_000_000) * price.output;
+    const cost = calculateCost(model, tokensIn, tokensOut, this.providerManager.pricingMap);
 
     const entry: RunEntry = {
       id: runId,
