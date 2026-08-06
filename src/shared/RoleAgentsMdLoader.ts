@@ -1,5 +1,5 @@
 // RoleAgentsMdLoader — загрузка правил для ролевых воркеров (задача MA-5)
-// Приоритет: .llma/agents/{role}.md → AGENTS.{role}.md → AGENTS.md → null
+// Приоритет: .llma/agents/{role}.md → AGENTS.{role}.md → .llma/main.md → AGENTS.md → null
 
 import * as vscode from 'vscode';
 import * as path from 'path';
@@ -51,7 +51,15 @@ export function loadRoleAgentsMd(roleName: string): string | null {
       return rootContent;
     }
 
-    // 3. AGENTS.md — общие правила
+    // 3. .llma/main.md — правила главного агента
+    const mainFile = path.join(rootPath, '.llma', 'main.md');
+    const mainContent = tryReadFile(mainFile);
+    if (mainContent) {
+      roleCache.set(cacheKey, mainContent);
+      return mainContent;
+    }
+
+    // 4. AGENTS.md — общие правила (корень)
     const defaultFile = path.join(rootPath, 'AGENTS.md');
     const defaultContent = tryReadFile(defaultFile);
     const result = defaultContent || null;

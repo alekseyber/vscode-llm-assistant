@@ -1,12 +1,13 @@
-// AgentsMdLoader — загрузчик AGENTS.md из корня workspace
-// Кеширует содержимое и инвалидирует кеш при изменении/создании/удалении файла
-// Используется AgentController, ChatViewProvider и ConversationManager для автоинжекта правил
+// AgentsMdLoader — загрузчик правил главного агента из .llma/main.md или AGENTS.md
+// Приоритет: .llma/main.md → AGENTS.md → null
+// Кеширует содержимое и инвалидирует кеш при изменении/создании/удалении файлов
+// Используется ChatViewProvider и ConversationManager для автоинжекта правил
 
 import * as vscode from 'vscode';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
-/** Закешированное содержимое AGENTS.md */
+/** Закешированное содержимое */
 let cachedContent: string | null = null;
 
 /** Путь к последнему загруженному файлу (для инвалидации) */
@@ -16,94 +17,86 @@ let lastFilePath: string | null = null;
 let watcherInitialized = false;
 
 /**
- * Загрузить содержимое AGENTS.md из корня workspace.
+ * Загрузить правила главного агента.
  *
- * - Если настройка llmAssistant.agentsMd.enabled === false, сразу возвращает null
- * - Если файла нет в корне workspace — возвращает null
- * - При первом вызове подписывается на onDidChangeTextDocument,
- *   onDidCreateFiles, onDidDeleteFiles для инвалидации кеша
- * - Кеширует содержимое до следующего изменения файла или смены workspace
+ * Приоритет:
+ *   1. .llma/main.md     (основной путь)
+ *   2. AGENTS.md         (корень, обратная совместимость)
  *
- * @returns содержимое AGENTS.md или null
+ * @returns содержимое файла или null
  */
 export async function loadAgentsMd(): Promise<string | null> {
-  // Проверяем настройку — если отключено, не загружаем
   const config = vscode.workspace.getConfiguration('llmAssistant');
   if (!config.get<boolean>('agentsMd.enabled', true)) {
     return null;
   }
 
-  // Получаем корень workspace
   const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
   if (!workspaceRoot) {
     return null;
   }
 
-  const agentsMdPath = path.join(workspaceRoot, 'AGENTS.md');
-
-  // Настраиваем слежение за файлом при первом вызове
   if (!watcherInitialized) {
-    setupWatcher();
+    setupWatcher(workspaceRoot);
     watcherInitialized = true;
   }
 
-  // Возвращаем кеш, если он актуален
+  // 1. Пробуем .llma/main.md
+  const mainPath = path.join(workspaceRoot, '.llma', 'main.md');
+  const mainContent = await tryReadFile(mainPath);
+  if (mainContent !== null) {
+    if (cachedContent === mainContent && lastFilePath === mainPath) return cachedContent;
+    cachedContent = mainContent;
+    lastFilePath = mainPath;
+    return mainContent;
+  }
+
+  // 2. Fallback: AGENTS.md
+  const agentsMdPath = path.join(workspaceRoot, 'AGENTS.md');
   if (cachedContent !== null && lastFilePath === agentsMdPath) {
     return cachedContent;
   }
+  const rootContent = await tryReadFile(agentsMdPath);
+  cachedContent = rootContent;
+  lastFilePath = agentsMdPath;
+  return rootContent;
+}
 
-  // Читаем файл с диска
+async function tryReadFile(filePath: string): Promise<string | null> {
   try {
-    const content = await fs.readFile(agentsMdPath, 'utf-8');
-    cachedContent = content;
-    lastFilePath = agentsMdPath;
-    return content;
+    const content = await fs.readFile(filePath, 'utf-8');
+    return content || null;
   } catch {
-    // Файла нет или ошибка чтения — сбрасываем кеш
-    cachedContent = null;
-    lastFilePath = agentsMdPath;
     return null;
   }
 }
 
-/**
- * Подписаться на события VS Code для инвалидации кеша AGENTS.md:
- * - onDidChangeTextDocument — файл изменён и сохранён
- * - onDidCreateFiles — файл создан
- * - onDidDeleteFiles — файл удалён
- */
-function setupWatcher(): void {
-  // Изменение содержимого файла (сохранение)
+function setupWatcher(workspaceRoot: string): void {
+  const mainPath = path.join(workspaceRoot, '.llma', 'main.md');
+  const agentsMdPath = path.join(workspaceRoot, 'AGENTS.md');
+
+  const isTracked = (uri: vscode.Uri) =>
+    uri.fsPath === mainPath || uri.fsPath === agentsMdPath;
+
   vscode.workspace.onDidChangeTextDocument((e) => {
     if (lastFilePath && e.document.uri.fsPath === lastFilePath) {
       cachedContent = null;
     }
   });
 
-  // Создание файла (например, touch AGENTS.md)
   vscode.workspace.onDidCreateFiles((e) => {
-    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-    if (!workspaceRoot) return;
-    const agentsMdPath = path.join(workspaceRoot, 'AGENTS.md');
-    if (e.files.some((f) => f.fsPath === agentsMdPath)) {
+    if (e.files.some((f) => isTracked(f))) {
       cachedContent = null;
     }
   });
 
-  // Удаление файла
   vscode.workspace.onDidDeleteFiles((e) => {
-    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-    if (!workspaceRoot) return;
-    const agentsMdPath = path.join(workspaceRoot, 'AGENTS.md');
-    if (e.files.some((f) => f.fsPath === agentsMdPath)) {
+    if (e.files.some((f) => isTracked(f))) {
       cachedContent = null;
     }
   });
 }
 
-/**
- * Сбросить кеш вручную (для тестов и при смене workspace).
- */
 export function invalidateCache(): void {
   cachedContent = null;
   lastFilePath = null;
