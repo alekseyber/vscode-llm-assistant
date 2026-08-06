@@ -6,6 +6,7 @@ import { ProviderManager } from '../../providers/manager';
 import { ConversationManager } from './ConversationManager';
 import { ChatMessage } from '../../providers/types';
 import { loadAgentsMd } from '../../shared/AgentsMdLoader';
+import { loadRoleAgentsMd, loadOrchestratorRoles } from '../../shared/RoleAgentsMdLoader';
 import { loadToolAllowListConfig, isConfirmationRequired } from '../apply/ToolAllowList';
 import { McpClient, loadMcpConfig } from '../apply/McpClient';
 import { AgentWorker, AgentRole } from '../apply/AgentWorker';
@@ -365,12 +366,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       return;
     }
 
-    // Определяем роли на основе задачи (можно расширить)
-    const roles: AgentRole[] = [
-      { name: 'architect', systemPrompt: 'Ты — архитектор. Спроектируй решение, опиши структуру. Отвечай кратко, по-русски.' },
-      { name: 'coder', systemPrompt: 'Ты — программист. Напиши код по спецификации. Отвечай кратко, по-русски.' },
-      { name: 'reviewer', systemPrompt: 'Ты — ревьюер. Проверь код, найди ошибки, предложи улучшения. Отвечай кратко, по-русски.' },
-    ];
+    // Загружаем роли из .llma/agents/*.md (динамически) или fallback
+    const roles = loadOrchestratorRoles();
 
     const task: MultiAgentTask = {
       id: `orch_${Date.now()}`,
