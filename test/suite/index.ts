@@ -32,6 +32,7 @@ const testModules: string[] = [
   './toolAllowList.test',
   './mcpClient.test',
   './runHistoryStore.test',
+  './agentWorker.test',
 ];
 
 /**

@@ -44,6 +44,7 @@ const testFiles = [
   '../out/test/suite/toolAllowList.test.js',
   '../out/test/suite/mcpClient.test.js',
   '../out/test/suite/runHistoryStore.test.js',
+  '../out/test/suite/agentWorker.test.js',
 ];
 
 for (const file of testFiles) {
