@@ -11,6 +11,7 @@ import { ChatMessage } from '../../providers/types';
 import { getToolSchemas, getTool } from '../chat/ChatAgentTools';
 import { ContextSummarizer } from '../../shared/ContextSummarizer';
 import { isConfirmationRequired } from './ToolAllowList';
+import { loadRoleAgentsMd } from '../../shared/RoleAgentsMdLoader';
 
 /**
  * Роль агента: определяет поведение, доступные инструменты и модель.
@@ -113,9 +114,15 @@ export class AgentWorker {
 
     const systemPrompt = `${this.role.systemPrompt}\n\n## Доступные инструменты:\n${toolDescriptions}\n\nИспользуй инструменты по одному за шаг. Отвечай кратко, по-русски.`;
 
+    // --- MA-5: Role-based AGENTS.md ---
+    const roleAgentsMd = loadRoleAgentsMd(this.role.name);
+    const finalSystemPrompt = roleAgentsMd
+      ? `${systemPrompt}\n\n## Правила роли (AGENTS.${this.role.name}.md):\n${roleAgentsMd}`
+      : systemPrompt;
+
     // История сообщений: system + user task
     const messages: any[] = [
-      { role: 'system', content: systemPrompt },
+      { role: 'system', content: finalSystemPrompt },
       { role: 'user', content: task },
     ];
 

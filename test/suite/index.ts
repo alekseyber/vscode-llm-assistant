@@ -36,6 +36,7 @@ const testModules: string[] = [
   './agentOrchestrator.test',
   './agentCommunication.test',
   './orchestratorView.test',
+  './roleAgentsMd.test',
 ];
 
 /**
