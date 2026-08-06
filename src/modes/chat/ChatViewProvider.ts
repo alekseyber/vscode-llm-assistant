@@ -5,11 +5,9 @@ import * as fs from 'fs';
 import { ProviderManager } from '../../providers/manager';
 import { ConversationManager } from './ConversationManager';
 import { ChatMessage } from '../../providers/types';
-import { getToolSchemas, getTool } from './ChatAgentTools';
 import { loadAgentsMd } from '../../shared/AgentsMdLoader';
 import { loadToolAllowListConfig, isConfirmationRequired } from '../apply/ToolAllowList';
 import { McpClient, loadMcpConfig } from '../apply/McpClient';
-import { ContextSummarizer } from '../../shared/ContextSummarizer';
 import { AgentWorker, AgentRole } from '../apply/AgentWorker';
 import { AgentOrchestrator, MultiAgentTask } from '../apply/AgentOrchestrator';
 import { RunHistoryStore, generateRunId, RunEntry } from '../../shared/RunHistoryStore';
@@ -285,12 +283,14 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     this.historyViewProvider?.refresh();
   }
 
-  /** ReAct-цикл с инструментами (только для агентного режима) */
+  /** ReAct-цикл с инструментами (только для агентного режима).
+   *  Делегирует выполнение AgentWorker — общему движку для чат-агента и оркестратора. */
   private async runAgentLoop(provider: any, model: string, messages: any[], onRetry?: (attempt: number, maxRetries: number, delayMs: number, errorMsg: string) => void): Promise<void> {
     const MAX_ITER = 5;
-    const tools = getToolSchemas();
     const allowListConfig = loadToolAllowListConfig();
 
+    // --- Загрузка MCP-инструментов (только для интерактивного агента) ---
+    const mcpTools: any[] = [];
     try {
       const mcpConfigs = loadMcpConfig();
       this.debugChannel.appendLine(`[DEBUG] MCP configs loaded: ${mcpConfigs.length}`);
@@ -299,13 +299,13 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
           try {
             const client = new McpClient(cfg);
             const result = await client.connect();
-            const mcpTools = result.tools.map((t: any) => ({
+            const rawMcpTools = result.tools.map((t: any) => ({
               type: 'function', function: { name: t.name, description: t.description, parameters: t.parameters }
             }));
             const filteredMcpTools = allowListConfig.allowedTools?.length
-              ? mcpTools.filter((t: any) => allowListConfig.allowedTools!.includes(t.function.name)) : mcpTools;
-            tools.push(...filteredMcpTools);
-            this.debugChannel.appendLine(`[INFO] MCP connected: ${cfg.name} (${filteredMcpTools.length}/${mcpTools.length} tools)`);
+              ? rawMcpTools.filter((t: any) => allowListConfig.allowedTools!.includes(t.function.name)) : rawMcpTools;
+            mcpTools.push(...filteredMcpTools);
+            this.debugChannel.appendLine(`[INFO] MCP connected: ${cfg.name} (${filteredMcpTools.length}/${rawMcpTools.length} tools)`);
           } catch (err: any) {
             this.debugChannel.appendLine(`[WARN] MCP ${cfg.name}: ${err.message}`);
           }
@@ -315,87 +315,46 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       this.debugChannel.appendLine(`[WARN] MCP config error: ${err.message}`);
     }
 
-    for (let i = 0; i < MAX_ITER; i++) {
-      if (this.abortController?.signal.aborted) break;
-
-      // --- Слой 04: Summary для длинных цепочек инструментов ---
-      // Если накопилось >4 сообщений сверх system+task — сжимаем старые в summary
-      const debug = vscode.workspace.getConfiguration('llmAssistant').get<boolean>('debug', false);
-      const summaryEnabled = vscode.workspace.getConfiguration('llmAssistant').get<boolean>('chat.summaryEnabled', true);
-      if (summaryEnabled && i >= 2 && messages.length > 6) {
-        try {
-          const systemMsg = messages[0];
-          const taskMsg = messages[1];
-          const oldMessages = messages.slice(2, -4); // всё кроме system, task, и последних 2 пар
-          const recentMessages = messages.slice(-4);
-          if (oldMessages.length > 0 && debug) {
-            console.warn(`[LLM Assistant] Agent summary: compressing ${oldMessages.length} old messages...`);
+    // Создаём AgentWorker с колбэками для UI
+    const worker = new AgentWorker(
+      { name: 'chat-agent', systemPrompt: messages[0]?.content || '' },
+      provider,
+      {
+        maxIterations: MAX_ITER,
+        extraTools: mcpTools,
+        enableSummary: true,
+        onConfirm: async (toolName, args) => {
+          if (isConfirmationRequired(toolName, allowListConfig)) {
+            this.postMessage({ type: 'streamChunk', text: `\n⚠️ **${toolName}** требует подтверждения...\n` });
+            return this.requestConfirmation(toolName, args);
           }
-          if (oldMessages.length > 0) {
-            const summarizer = new ContextSummarizer();
-            const summaryModel = vscode.workspace.getConfiguration('llmAssistant').get<string>('chat.summaryModel', '') ||
-              model;
-            const summary = await summarizer.summarizeMessages(oldMessages, provider, summaryModel);
-            if (summary) {
-              messages.length = 0;
-              messages.push(systemMsg);
-              messages.push({ role: 'system', content: `## Краткое содержание предыдущих шагов:\n${summary}` });
-              messages.push(taskMsg);
-              messages.push(...recentMessages);
-              if (debug) console.warn(`[LLM Assistant] Agent summary: rebuilt messages=[${messages.map((m: any) => m.role).join(', ')}], total=${messages.length}`);
-            }
+          return true;
+        },
+        onStep: (step) => {
+          switch (step.type) {
+            case 'tool_call':
+              this.postMessage({ type: 'streamChunk', text: `\n🔧 **${step.toolName}**\n` });
+              break;
+            case 'tool_result':
+              this.postMessage({ type: 'streamChunk', text: (step.toolResult || step.message) + '\n' });
+              break;
           }
-        } catch (e) {
-          if (debug) console.warn('[LLM Assistant] Agent summary ERROR:', e);
-        }
+        },
       }
+    );
 
-      const response = await (provider as any).createWithTools(messages, model, tools, this.abortController?.signal, onRetry);
+    try {
+      // worker.run с initialMessages — использует готовый массив (system + история + AGENTS.md)
+      const result = await worker.run('', messages);
 
-      const choice = response.choices[0];
-      const toolCalls = choice.message.tool_calls;
-
-      if (!toolCalls || toolCalls.length === 0) {
-        const content = choice.message.content || '';
-        this.postMessage({ type: 'streamChunk', text: content });
-        this.postMessage({ type: 'done' });
-        this.conversationManager.addMessage({ role: 'assistant', content });
-        this.postTokens(messages, content, model);
-        return;
-      }
-
-      // Выполняем инструменты с подтверждением для опасных операций
-      messages.push(choice.message);
-      for (const tc of toolCalls) {
-        const tool = getTool(tc.function.name);
-        if (!tool) {
-          messages.push({ role: 'tool', tool_call_id: tc.id, content: `Инструмент '${tc.function.name}' не найден` });
-          continue;
-        }
-
-        const args = JSON.parse(tc.function.arguments);
-
-        // Запрос подтверждения через allow-list конфигурацию
-        if (isConfirmationRequired(tc.function.name, allowListConfig)) {
-          const approved = await this.requestConfirmation(tc.function.name, args);
-          if (!approved) {
-            messages.push({ role: 'tool', tool_call_id: tc.id, content: 'Операция отклонена пользователем.' });
-            this.postMessage({ type: 'streamChunk', text: '❌ Отклонено\n' });
-            continue;
-          }
-        }
-
-        this.postMessage({ type: 'streamChunk', text: `\n🔧 **${tc.function.name}**\n` });
-        try {
-          const result = await tool.execute(args);
-          messages.push({ role: 'tool', tool_call_id: tc.id, content: result });
-          this.postMessage({ type: 'streamChunk', text: result + '\n' });
-        } catch (e: any) {
-          messages.push({ role: 'tool', tool_call_id: tc.id, content: `Ошибка: ${e.message}` });
-        }
-      }
+      // Финальный ответ
+      this.postMessage({ type: 'streamChunk', text: result.answer });
+      this.postMessage({ type: 'done' });
+      this.conversationManager.addMessage({ role: 'assistant', content: result.answer });
+      this.postTokens(messages, result.answer, model);
+    } catch (error: any) {
+      throw error; // Пробрасываем наверх — обрабатывается в handleSendMessage
     }
-    this.postMessage({ type: 'done' });
   }
 
   /** Запустить multi-agent оркестрацию по команде @orchestrate */

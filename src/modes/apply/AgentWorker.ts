@@ -1,8 +1,11 @@
-// AgentWorker — изолированный ReAct-агент для multi-agent оркестрации (задача MA-1)
-// В отличие от ChatViewProvider.runAgentLoop, не привязан к UI:
+// AgentWorker — изолированный ReAct-агент для multi-agent оркестрации и чат-агента (задача MA-1)
+// Общий движок для:
+//   - runAgentLoop (чат-агент) — с подтверждениями, MCP, summary, историей
+//   - оркестратора — headless, без подтверждений
+//
+// Отличия от ChatViewProvider.runAgentLoop:
 //   - свой systemPrompt из AgentRole
 //   - свой allow-list инструментов
-//   - свой провайдер/модель
 //   - колбэк onStep вместо postMessage
 //   - возвращает структурированный результат
 
@@ -10,7 +13,6 @@ import * as vscode from 'vscode';
 import { ChatMessage } from '../../providers/types';
 import { getToolSchemas, getTool } from '../chat/ChatAgentTools';
 import { ContextSummarizer } from '../../shared/ContextSummarizer';
-import { isConfirmationRequired } from './ToolAllowList';
 import { loadRoleAgentsMd } from '../../shared/RoleAgentsMdLoader';
 
 /**
@@ -48,7 +50,7 @@ export interface WorkerResult {
   steps: AgentStep[];
   /** Количество итераций */
   iterations: number;
-  /** Потраченные токены (оценка) */
+  /** Потраченные токены (оценка или из usage API) */
   inputTokens: number;
   outputTokens: number;
   /** Ошибка, если агент упал */
@@ -56,84 +58,135 @@ export interface WorkerResult {
 }
 
 /**
- * AgentWorker — изолированный агент, запускаемый оркестратором.
+ * Опции конструктора AgentWorker.
+ */
+export interface AgentWorkerOptions {
+  /** Максимальное число итераций (по умолчанию 10) */
+  maxIterations?: number;
+  /** Колбэк для логирования шагов */
+  onStep?: (step: AgentStep) => void;
+  /** Дополнительные инструменты (MCP) — добавляются к базовым из ChatAgentTools */
+  extraTools?: Array<{ function: { name: string; description: string; parameters: Record<string, unknown> } }>;
+  /** Колбэк для подтверждения опасных операций (write_file, run_terminal).
+   *  Если не передан — все операции выполняются без подтверждения. */
+  onConfirm?: (toolName: string, args: Record<string, unknown>) => Promise<boolean>;
+  /** Включить сжатие длинной истории (summary) в цикле */
+  enableSummary?: boolean;
+}
+
+/**
+ * AgentWorker — изолированный агент, общий движок для чат-агента и оркестратора.
  *
- * Создаёт свой массив messages[], запускает ReAct-цикл с инструментами,
- * фильтрует инструменты по AgentRole.allowedTools, использует указанную модель.
+ * Поддерживает:
+ *   - Дополнительные инструменты (MCP) через extraTools
+ *   - Подтверждение операций через onConfirm
+ *   - Сжатие истории (summary) при включённом enableSummary
+ *   - Передачу готового массива сообщений через initialMessages (для runAgentLoop)
  */
 export class AgentWorker {
   /** Роль агента */
   readonly role: AgentRole;
   /** Провайдер LLM */
   private provider: any;
-  /** Максимальное число итераций */
-  private readonly maxIterations: number;
-  /** Колбэк для логирования шагов */
-  private onStep?: (step: AgentStep) => void;
+  /** Опции */
+  private options: AgentWorkerOptions;
 
   constructor(
     role: AgentRole,
     provider: any,
-    maxIterations: number = 10,
-    onStep?: (step: AgentStep) => void,
+    options: AgentWorkerOptions = {},
   ) {
     this.role = role;
     this.provider = provider;
-    this.maxIterations = maxIterations;
-    this.onStep = onStep;
+    this.options = {
+      maxIterations: 10,
+      ...options,
+    };
   }
 
   /**
    * Запустить агента с задачей.
    *
    * @param task — текст задачи (user message)
+   * @param initialMessages — готовый массив сообщений (используется runAgentLoop вместо построения с нуля)
    * @returns WorkerResult — ответ, шаги, токены
    */
-  async run(task: string): Promise<WorkerResult> {
+  async run(task: string, initialMessages?: any[]): Promise<WorkerResult> {
     const steps: AgentStep[] = [];
     const emit = (step: AgentStep): void => {
       steps.push(step);
-      this.onStep?.(step);
+      this.options.onStep?.(step);
     };
 
     // Определяем модель
     const config = vscode.workspace.getConfiguration('llmAssistant');
     const model = this.role.model || config.get<string>('defaultModel') || 'gpt-4o';
 
-    // Получаем схемы инструментов и фильтруем по allowedTools
-    const allToolSchemas = getToolSchemas();
+    // Получаем схемы инструментов: базовые + MCP, фильтруем по allowedTools
+    const baseToolSchemas = getToolSchemas();
+    const extraTools = this.options.extraTools || [];
+    const allToolSchemas = [...baseToolSchemas, ...extraTools];
     const toolSchemas = this.role.allowedTools?.length
       ? allToolSchemas.filter((t: any) => this.role.allowedTools!.includes(t.function.name))
       : allToolSchemas;
 
     emit({ iteration: 0, type: 'info', message: `Worker '${this.role.name}' запущен. Задача: ${task.slice(0, 80)}... Модель: ${model}, Инструменты: ${toolSchemas.map((t: any) => t.function.name).join(', ')}` });
 
-    // Формируем системный промпт с информацией об инструментах
-    const toolDescriptions = toolSchemas.map((t: any) =>
-      `- ${t.function.name}: ${t.function.description}`).join('\n');
+    let messages: any[];
 
-    const systemPrompt = `${this.role.systemPrompt}\n\n## Доступные инструменты:\n${toolDescriptions}\n\nИспользуй инструменты по одному за шаг. Отвечай кратко, по-русски.`;
+    if (initialMessages && initialMessages.length > 0) {
+      // Используем готовый массив (от runAgentLoop — история + system prompt)
+      messages = [...initialMessages];
+    } else {
+      // Формируем системный промпт с информацией об инструментах
+      const toolDescriptions = toolSchemas.map((t: any) =>
+        `- ${t.function.name}: ${t.function.description}`).join('\n');
 
-    // --- MA-5: Role-based AGENTS.md ---
-    const roleAgentsMd = loadRoleAgentsMd(this.role.name);
-    const finalSystemPrompt = roleAgentsMd
-      ? `${systemPrompt}\n\n## Правила роли (AGENTS.${this.role.name}.md):\n${roleAgentsMd}`
-      : systemPrompt;
+      const systemPrompt = `${this.role.systemPrompt}\n\n## Доступные инструменты:\n${toolDescriptions}\n\nИспользуй инструменты по одному за шаг. Отвечай кратко, по-русски.`;
 
-    // История сообщений: system + user task
-    const messages: any[] = [
-      { role: 'system', content: finalSystemPrompt },
-      { role: 'user', content: task },
-    ];
+      // --- MA-5: Role-based AGENTS.md ---
+      const roleAgentsMd = loadRoleAgentsMd(this.role.name);
+      const finalSystemPrompt = roleAgentsMd
+        ? `${systemPrompt}\n\n## Правила роли (AGENTS.${this.role.name}.md):\n${roleAgentsMd}`
+        : systemPrompt;
+
+      messages = [
+        { role: 'system', content: finalSystemPrompt },
+        { role: 'user', content: task },
+      ];
+    }
 
     let inputTokens = 0;
     let outputTokens = 0;
     let finalAnswer = '';
     const summarizer = new ContextSummarizer();
+    const summaryApplied = false; // summary применяется однократно
 
     // ReAct-цикл
-    for (let i = 1; i <= this.maxIterations; i++) {
+    for (let i = 1; i <= (this.options.maxIterations || 10); i++) {
       emit({ iteration: i, type: 'info', message: `Шаг ${i}: запрос к LLM...` });
+
+      // --- Сжатие истории (если включено) ---
+      const enableSummary = this.options.enableSummary || false;
+      if (enableSummary && i >= 2 && messages.length > 6) {
+        try {
+          const systemMsg = messages[0];
+          const taskMsg = messages.length > 1 ? messages[1] : null;
+          const oldMessages = messages.slice(2, -4);
+          const recentMessages = messages.slice(-4);
+          if (oldMessages.length > 0) {
+            const summary = await summarizer.summarizeMessages(oldMessages, this.provider, model);
+            if (summary) {
+              messages = [systemMsg];
+              if (taskMsg) messages.push(taskMsg);
+              messages.push({ role: 'system', content: `## Краткое содержание предыдущих шагов:\n${summary}` });
+              messages.push(...recentMessages);
+            }
+          }
+        } catch (e) {
+          // Молча продолжаем без summary
+        }
+      }
 
       // Оценка входных токенов
       const inTok = messages.reduce((s, m) => {
@@ -198,6 +251,19 @@ export class AgentWorker {
             args = {};
           }
 
+          // Запрос подтверждения (если передан колбэк)
+          if (this.options.onConfirm) {
+            const approved = await this.options.onConfirm(toolName, args);
+            if (!approved) {
+              messages.push({
+                role: 'tool', tool_call_id: tc.id,
+                content: 'Операция отклонена пользователем.',
+              });
+              emit({ iteration: i, type: 'error', message: `Операция ${toolName} отклонена` });
+              continue;
+            }
+          }
+
           emit({ iteration: i, type: 'tool_call', message: `🔧 ${toolName}`, toolName });
 
           try {
@@ -215,7 +281,6 @@ export class AgentWorker {
       } catch (e: any) {
         emit({ iteration: i, type: 'error', message: `Ошибка LLM: ${e.message}` });
         const errMsg = e.message || String(e);
-        // Пробрасываем ошибку наверх — оркестратор должен знать о падении воркера
         throw new Error(errMsg);
       }
     }

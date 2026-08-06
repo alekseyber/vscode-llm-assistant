@@ -3,7 +3,7 @@
 // запускает параллельно (Promise.all) или последовательно,
 // собирает результаты в MultiAgentResult.
 
-import { AgentWorker, AgentRole, WorkerResult } from './AgentWorker';
+import { AgentWorker, AgentRole, WorkerResult, AgentWorkerOptions } from './AgentWorker';
 import { AgentSharedContext } from './AgentSharedContext';
 
 /**
