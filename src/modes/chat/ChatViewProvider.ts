@@ -336,18 +336,14 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       }
     );
 
-    try {
-      // worker.run с initialMessages — использует готовый массив (system + история + AGENTS.md)
-      const result = await worker.run('', messages);
+    // worker.run с initialMessages — использует готовый массив (system + история + AGENTS.md)
+    const result = await worker.run('', messages);
 
-      // Финальный ответ
-      this.postMessage({ type: 'streamChunk', text: result.answer });
-      this.postMessage({ type: 'done' });
-      this.conversationManager.addMessage({ role: 'assistant', content: result.answer });
-      this.postTokens(messages, result.answer, model);
-    } catch (error: any) {
-      throw error; // Пробрасываем наверх — обрабатывается в handleSendMessage
-    }
+    // Финальный ответ
+    this.postMessage({ type: 'streamChunk', text: result.answer });
+    this.postMessage({ type: 'done' });
+    this.conversationManager.addMessage({ role: 'assistant', content: result.answer });
+    this.postTokens(messages, result.answer, model);
   }
 
   /** Запустить multi-agent оркестрацию по команде @orchestrate */
