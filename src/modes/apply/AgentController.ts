@@ -110,7 +110,7 @@ export class AgentController {
   private readonly summarizer: ContextSummarizer = new ContextSummarizer();
 
   /** Порог шагов, после которого запускается summary */
-  private static readonly SUMMARY_STEP_THRESHOLD = 10;
+  private static readonly SUMMARY_STEP_THRESHOLD = 3;
 
   constructor(toolSystem: ToolSystem) {
     this.toolSystem = toolSystem;
