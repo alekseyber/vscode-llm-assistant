@@ -34,6 +34,7 @@ const testModules: string[] = [
   './runHistoryStore.test',
   './agentWorker.test',
   './agentOrchestrator.test',
+  './agentCommunication.test',
 ];
 
 /**

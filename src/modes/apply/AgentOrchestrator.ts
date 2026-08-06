@@ -4,6 +4,7 @@
 // собирает результаты в MultiAgentResult.
 
 import { AgentWorker, AgentRole, WorkerResult } from './AgentWorker';
+import { AgentSharedContext } from './AgentSharedContext';
 
 /**
  * Стратегия выполнения.
@@ -66,9 +67,12 @@ export interface MultiAgentResult {
 export class AgentOrchestrator {
   /** Колбэк для логирования шагов оркестратора */
   private onLog?: (msg: string) => void;
+  /** Общий контекст для коммуникации между воркерами */
+  readonly sharedContext: AgentSharedContext;
 
   constructor(onLog?: (msg: string) => void) {
     this.onLog = onLog;
+    this.sharedContext = new AgentSharedContext();
   }
 
   /**
@@ -133,6 +137,8 @@ export class AgentOrchestrator {
       try {
         const worker = new AgentWorker(role, provider);
         wt.result = await worker.run(this.buildSubTask(task.goal, role));
+        // Сохраняем результат в общий контекст
+        this.sharedContext.put(`result:${role.name}`, wt.result.answer, role.name);
         this.log(`Воркер '${role.name}': завершён (${wt.result.iterations} итераций)`);
       } catch (e: any) {
         wt.error = e.message || String(e);
@@ -168,6 +174,8 @@ export class AgentOrchestrator {
 
         wt.result = await worker.run(subTask);
         previousResult = wt.result.answer;
+        // Сохраняем результат в общий контекст
+        this.sharedContext.put(`result:${role.name}`, wt.result.answer, role.name);
         this.log(`Воркер '${role.name}': завершён (${wt.result.iterations} итераций)`);
       } catch (e: any) {
         wt.error = e.message || String(e);
@@ -202,6 +210,8 @@ export class AgentOrchestrator {
 
         wt.result = await worker.run(subTask);
         artifacts.push(wt.result.answer);
+        // Сохраняем результат в общий контекст
+        this.sharedContext.put(`artifact:${role.name}`, wt.result.answer, role.name);
         this.log(`Воркер '${role.name}': завершён (${wt.result.iterations} итераций)`);
       } catch (e: any) {
         wt.error = e.message || String(e);

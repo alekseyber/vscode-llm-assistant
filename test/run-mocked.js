@@ -46,6 +46,7 @@ const testFiles = [
   '../out/test/suite/runHistoryStore.test.js',
   '../out/test/suite/agentWorker.test.js',
   '../out/test/suite/agentOrchestrator.test.js',
+  '../out/test/suite/agentCommunication.test.js',
 ];
 
 for (const file of testFiles) {
