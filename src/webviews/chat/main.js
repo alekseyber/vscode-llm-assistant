@@ -455,7 +455,7 @@
     messageInput.value = '';
     addMessage('user', text);
 
-    const mode = document.getElementById('mode-select')?.value || 'chat';
+    const mode = document.getElementById('mode-select')?.value || 'agent';
     const provider = document.getElementById('provider-select')?.value || '';
     const model = document.getElementById('model-select')?.value || '';
 
