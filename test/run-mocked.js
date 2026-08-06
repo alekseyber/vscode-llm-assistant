@@ -47,6 +47,7 @@ const testFiles = [
   '../out/test/suite/agentWorker.test.js',
   '../out/test/suite/agentOrchestrator.test.js',
   '../out/test/suite/agentCommunication.test.js',
+  '../out/test/suite/orchestratorView.test.js',
 ];
 
 for (const file of testFiles) {

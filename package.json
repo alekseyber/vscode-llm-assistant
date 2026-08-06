@@ -84,6 +84,11 @@
           "type": "webview",
           "id": "llmAssistant.history",
           "name": "История"
+        },
+        {
+          "type": "webview",
+          "id": "llmAssistant.orchestrator",
+          "name": "Оркестратор"
         }
       ]
     },

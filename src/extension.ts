@@ -12,6 +12,7 @@ import { registerCommands } from './activation/registerCommands';
 import { debugLog } from './shared/logger';
 import { RunHistoryStore } from './shared/RunHistoryStore';
 import { HistoryViewProvider, HISTORY_VIEW_TYPE } from './modes/history/HistoryViewProvider';
+import { OrchestratorViewProvider, ORCHESTRATOR_VIEW_TYPE } from './modes/orchestrator/OrchestratorViewProvider';
 
 /** Глобальный экземпляр менеджера провайдеров */
 let providerManager: ProviderManager;
@@ -30,6 +31,9 @@ let runHistoryStore: RunHistoryStore;
 
 /** Глобальный экземпляр провайдера вкладки «История» */
 let historyViewProvider: HistoryViewProvider;
+
+/** Глобальный экземпляр провайдера вкладки «Оркестратор» */
+let orchestratorViewProvider: OrchestratorViewProvider;
 
 /**
  * Точка входа. Вызывается VS Code при активации расширения.
@@ -54,6 +58,12 @@ export function activate(context: vscode.ExtensionContext) {
     historyViewProvider = new HistoryViewProvider(runHistoryStore);
     context.subscriptions.push(
         vscode.window.registerWebviewViewProvider(HISTORY_VIEW_TYPE, historyViewProvider)
+    );
+
+    // Регистрация провайдера вкладки «Оркестратор» (Activity Bar)
+    orchestratorViewProvider = new OrchestratorViewProvider();
+    context.subscriptions.push(
+        vscode.window.registerWebviewViewProvider(ORCHESTRATOR_VIEW_TYPE, orchestratorViewProvider)
     );
 
     // ── 2. Регистрация WebView Provider ──
