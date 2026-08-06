@@ -10,7 +10,9 @@ import { loadRoleAgentsMd, invalidateRoleCache } from '../../src/shared/RoleAgen
 function setupDir(files: Record<string, string>): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vscode-llm-test-ma5-'));
   for (const [name, content] of Object.entries(files)) {
-    fs.writeFileSync(path.join(dir, name), content);
+    const filePath = path.join(dir, name);
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    fs.writeFileSync(filePath, content);
   }
   return dir;
 }
@@ -105,5 +107,19 @@ suite('RoleAgentsMdLoader', () => {
     sb.stub(vscode.workspace, 'workspaceFolders').value(undefined);
     try { assert.strictEqual(loadRoleAgentsMd('coder'), null); }
     finally { sb.restore(); }
+  });
+
+  test('.llma/agents/{role}.md — приоритет над AGENTS.{role}.md', () => {
+    invalidateRoleCache();
+    const sb = sinon.createSandbox();
+    const dir = setupDir({
+      '.llma/agents/coder.md': 'Из .llma',
+      'AGENTS.coder.md': 'Из корня',
+    });
+    try {
+      mockWs(sb, dir);
+      const c = loadRoleAgentsMd('coder');
+      assert.ok(c?.includes('Из .llma'), 'Должен загрузить из .llma/agents/');
+    } finally { sb.restore(); fs.rmSync(dir, { recursive: true, force: true }); }
   });
 });
