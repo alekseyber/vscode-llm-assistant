@@ -14,6 +14,7 @@ import { ChatMessage } from '../../providers/types';
 import { getToolSchemas, getTool } from '../chat/ChatAgentTools';
 import { ContextSummarizer } from '../../shared/ContextSummarizer';
 import { loadRoleAgentsMd } from '../../shared/RoleAgentsMdLoader';
+import { calculateCost } from '../../providers/types';
 
 /**
  * Роль агента: определяет поведение, доступные инструменты и модель.
@@ -53,6 +54,8 @@ export interface WorkerResult {
   /** Потраченные токены (оценка или из usage API) */
   inputTokens: number;
   outputTokens: number;
+  /** Стоимость в USD */
+  cost: number;
   /** Ошибка, если агент упал */
   error?: string;
 }
@@ -292,6 +295,7 @@ export class AgentWorker {
       iterations: steps.filter(s => s.type === 'tool_call' || s.type === 'response').length,
       inputTokens: Math.ceil(inputTokens),
       outputTokens: Math.ceil(outputTokens),
+      cost: calculateCost(model, Math.ceil(inputTokens), Math.ceil(outputTokens)),
     };
   }
 }

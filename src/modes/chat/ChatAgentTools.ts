@@ -211,10 +211,41 @@ const runTerminalTool: ChatTool = {
 
 export const CHAT_AGENT_TOOLS: ChatTool[] = [readFileTool, writeFileTool, replaceInFileTool, listFilesTool, searchFilesTool, runTerminalTool];
 
+// --- delegate_to_agent: делегирование подзадачи другому агенту ---
+
+let _onDelegate: ((role: string, task: string) => Promise<string>) | null = null;
+
+export function setDelegateHandler(handler: (role: string, task: string) => Promise<string>): void {
+  _onDelegate = handler;
+}
+
+const delegateToAgentTool: ChatTool = {
+  name: 'delegate_to_agent',
+  description: 'Делегирует подзадачу агенту с указанной ролью. Используй для разделения работы.',
+  parameters: {
+    type: 'object',
+    properties: {
+      role: { type: 'string', description: 'Роль агента (coder, reviewer, architect)' },
+      task: { type: 'string', description: 'Задача для агента' },
+    },
+    required: ['role', 'task'],
+  },
+  async execute(args) {
+    const role = args.role as string;
+    const task = args.task as string;
+    if (!_onDelegate) return 'Ошибка: делегирование не настроено.';
+    try {
+      return await _onDelegate(role, task);
+    } catch (e: any) {
+      return `Ошибка делегирования: ${e.message}`;
+    }
+  },
+};
+
 /** Получить отфильтрованные по allow-list инструменты */
 function getAllowedChatTools(): ChatTool[] {
   const config = loadToolAllowListConfig();
-  return getAllowedTools(CHAT_AGENT_TOOLS, config);
+  return getAllowedTools([...CHAT_AGENT_TOOLS, delegateToAgentTool], config);
 }
 
 /** OpenAI function calling формат (с учётом allow-list) */

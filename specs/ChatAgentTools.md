@@ -19,6 +19,7 @@ since: 0.1.0
 | `list_files` | Список файлов/папок | `path?`, `depth?` | Нет |
 | `search_files` | Поиск по regex | `pattern`, `path?`, `file_glob?` | Нет |
 | `run_terminal` | Выполнение команды | `command`, `timeout?` | Да |
+| `delegate_to_agent` | Делегирует задачу другому агенту | `role`, `task` | Нет |
 
 ## Интерфейс
 

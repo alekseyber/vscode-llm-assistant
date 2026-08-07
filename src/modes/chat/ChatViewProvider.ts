@@ -448,7 +448,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       });
     }
 
-    this.postMessage({ type: 'streamChunk', text: `\n---\n🎭 **Оркестрация завершена.** Токенов: ${result.totalInputTokens}+${result.totalOutputTokens}\n` });
+    this.postMessage({ type: 'streamChunk', text: `\n---\n🎭 **Оркестрация завершена.** Токенов: ${result.totalInputTokens}+${result.totalOutputTokens} | Стоимость: $${result.totalCost.toFixed(6)}\n` });
     this.postMessage({ type: 'done' });
 
     // Сохраняем ответ в историю

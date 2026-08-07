@@ -5,6 +5,7 @@
 
 import { AgentWorker, AgentRole, WorkerResult, AgentWorkerOptions } from './AgentWorker';
 import { AgentSharedContext } from './AgentSharedContext';
+import { setDelegateHandler } from '../chat/ChatAgentTools';
 
 /**
  * Стратегия выполнения.
@@ -50,6 +51,10 @@ export interface MultiAgentResult {
   /** Общие затраты токенов */
   totalInputTokens: number;
   totalOutputTokens: number;
+  /** Общая стоимость всех воркеров (USD) */
+  totalCost: number;
+  /** Стоимость по воркерам (roleName → USD) */
+  costPerWorker: Record<string, number>;
   /** Успешно ли завершилась вся задача */
   success: boolean;
   /** Сводный ответ (конкатенация ответов воркеров) */
@@ -96,6 +101,24 @@ export class AgentOrchestrator {
   async execute(task: MultiAgentTask, provider: any, extraTools?: any[]): Promise<MultiAgentResult> {
     this.log(`Оркестратор '${task.id}': старт, стратегия=${task.strategy}, воркеров=${task.roles.length}`);
 
+    // Настраиваем делегирование: любой воркер может вызвать delegate_to_agent
+    const orchestratorRoles = task.roles;
+    setDelegateHandler(async (role: string, subTask: string): Promise<string> => {
+      const roleDef = orchestratorRoles.find(r => r.name === role);
+      if (!roleDef) {
+        // Создаём синтетическую роль
+        const syntheticRole: AgentRole = { name: role, systemPrompt: `Ты — ${role}. Отвечай кратко, по-русски.` };
+        const subWorker = new AgentWorker(syntheticRole, provider, { maxIterations: 5, extraTools });
+        const result = await subWorker.run(subTask);
+        this.log(`Делегирование → ${role}: завершено (${result.iterations} итераций)`);
+        return result.answer;
+      }
+      const subWorker = new AgentWorker(roleDef, provider, { maxIterations: 5, extraTools });
+      const result = await subWorker.run(subTask);
+      this.log(`Делегирование → ${role}: завершено (${result.iterations} итераций)`);
+      return result.answer;
+    });
+
     const workers: WorkerTaskResult[] = [];
 
     switch (task.strategy) {
@@ -114,6 +137,11 @@ export class AgentOrchestrator {
 
     const totalInputTokens = workers.reduce((s, w) => s + (w.result?.inputTokens ?? 0), 0);
     const totalOutputTokens = workers.reduce((s, w) => s + (w.result?.outputTokens ?? 0), 0);
+    const totalCost = workers.reduce((s, w) => s + (w.result?.cost ?? 0), 0);
+    const costPerWorker: Record<string, number> = {};
+    for (const w of workers) {
+      costPerWorker[w.roleName] = w.result?.cost ?? 0;
+    }
     const success = workers.every(w => !w.error);
 
     const summary = workers
@@ -128,6 +156,8 @@ export class AgentOrchestrator {
       workers,
       totalInputTokens,
       totalOutputTokens,
+      totalCost,
+      costPerWorker,
       success,
       summary,
     };
@@ -145,7 +175,7 @@ export class AgentOrchestrator {
     this.log(`Параллельный запуск ${task.roles.length} воркеров...`);
 
     const promises = task.roles.map(async (role) => {
-      const wt: WorkerTaskResult = { roleName: role.name, result: { answer: '', steps: [], iterations: 0, inputTokens: 0, outputTokens: 0 } };
+      const wt: WorkerTaskResult = { roleName: role.name, result: { answer: '', steps: [], iterations: 0, inputTokens: 0, outputTokens: 0, cost: 0 } };
       try {
         const worker = new AgentWorker(role, provider, { extraTools });
         this.onWorkerStart?.(role.name);
@@ -178,7 +208,7 @@ export class AgentOrchestrator {
     let previousResult = '';
 
     for (const role of task.roles) {
-      const wt: WorkerTaskResult = { roleName: role.name, result: { answer: '', steps: [], iterations: 0, inputTokens: 0, outputTokens: 0 } };
+      const wt: WorkerTaskResult = { roleName: role.name, result: { answer: '', steps: [], iterations: 0, inputTokens: 0, outputTokens: 0, cost: 0 } };
       try {
         const worker = new AgentWorker(role, provider, { extraTools });
         this.onWorkerStart?.(role.name);
@@ -219,7 +249,7 @@ export class AgentOrchestrator {
     const artifacts: string[] = [];
 
     for (const role of task.roles) {
-      const wt: WorkerTaskResult = { roleName: role.name, result: { answer: '', steps: [], iterations: 0, inputTokens: 0, outputTokens: 0 } };
+      const wt: WorkerTaskResult = { roleName: role.name, result: { answer: '', steps: [], iterations: 0, inputTokens: 0, outputTokens: 0, cost: 0 } };
       try {
         const worker = new AgentWorker(role, provider, { extraTools });
         this.onWorkerStart?.(role.name);
