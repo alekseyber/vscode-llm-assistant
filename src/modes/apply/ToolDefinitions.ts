@@ -301,10 +301,59 @@ const runTerminalTool: Tool = {
   }
 };
 
+// --- web_fetch: чтение веб-страниц ---
+
+const webFetchApplyTool: Tool = {
+  name: 'web_fetch',
+  description: 'Читает содержимое веб-страницы. Возвращает текст (до 15000 символов).',
+  parameters: {
+    type: 'object',
+    properties: {
+      url: { type: 'string', description: 'URL страницы для чтения' },
+      selector: { type: 'string', description: 'CSS-селектор для конкретного блока (опционально)' },
+    },
+    required: ['url'],
+  },
+  async execute(args: unknown): Promise<string> {
+    try {
+      const a = args as { url: string; selector?: string };
+      const response = await fetch(a.url, {
+        signal: AbortSignal.timeout(15000),
+        headers: { 'User-Agent': 'VS Code LLM Assistant/1.0' },
+      });
+      if (!response.ok) return `HTTP ${response.status}: ${response.statusText}`;
+      const contentType = response.headers.get('content-type') || '';
+      const text = await response.text();
+      if (!contentType.includes('html')) return text.slice(0, 15000) || '(пустая страница)';
+      const bodyMatch = text.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+      const html = bodyMatch ? bodyMatch[1] : text;
+      let result = html;
+      if (a.selector) {
+        const esc = a.selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const regex = new RegExp(`<[^>]*\\bclass\\s*=\\s*["']${esc}["'][^>]*>([\\s\\S]*?)<\\/div>`, 'i');
+        const match = html.match(regex);
+        if (match) result = match[1] || html;
+      }
+      result = result
+        .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+        .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+        .replace(/<nav[^>]*>[\s\S]*?<\/nav>/gi, '')
+        .replace(/<footer[^>]*>[\s\S]*?<\/footer>/gi, '')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/&[a-z]+;/gi, ' ')
+        .replace(/\s{2,}/g, '\n')
+        .trim();
+      return result.slice(0, 15000) || '(пустая страница)';
+    } catch (e: any) {
+      return `Ошибка: ${e.message}`;
+    }
+  },
+};
+
 /**
  * Создать список всех инструментов агента для регистрации в ToolSystem.
- * @returns массив из 5 инструментов: read_file, write_file, patch_file, search_files, run_terminal
+ * @returns массив из 6 инструментов
  */
 export function createTools(): Tool[] {
-  return [readFileTool, writeFileTool, patchFileTool, searchFilesTool, runTerminalTool];
+  return [readFileTool, writeFileTool, patchFileTool, searchFilesTool, runTerminalTool, webFetchApplyTool];
 }

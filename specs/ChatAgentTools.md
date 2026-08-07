@@ -20,6 +20,7 @@ since: 0.1.0
 | `search_files` | Поиск по regex | `pattern`, `path?`, `file_glob?` | Нет |
 | `run_terminal` | Выполнение команды | `command`, `timeout?` | Да |
 | `delegate_to_agent` | Делегирует задачу другому агенту | `role`, `task` | Нет |
+| `web_fetch` | Читает веб-страницу. Возвращает текст (≤15000) | `url`, `selector?` | Да |
 
 ## Контракты
 

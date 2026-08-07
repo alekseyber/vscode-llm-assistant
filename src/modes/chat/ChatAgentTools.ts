@@ -116,7 +116,6 @@ async function listDir(dirPath: string, prefix: string, depth: number, result: s
   if (depth <= 0) return;
   try {
     const entries = await vscode.workspace.fs.readDirectory(vscode.Uri.file(dirPath));
-    // Сортируем: папки сверху, потом файлы
     entries.sort((a, b) => {
       const aIsDir = a[1] === vscode.FileType.Directory ? 0 : 1;
       const bIsDir = b[1] === vscode.FileType.Directory ? 0 : 1;
@@ -209,8 +208,6 @@ const runTerminalTool: ChatTool = {
   },
 };
 
-export const CHAT_AGENT_TOOLS: ChatTool[] = [readFileTool, writeFileTool, replaceInFileTool, listFilesTool, searchFilesTool, runTerminalTool];
-
 // --- delegate_to_agent: делегирование подзадачи другому агенту ---
 
 let _onDelegate: ((role: string, task: string) => Promise<string>) | null = null;
@@ -242,10 +239,64 @@ const delegateToAgentTool: ChatTool = {
   },
 };
 
+// --- web_fetch: чтение веб-страниц ---
+
+/** Извлекает текст из HTML: удаляет скрипты, стили, навигацию. */
+function extractTextFromHtml(html: string, selector?: string): string {
+  if (selector) {
+    const esc = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`<[^>]*\\bclass\\s*=\\s*["']${esc}["'][^>]*>([\\s\\S]*?)<\\/div>`, 'i');
+    const match = html.match(regex);
+    if (match) html = match[1] || html;
+  }
+  return html
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+    .replace(/<nav[^>]*>[\s\S]*?<\/nav>/gi, '')
+    .replace(/<footer[^>]*>[\s\S]*?<\/footer>/gi, '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&[a-z]+;/gi, ' ')
+    .replace(/\s{2,}/g, '\n')
+    .trim();
+}
+
+const webFetchTool: ChatTool = {
+  name: 'web_fetch',
+  description: 'Читает содержимое веб-страницы. Возвращает текст (до 15000 символов).',
+  parameters: {
+    type: 'object',
+    properties: {
+      url: { type: 'string', description: 'URL страницы для чтения' },
+      selector: { type: 'string', description: 'CSS-селектор для конкретного блока (опционально)' },
+    },
+    required: ['url'],
+  },
+  async execute(args) {
+    try {
+      const response = await fetch(args.url as string, {
+        signal: AbortSignal.timeout(15000),
+        headers: { 'User-Agent': 'VS Code LLM Assistant/1.0' },
+      });
+      if (!response.ok) return `HTTP ${response.status}: ${response.statusText}`;
+      const contentType = response.headers.get('content-type') || '';
+      const text = await response.text();
+      if (!contentType.includes('html')) return text.slice(0, 15000) || '(пустая страница)';
+      const bodyMatch = text.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+      const html = bodyMatch ? bodyMatch[1] : text;
+      const result = extractTextFromHtml(html, args.selector as string | undefined);
+      return result.slice(0, 15000) || '(пустая страница)';
+    } catch (e: any) {
+      return `Ошибка: ${e.message}`;
+    }
+  },
+};
+
+export const CHAT_AGENT_TOOLS: ChatTool[] = [readFileTool, writeFileTool, replaceInFileTool, listFilesTool, searchFilesTool, runTerminalTool, delegateToAgentTool, webFetchTool];
+
 /** Получить отфильтрованные по allow-list инструменты */
 function getAllowedChatTools(): ChatTool[] {
   const config = loadToolAllowListConfig();
-  return getAllowedTools([...CHAT_AGENT_TOOLS, delegateToAgentTool], config);
+  return getAllowedTools([...CHAT_AGENT_TOOLS], config);
 }
 
 /** OpenAI function calling формат (с учётом allow-list) */
