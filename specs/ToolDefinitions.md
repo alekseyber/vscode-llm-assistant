@@ -9,6 +9,12 @@ since: 0.1.0
 
 Определения 5 инструментов для Apply Mode (AgentController + ToolSystem). Аналог ChatAgentTools, но с JSON Schema и интерфейсом `Tool`.
 
+## Интерфейс
+
+### `createTools() → Tool[]`
+
+Возвращает массив из 5 инструментов: read_file, write_file, patch_file, search_files, run_terminal.
+
 ## Инструменты
 
 | Имя | Параметры |
@@ -20,6 +26,16 @@ since: 0.1.0
 | `run_terminal` | command, workdir?, timeout? |
 
 ### `createTools() → Tool[]`
+
+## Контракты
+
+| Ситуация | Поведение |
+|----------|-----------|
+| read_file | Нумерация строк (4-значный pad), 1-indexed |
+| write_file | Автосоздание папок через createDirectory |
+| patch_file | Подсчёт вхождений через split().length-1 |
+| search_files | Лимит 500 файлов, 200 совпадений |
+| run_terminal | exec с timeout (сек→мс), maxBuffer 10MB |
 
 ## Отличия от ChatAgentTools
 
