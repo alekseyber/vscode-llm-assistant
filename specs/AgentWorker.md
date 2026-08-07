@@ -1,0 +1,85 @@
+---
+component: AgentWorker
+version: 0.8.0
+status: stable
+since: 0.7.0
+---
+
+## Назначение
+
+Общий ReAct-движок для:
+- **Чат-агента** (`ChatViewProvider.runAgentLoop`) — интерактивный режим с подтверждениями, MCP, summary
+- **Оркестратора** (`AgentOrchestrator`) — headless-воркеры без UI
+
+## Интерфейс
+
+### `new AgentWorker(role, provider, options?)`
+
+| Параметр | Тип | Описание |
+|----------|-----|----------|
+| `role` | `AgentRole` | Имя, systemPrompt, allowedTools, model |
+| `provider` | `any` | LLM-провайдер с `createWithTools()` |
+| `options.maxIterations` | `number` | Макс. итераций (по умолчанию 10) |
+| `options.onStep` | `callback` | Логирование шагов |
+| `options.extraTools` | `ToolSchema[]` | MCP-инструменты |
+| `options.onConfirm` | `callback` | Подтверждение операций |
+| `options.enableSummary` | `boolean` | Сжатие истории в цикле |
+
+### `worker.run(task, initialMessages?) → WorkerResult`
+
+| Вход | Описание |
+|------|----------|
+| `task` | Текст задачи (user message) |
+| `initialMessages` | Готовый массив сообщений (для runAgentLoop) |
+
+| Выход (`WorkerResult`) | Тип |
+|------------------------|-----|
+| `answer` | `string` — финальный ответ |
+| `steps` | `AgentStep[]` — все шаги |
+| `iterations` | `number` |
+| `inputTokens` | `number` — из `usage.prompt_tokens` или chars/4 |
+| `outputTokens` | `number` — из `usage.completion_tokens` или chars/4 |
+| `error?` | `string` |
+
+## Контракты
+
+| Ситуация | Поведение |
+|----------|-----------|
+| `initialMessages` передан | Используется как есть (system + история) |
+| `initialMessages` не передан | Строится: systemPrompt + task |
+| `allowedTools` задан | Фильтруются схемы инструментов |
+| `extraTools` задан | Добавляются к базовым из ChatAgentTools |
+| `onConfirm` задан и tool требует подтверждения | Вызывается onConfirm, при false — операция пропускается |
+| `enableSummary: true` и messages > 6 | Старые сообщения сжимаются в summary |
+| `createWithTools` вернул `usage` | Токены из API, иначе chars/4 |
+| `createWithTools` без tool_calls | Финальный ответ, завершение цикла |
+| Исчерпан лимит итераций | `answer = 'Агент не дал финального ответа'` |
+| LLM выбросил ошибку | Пробрасывается наверх (throw) |
+
+## AC
+
+| ID | Критерий | Статус |
+|----|----------|--------|
+| MA-1.1 | Конструктор сохраняет роль и провайдера | ✅ |
+| MA-1.2 | systemPrompt роли передаётся в LLM | ✅ |
+| MA-1.3 | allowedTools фильтрует инструменты | ✅ |
+| MA-1.4 | Модель из AgentRole.model используется вместо глобальной | ✅ |
+| MA-1.5 | run() возвращает WorkerResult с полным ответом и шагами | ✅ |
+| MA-1.6 | extraTools добавляются к базовым инструментам | ✅ |
+| MA-1.7 | onConfirm вызывается для опасных операций | ✅ |
+| MA-1.8 | enableSummary сжимает историю при messages > 6 | ✅ |
+| MA-1.9 | usage из API используется для подсчёта токенов | ✅ |
+| MA-1.10 | initialMessages принимает готовый массив сообщений | ✅ |
+
+## Связи
+
+- **Использует:** `ChatAgentTools`, `ContextSummarizer`, `RoleAgentsMdLoader`
+- **Используется:** `ChatViewProvider.runAgentLoop`, `AgentOrchestrator`
+- **Модель:** `deepseek-v4-pro` (по умолчанию) или из `AgentRole.model`
+
+## История изменений
+
+| Версия | Дата | Изменения |
+|--------|------|-----------|
+| 0.8.0 | 2026-08-06 | Добавлены extraTools, onConfirm, enableSummary, initialMessages, usage API |
+| 0.7.0 | 2026-08-05 | Базовая реализация |
