@@ -189,14 +189,24 @@
 ## Разработка
 
 - **Стек:** TypeScript, VS Code Extension API, WebView, Webpack
-- **Тесты:** Mocha + Sinon (226 тестов), GitHub Actions CI
+- **Тесты:** Mocha + Sinon (234 теста), GitHub Actions CI
+- **SDD:** 26 spec-файлов (`specs/`), валидатор, pre-commit + CI
 - **Репозиторий:** github.com/alekseyber/vscode-llm-assistant
 
 ```bash
 npm install
 npm run compile        # Сборка
-npm run test:mocked    # Тесты без VS Code (226 шт.)
 npm run lint           # Линтер
+npm run test:mocked    # Тесты без VS Code (234 шт.)
+node scripts/spec-validate.js  # Проверка SDD
+```
+
+**Запуск в режиме разработки:** F5 → «Run Extension» → Extension Development Host.
+
+**Установка локальной сборки:**
+```bash
+rm -rf ~/.vscode-server/extensions/alekseyber.vscode-llm-assistant-*
+code --install-extension vscode-llm-assistant-0.8.2.vsix
 ```
 
 ## Лицензия
