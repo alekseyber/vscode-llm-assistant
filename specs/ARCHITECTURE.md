@@ -193,7 +193,22 @@ AgentController (Apply Mode)
 | AgentController — дублирующийся ReAct (JSON-парсинг вместо function calling) | Средний |
 | ToolSystem и ChatAgentTools — два реестра инструментов | Средний |
 | ChatViewProvider 569 строк — кандидат на разделение | Низкий |
-| MA-6 (делегирование), MA-7 (cost tracking per agent) — не сделаны | Средний |
+| MA-6 (делегирование), MA-7 (cost tracking per agent) — сделаны в v0.8.1 |
+
+## Инфраструктура (файлы без spec)
+
+Эти файлы критичны для понимания проекта, но не являются компонентами:
+
+| Файл | Назначение | Ключевые детали |
+|------|-----------|-----------------|
+| `package.json` | Скрипты и зависимости | `npm run compile` (webpack), `lint`, `test:mocked`, `test` |
+| `tsconfig.json` | Компиляция src | `strict: true`, `module: commonjs`, `target: ES2020` |
+| `tsconfig.test.json` | Компиляция тестов | `rootDir: .`, `include: ["test/**/*.ts"]` |
+| `webpack.config.js` | Бандл расширения | `target: node`, `entry: ./src/extension.ts` |
+| `jest.config.js` | Конфиг тестов | `testMatch: src/**/*.test.ts`, `preset: ts-jest` |
+| `.vscode/launch.json` | F5-dev запуск | `Run Extension` (preLaunch: compile), `Extension Tests` |
+| `AGENTS.md` | Инструкции для LLM | Ссылка на specs/, TEMPLATE, язык, SDD-процесс |
+| `.llma/` | Агенты для @orchestrate | `agents/*.md`: префиксы → цепочка, без → делегирование |
 
 ## История изменений
 
