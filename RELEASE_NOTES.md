@@ -1,109 +1,35 @@
-# Release Notes — v0.7.0
+# Release Notes — v0.8.2
 
-## 🎭 Multi-Agent Harness — MVP
+## 🏗 Архитектурная унификация
 
-Плагин становится оркестратором. Один `@orchestrate` — и агент разбивает задачу на этапы, выполняет параллельно или последовательно.
+- **Общий ReAct-движок:** `AgentWorker` теперь используется и в чат-агенте, и в оркестраторе. Убран дублирующийся код.
+- **Динамические роли @orchestrate:** роли загружаются из `.llma/agents/*.md`, порядок по префиксу (`01-architect.md`, `02-coder.md`)
+- **Префиксы агентов:** файлы с `\d{2}-` в имени → цепочка оркестратора, без префикса → только для делегирования
 
-### AgentWorker
-- Изолированные агенты с настраиваемой ролью (systemPrompt, allowedTools, модель)
-- Каждый воркер работает в своём контексте, не задевая другие
-- Проброс ошибок провайдера в оркестратор
+## 🤝 Multi-Agent Harness (MA-6 + MA-7)
 
-### AgentOrchestrator
-- 3 стратегии: **parallel** (Promise.all), **sequential** (контекст), **pipeline** (артефакты)
-- Изоляция ошибок: падение одного воркера не роняет весь оркестратор
-- Сводный отчёт: токены, ответы, ошибки всех воркеров
+- **delegate_to_agent:** воркер может делегировать подзадачу другому агенту через tool call
+- **Cost tracking:** каждый воркер считает стоимость, оркестратор показывает сводку
+- **MCP для оркестратора:** один коннект MCP на старте, инструменты доступны всем воркерам
 
-### AgentSharedContext
-- Общий реестр артефактов между воркерами
-- Воркеры читают результаты друг друга через SharedContext
-- Авто-сохранение результатов после каждого воркера
+## 💰 Провайдеры и стоимость
 
-### UI: Вкладка «Оркестратор»
-- Дерево воркеров с иконками статуса (⏳/🔄/✅/❌)
-- Прогресс-бар и счётчик
-- Клик по воркеру — детали (шаги, токены, ответ)
-- Живое обновление через postMessage
-
-### Интеграция в агентный режим
-- Команда `@orchestrate задача` в 🤖 Агенте
-- 3 роли по умолчанию: architect → coder → reviewer
-- Результаты стримятся в чат и сохраняются в историю
-
----
-
-## 🏗 Harness-слои (v0.6.0+)
-
-### 01. System Policy — AGENTS.md автоинжект
-- Файл `AGENTS.md` автоматически добавляется в system prompt
-- Кеширование с авто-инвалидацией
-- Отключение: `llmAssistant.agentsMd.enabled: false`
-
-### 04. Context Management — Summary
-- Сжатие обрезанной истории в summary (чат + агент)
-- Баг 400 исправлен: summaryModel не хардкодится как gpt-4o
-- Дебаг-логирование всех этапов summarization
-
-### 06. Reliability — Ретраи + таймауты
-- Exponential backoff с jitter (±25%)
-- Ретрай: 429, 5xx, сетевые ошибки. Без ретрая: 400, 401, 403, 404
-
-### 02. Tool Contracts — Allow-list
-- Ограничение инструментов через `apply.allowedTools`
-- Подтверждение опасных операций через диалог
-- `.vscode/llm-assistant.json` для per-project конфига
-
-### 05. Common Interfaces — MCP-клиент
-- stdio MCP-серверы с фильтрацией через allow-list
-- Graceful degradation при ошибках
-
-### 07. Product Shell — Run History Dashboard
-- Вкладка «История»: таблица запусков, фильтр, детали
-- Персистентность: 100 записей FIFO
-
----
-
-## 🐛 Исправлено (v0.7.0)
-- **Summary 400**: модель для summary берётся из настроек, не хардкодится
-- **Контекст кода опаздывал**: attachCodeContext теперь ДО addMessage
-- **AgentController не использовался**: summary добавлен в runAgentLoop ChatViewProvider
-- **Дублирование user message**: addMessage вызывается один раз из правильного места
+- **ModelEntry:** расширенный формат `models: (string | {name, pricing})[]` — цены в конфиге провайдера
+- **calculateCost():** единая функция расчёта с fallback-таблицей (DeepSeek, GPT-4o, Claude, Qwen)
+- **Реальные токены:** `usage.prompt_tokens/completion_tokens` из API, chars/4 как fallback
 
 ## 🎨 UI
-- Контекст-бар: синий <80%, оранжевый >80%, красный пульсирующий >100%
-- Вкладка «Оркестратор» рядом с «Чат» и «История»
 
-## 🧪 Тестирование
-- **226 тестов** (было 187): +10 AgentWorker, +9 AgentOrchestrator, +10 Communication, +10 OrchestratorView
+- **Индикатор токенов в шапке чата:** 📊 токены + стоимость + прогресс-бар (зелёный/жёлтый/красный)
+- **Стоимость в оркестраторе:** сводка «Стоимость: $X.XXXXXX»
 
----
+## 🔧 Инфраструктура
 
-## Changelog
+- **SDD:** 26 spec-файлов, валидатор `spec-validate.js`, pre-commit hook, CI SDD Check
+- **SDD skill:** процесс `spec → PLAN → код → тесты → приёмка` с 📋 утверждением пользователя
+- **CI:** `spec-validate` → `lint` → `test`
 
-### v0.7.0
-- feat: Multi-Agent Harness MVP (AgentWorker, AgentOrchestrator, SharedContext)
-- feat: вкладка «Оркестратор» с живым деревом воркеров
-- feat: `@orchestrate` команда в агентном режиме
-- feat: 3 стратегии оркестрации (parallel/sequential/pipeline)
-- fix: summary 400 — модель не хардкодится
-- fix: контекст кода не опаздывает
-- fix: AgentController.summary интегрирован в runAgentLoop
-- test: 39 новых тестов (226 total)
+## 📊 Тесты
 
-### v0.6.0
-- feat: harness-слои (AGENTS.md, Summary, Retry, Allow-list, MCP, Dashboard)
-- feat: Run History Dashboard
-- feat: MCP-клиент
-- feat: контекст-бар с цветовой индикацией
-
-### v0.5.3
-- fix: restoreHistory всегда очищает контейнер
-
-### v0.5.2
-- ci: GitHub Actions — авто-прогон тестов
-
-### v0.5.0
-- feat: UI overhaul — плашки, контекст-бар, быстрые действия
-
-### v0.1.0
-- Начальный релиз: 4 режима, мульти-провайдер
+- 234 теста, 0 провалов
+- Моки обновлены для нового API (usage, AgentWorker options)
