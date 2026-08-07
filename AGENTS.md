@@ -6,6 +6,7 @@
 Перед ЛЮБЫМ изменением кода — прочитай соответствующий spec-файл.
 Изменил `src/X.ts` → обнови `specs/X.md`.
 
+Шаблон: [`specs/TEMPLATE.md`](specs/TEMPLATE.md)
 Карта проекта: [`specs/ARCHITECTURE.md`](specs/ARCHITECTURE.md)
 Валидатор: `node scripts/spec-validate.js`
 

@@ -16,7 +16,7 @@ const REQUIRED_SECTIONS = [
   '## Связи', '## История изменений',
 ];
 
-const META_SPECS = new Set(['ARCHITECTURE.md', 'TRACEABILITY.md']);
+const META_SPECS = new Set(['ARCHITECTURE.md', 'TRACEABILITY.md', 'TEMPLATE.md']);
 
 const SRC_EXEMPT = new Set([
   'index', 'types', 'extension', 'registerCommands',
