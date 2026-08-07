@@ -314,7 +314,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     setDelegateHandler(async (role: string, task: string): Promise<string> => {
       const roleDef = allRoles.find(r => r.name === role);
       const subRole = roleDef || { name: role, systemPrompt: `Ты — ${role}. Отвечай кратко, по-русски.` };
-      const subWorker = new AgentWorker(subRole, provider, { maxIterations: 10, extraTools: mcpTools });
+      const subWorker = new AgentWorker(subRole, provider, { maxIterations: 15, extraTools: mcpTools });
       const result = await subWorker.run(task);
       return result.answer;
     });
