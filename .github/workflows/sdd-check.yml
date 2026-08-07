@@ -1,0 +1,41 @@
+name: SDD Consistency Check
+
+on:
+  pull_request:
+    paths:
+      - 'src/**/*.ts'
+  push:
+    paths:
+      - 'src/**/*.ts'
+
+jobs:
+  sdd-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Check spec consistency
+        run: |
+          CHANGED_TS=$(git diff --name-only HEAD~1 HEAD -- 'src/**/*.ts' 2>/dev/null || git diff --name-only HEAD -- 'src/**/*.ts')
+          CHANGED_SPECS=$(git diff --name-only HEAD~1 HEAD -- 'specs/**/*.md' 2>/dev/null || git diff --name-only HEAD -- 'specs/**/*.md')
+
+          if [ -z "$CHANGED_TS" ]; then
+            echo "✅ No .ts changes — skipping SDD check."
+            exit 0
+          fi
+
+          echo "Changed .ts files:"
+          echo "$CHANGED_TS"
+
+          if [ -z "$CHANGED_SPECS" ]; then
+            echo ""
+            echo "❌ SDD VIOLATION: source files changed but specs/ not updated."
+            echo "   Please update the relevant spec in specs/ directory."
+            exit 1
+          fi
+
+          echo "Changed spec files:"
+          echo "$CHANGED_SPECS"
+          echo "✅ SDD consistency check passed."
