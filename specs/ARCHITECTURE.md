@@ -16,51 +16,47 @@ extension.ts (вход)
 │
 ├── ПРОВАЙДЕРЫ
 │   ├── ProviderManager          [spec ✅] — управление LLM-провайдерами
-│   ├── OpenAIProvider            [spec ❌] — OpenAI-совместимый API
-│   ├── BaseProvider              [spec ❌] — абстрактный класс
+│   ├── OpenAIProvider            [spec ✅] — OpenAI-совместимый API
+│   ├── BaseProvider              [spec ✅] — абстрактный класс
 │   └── types.ts (частично ✅)   — ModelPricing, calculateCost
 │
 ├── РЕЖИМЫ
 │   ├── 💬 Чат
-│   │   ├── ChatViewProvider      [spec ❌] — главный WebView-хаб (569 строк)
-│   │   ├── ConversationManager   [spec ❌] — история + контекст + summary
-│   │   ├── SessionManager        [spec ❌] — мульти-сессии (crypto.randomUUID)
+│   │   ├── ChatViewProvider      [spec ✅] — главный WebView-хаб (569 строк)
+│   │   ├── ConversationManager   [spec ✅] — история + контекст + summary
+│   │   ├── SessionManager        [spec ✅] — мульти-сессии (crypto.randomUUID)
 │   │   └── ChatAgentTools        [spec ✅] — 6 инструментов (read/write/search/terminal)
 │   │
 │   ├── 🤖 Агент (ReAct через чат)
 │   │   ├── AgentWorker           [spec ✅] — общий ReAct-движок
 │   │   ├── AgentOrchestrator     [spec ✅] — multi-agent (parallel/seq/pipeline)
-│   │   ├── AgentSharedContext    [spec ❌] — артефакты между воркерами
-│   │   ├── OrchestratorViewProv  [spec ❌] — вкладка «🎭 Оркестратор»
-│   │   └── McpClient             [spec ❌] — подключение MCP-серверов
+│   │   ├── AgentSharedContext    [spec ✅] — артефакты между воркерами
+│   │   ├── OrchestratorViewProv  [spec ✅] — вкладка «🎭 Оркестратор»
+│   │   └── McpClient             [spec ✅] — подключение MCP-серверов
 │   │
 │   ├── 🔧 Apply Mode (отдельная команда)
-│   │   ├── AgentController       [spec ❌] — JSON-парсинг, без function calling
-│   │   ├── ToolSystem            [spec ❌] — реестр инструментов (не ChatAgentTools!)
-│   │   └── ToolDefinitions       [spec ❌] — createTools() (7 инструментов)
+│   │   ├── AgentController       [spec ✅] — JSON-парсинг, без function calling
+│   │   ├── ToolSystem            [spec ✅] — реестр инструментов (не ChatAgentTools!)
+│   │   └── ToolDefinitions       [spec ✅] — createTools() (5 инструментов)
 │   │
 │   ├── ✏️ Edit Mode (Ctrl+I)
-│   │   ├── EditController        [spec ❌] — inline diff
-│   │   └── diff.ts               [spec ❌] — вычисление diff
+│   │   └── EditController        [spec ✅] — inline diff
 │   │
 │   └── 👻 Автокомплит
-│       ├── AutocompleteController [spec ❌] — ghost text
-│       ├── ContextBuilder         [spec ❌] — prefix/suffix из редактора
-│       └── GhostTextManager       [spec ❌] — отображение
+│       └── AutocompleteController [spec ✅] — ghost text (ContextBuilder + GhostTextManager)
 │
 ├── ИСТОРИЯ
-│   ├── RunHistoryStore           [spec ❌] — FIFO-хранилище запусков (100 записей)
-│   └── HistoryViewProvider       [spec ❌] — вкладка «📊 История»
+│   ├── RunHistoryStore           [spec ✅] — FIFO-хранилище запусков (100 записей)
+│   └── HistoryViewProvider       [spec ✅] — вкладка «📊 История»
 │
 ├── SHARED
-│   ├── ContextSummarizer         [spec ❌] — сжатие истории в summary
-│   ├── RetryHandler              [spec ❌] — exponential backoff + jitter
-│   ├── AgentsMdLoader            [spec ❌] — загрузка .llma/main.md
+│   ├── ContextSummarizer         [spec ✅] — сжатие истории в summary
+│   ├── RetryHandler              [spec ✅] — exponential backoff + jitter
+│   ├── AgentsMdLoader            [spec ✅] — загрузка .llma/main.md
 │   ├── RoleAgentsMdLoader        [spec ✅] — .llma/agents/{role}.md + @orchestrate роли
-│   ├── ToolAllowList             [spec ❌] — фильтрация инструментов
-│   ├── RunHistoryStore           [spec ❌] — FIFO 100 записей
-│   ├── streaming.ts              [spec ❌] — SSE-парсинг
-│   └── logger.ts                 [spec ❌] — логирование
+│   ├── ToolAllowList             [spec ✅] — фильтрация инструментов
+│   ├── streaming.ts              [spec ✅] — SSE-парсинг
+│   └── logger.ts                 [spec ✅] — логирование
 │
 └── WEBVIEW
     ├── index.html                — разметка чата
@@ -72,10 +68,9 @@ extension.ts (вход)
 
 | Статус | Компоненты |
 |--------|-----------|
-| ✅ Есть spec | AgentWorker, AgentOrchestrator, ProviderManager, ChatAgentTools, RoleAgentsMdLoader |
-| ❌ Нет spec | ChatViewProvider, ConversationManager, SessionManager, ContextSummarizer, AgentController, RetryHandler, ToolAllowList, McpClient, RunHistoryStore, HistoryViewProvider, OpenAIProvider, EditController, AutocompleteController, Streaming, +5 |
+| ✅ Есть spec | **Все 25 компонентов** |
 
-**Покрытие: 5/25 (20%)**
+**Покрытие: 25/25 (100%)**
 
 ## Потоки данных
 
@@ -197,7 +192,6 @@ AgentController (Apply Mode)
 | AgentController — дублирующийся ReAct (JSON-парсинг вместо function calling) | Средний |
 | ToolSystem и ChatAgentTools — два реестра инструментов | Средний |
 | ChatViewProvider 569 строк — кандидат на разделение | Низкий |
-| 20/25 компонентов без spec | Высокий |
 | MA-6 (делегирование), MA-7 (cost tracking per agent) — не сделаны | Средний |
 
 ## История изменений
