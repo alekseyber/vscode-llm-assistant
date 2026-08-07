@@ -48,6 +48,15 @@ since: 0.1.0
 - **Используется:** AgentController
 - **Данные:** ToolDefinitions.createTools()
 
+## Детали реализации
+
+- **Хранение:** `Map<string, Tool>`
+- **validateArgs:** проверка обязательных полей и типов (string/number/boolean/object/array)
+- **formatResult:** `=== Результат: {name} [{OK|ОШИБКА}] ===
+{output}`, обрезка 20000
+- **Дублирование:** ошибка при register с существующим именем
+
+
 ## История изменений
 
 | Версия | Дата | Изменения |

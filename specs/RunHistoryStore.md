@@ -56,6 +56,14 @@ since: 0.7.0
 - **Использует:** `vscode.Memento` (globalState)
 - **Используется:** ChatViewProvider, registerCommands
 
+## Детали реализации
+
+- **Хранение:** `ExtensionContext.globalState`, ключ `llmAssistant.runHistory`
+- **Структура:** `RunEntry[]`, новые в начало (unshift), FIFO 100
+- **generateRunId:** `run_${Date.now()}_${Math.random().toString(36).slice(2,8)}`
+- **cost:** `Math.round(cost * 1e6) / 1e6`
+
+
 ## История изменений
 
 | Версия | Дата | Изменения |

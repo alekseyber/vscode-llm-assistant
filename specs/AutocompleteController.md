@@ -29,6 +29,13 @@ Ghost text автокомплит: контекст из редактора → 
 - **Используется:** registerCommands (регистрация провайдера автокомплита)
 - **Конфигурация:** `llmAssistant.autocomplete.enabled`
 
+## Детали реализации
+
+- **ContextBuilder:** prefix (до курсора) + suffix (после), лимит chars/4
+- **GhostTextManager:** InlineCompletionItemProvider API
+- **Debounce:** ~300ms после ввода
+
+
 ## История изменений
 
 | Версия | Дата | Изменения |

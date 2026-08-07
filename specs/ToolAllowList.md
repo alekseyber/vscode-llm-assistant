@@ -49,6 +49,14 @@ since: 0.4.0
 - **Используется:** ChatAgentTools, AgentController
 - **Источники:** `.vscode/llm-assistant.json` > `llmAssistant.apply.*`
 
+## Детали реализации
+
+- **Workspace:** `.vscode/llm-assistant.json` → `JSON.parse` → валидация
+- **Глобальный:** `llmAssistant.apply.allowedTools/requireConfirmation`
+- **Приоритет:** workspace > глобальные > DEFAULT_CONFIG
+- **DEFAULT_CONFIG:** `requireConfirmation: ['write_file', 'replace_in_file', 'run_terminal']`
+
+
 ## История изменений
 
 | Версия | Дата | Изменения |

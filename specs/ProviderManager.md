@@ -86,6 +86,15 @@ since: 0.1.0
 |  — | extractModelNames() извлекает имена из ModelEntry[] | ✅ |
 |  — | calculateCost() использует pricingMap > fallback > default | ✅ |
 
+## Детали реализации
+
+- **Конфиг:** `llmAssistant.providers` (Record<string, {baseUrl, apiKey, models}>)
+- **Variables:** `${VAR}` → `process.env[VAR]` в baseUrl и apiKey
+- **Pricing:** `buildPricingMap(ModelEntry[])` → приоритет: конфиг > FALLBACK > DEFAULT
+- **extractModelNames:** `ModelEntry[]` → `string[]` для OpenAIProvider
+- **defaultProvider:** `llmAssistant.defaultProvider` или `'openai'`
+
+
 ## История изменений
 
 | Версия | Дата | Изменения |

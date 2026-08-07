@@ -53,6 +53,18 @@ since: 0.1.0
 - **Использует:** ProviderManager, ConversationManager, AgentWorker, AgentOrchestrator, McpClient, RunHistoryStore
 - **Используется:** extension.ts (регистрация WebView)
 
+## Детали реализации
+
+- **WebView:** `enableScripts: true`, localResourceRoots — src/webviews/chat и node_modules
+- **HTML:** index.html + styles.css + marked.min.js + main.js через `fs.readFileSync`
+- **Auto-контекст:** активный редактор → `attachCodeContext()` ДО `addMessage()`
+- **Vision:** `pendingImage`, одно сообщение `[{type:'text'},{type:'image_url'}]`
+- **@orchestrate:** regex `/^@orchestrate\s+(.+)/`, только agent-режим
+- **recordChatRun:** стоимость через `calculateCost()` с `providerManager.pricingMap`
+- **abortController:** создаётся в handleSendMessage, проверяется в runAgentLoop
+- **debugChannel:** `vscode.window.createOutputChannel('LLM Assistant')`
+
+
 ## История изменений
 
 | Версия | Дата | Изменения |

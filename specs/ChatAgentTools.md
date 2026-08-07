@@ -65,6 +65,17 @@ since: 0.1.0
 |  — | write_file, replace_in_file записывают через VS Code API | ✅ |
 |  — | run_terminal выполняет команду с timeout | ✅ |
 
+## Детали реализации
+
+- **VS Code API:** `vscode.workspace.fs.readFile/writeFile`, `vscode.Uri.file()`
+- **read_file:** нумерация строк (4-значный pad), 1-indexed
+- **write_file:** `createDirectory` для автосоздания папок
+- **replace_in_file:** только первое вхождение (не replaceAll)
+- **list_files:** рекурсивно, папки сверху, исключение `.*` и `node_modules`
+- **search_files:** `findFiles` с RelativePattern, лимит 200/100
+- **run_terminal:** `child_process.exec`, timeout сек->мс, maxBuffer 1MB
+
+
 ## История изменений
 
 | Версия | Дата | Изменения |

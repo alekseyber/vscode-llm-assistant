@@ -54,6 +54,16 @@ Vision-запрос с изображениями.
 - **Используется:** ProviderManager
 - **Конфигурация:** `llmAssistant.retry.*`
 
+## Детали реализации
+
+- **SDK:** `openai`, `maxRetries: 0` (свои ретраи)
+- **baseUrl:** trailing slash удаляется
+- **chat():** стриминг с withRetry
+- **createWithTools():** нестриминг, `tool_choice: 'auto'`, с withRetry
+- **chatComplete():** `stream: false`, temperature 0.3, maxTokens 2048
+- **Vision:** content-массив `[{type:'text'},{type:'image_url'}]`
+
+
 ## История изменений
 
 | Версия | Дата | Изменения |

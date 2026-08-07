@@ -22,6 +22,12 @@ since: 0.1.0
 - **Использует:** ProviderManager, diff.ts
 - **Используется:** registerCommands (команда `llmAssistant.edit`)
 
+## Детали реализации
+
+- **Промпт:** системный «отредактируй выделенный код»
+- **Diff:** `diff.ts` → inline-замена через VS Code TextEditor API
+
+
 ## История изменений
 
 | Версия | Дата | Изменения |

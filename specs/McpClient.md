@@ -47,6 +47,14 @@ since: 0.5.0
 - **Использует:** `@modelcontextprotocol/sdk`
 - **Используется:** ChatViewProvider (чат-агент и оркестратор)
 
+## Детали реализации
+
+- **Транспорт:** stdio (StdioClientTransport из @modelcontextprotocol/sdk)
+- **Подключение:** `client.connect(transport)` → `client.listTools()`
+- **Конвертация:** MCP tools → `{type: 'function', function: {name, description, parameters}}`
+- **Ошибки:** подключение — исключение; повторный disconnect — no-op
+
+
 ## История изменений
 
 | Версия | Дата | Изменения |

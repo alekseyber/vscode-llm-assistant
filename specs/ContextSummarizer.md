@@ -34,6 +34,15 @@ since: 0.4.0
 - **Используется:** ConversationManager, AgentWorker, AgentController
 - **Зависит от:** LLM-провайдер (chatComplete или chat)
 
+## Детали реализации
+
+- **Модель:** `chat.summaryModel` из конфига, fallback на `defaultModel`
+- **Промпт:** «Сократи этот диалог до краткого содержания на русском языке. Сохрани ключевые решения, код и выводы.»
+- **Вызов:** `provider.chatComplete()` (нестриминг), fallback на `provider.chat()`
+- **Кеш:** Map<messageHash, summary>, инвалидация через `invalidateCache()`
+- **Ошибки:** молча возвращает null
+
+
 ## История изменений
 
 | Версия | Дата | Изменения |

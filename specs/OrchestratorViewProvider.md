@@ -52,6 +52,15 @@ WebView-вкладка «🎭 Оркестратор» в Activity Bar. Отоб
 - **Используется:** ChatViewProvider.handleOrchestrate
 - **Регистрация:** `package.json` → `llmAssistant.orchestrator`
 
+## Детали реализации
+
+- **HTML:** инлайн в `getHtml()`
+- **CSS:** переменные VS Code (`--vscode-*`)
+- **Прогресс:** `done/total*100`, `width .3s`
+- **Статусы:** ⏳🔄✅❌, классы status-pending/running/done/error
+- **Escape:** `replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')`
+
+
 ## История изменений
 
 | Версия | Дата | Изменения |

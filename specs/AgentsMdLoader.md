@@ -34,6 +34,14 @@ since: 0.1.0
 - **Используется:** ChatViewProvider (getSystemPrompt), ConversationManager (getMessagesForRequest), AgentController
 - **Файл:** `.llma/main.md`
 
+## Детали реализации
+
+- **Кеш:** `cachedContent` + `lastFilePath`, инвалидация через watcher
+- **Watcher:** `onDidChangeTextDocument`, `onDidCreateFiles`, `onDidDeleteFiles`
+- **Файл:** `.llma/main.md` в корне workspace
+- **Отключение:** `llmAssistant.agentsMd.enabled: false` → null
+
+
 ## История изменений
 
 | Версия | Дата | Изменения |

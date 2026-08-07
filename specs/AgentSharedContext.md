@@ -43,6 +43,17 @@ since: 0.7.0
 - **Используется:** AgentOrchestrator (sharedContext)
 - **Сценарий:** parallel/sequential/pipeline — сохранение результатов
 
+## Детали реализации
+
+- **Хранение:** `Map<string, SharedArtifact>` в памяти
+- **Artifact:** `{key, content, createdBy, timestamp: Date.now()}`
+- **Сортировка:** `list()` — по timestamp (хронологическая)
+- **Summary:** каждый артефакт с заголовком `### {key} (от {createdBy})
+\`\`\`
+{content.slice(0,500)}
+\`\`\``
+
+
 ## История изменений
 
 | Версия | Дата | Изменения |

@@ -72,6 +72,14 @@ since: 0.7.0
 - **Используется:** `ChatViewProvider.handleOrchestrate`
 - **Точка входа:** команда `@orchestrate` в 🤖 Агенте
 
+## Детали реализации
+
+- **Стратегии:** parallel = Promise.all, sequential = предыдущий результат в prompt, pipeline = накопление artifacts[]
+- **Контекст передачи:** sequential — `\n## Результат предыдущего этапа:\n{result}`; pipeline — `\n## Артефакты:\n{artifacts}`
+- **Изоляция ошибок:** parallel — ошибка воркера изолируется; sequential/pipeline — цепочка прерывается
+- **SharedContext:** результаты как `result:{name}` и `artifact:{name}`
+- **Summary:** конкатенация через `\n\n`
+
 ## История изменений
 
 | Версия | Дата | Изменения |

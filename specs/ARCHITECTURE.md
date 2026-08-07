@@ -58,10 +58,11 @@ extension.ts (вход)
 │   ├── streaming.ts              [spec ✅] — SSE-парсинг
 │   └── logger.ts                 [spec ✅] — логирование
 │
-└── WEBVIEW
-    ├── index.html                — разметка чата
-    ├── main.js                   — логика WebView (сообщения, сессии, Markdown)
-    └── styles.css                — стили
+│   └── WEBVIEW
+│       ├── index.html            — разметка чата
+│       ├── main.js               — логика (912 строк)
+│       ├── styles.css            — стили
+│       └── WebView                [spec ✅] — полная спецификация
 ```
 
 ## Покрытие спецификациями

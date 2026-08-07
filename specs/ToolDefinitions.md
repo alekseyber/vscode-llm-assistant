@@ -34,6 +34,15 @@ since: 0.1.0
 - **Используется:** AgentController (через ToolSystem)
 - **Дублирует:** ChatAgentTools (разные реестры инструментов — техдолг)
 
+## Детали реализации
+
+- **VS Code API:** `vscode.workspace.fs` + `child_process.exec`
+- **read_file:** offset/limit 1-indexed, `padStart(4)`
+- **patch_file:** подсчёт вхождений через `split().length-1`
+- **search_files:** `findFiles`, исключение node_modules, лимит 500/200
+- **run_terminal:** `exec` с timeout, maxBuffer 10MB
+
+
 ## История изменений
 
 | Версия | Дата | Изменения |
