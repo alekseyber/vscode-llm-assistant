@@ -38,8 +38,9 @@ export function loadRoleAgentsMd(roleName: string): string | null {
 
 /**
  * Сканирует .llma/agents/*.md и возвращает список ролей для @orchestrate.
- * Порядок: по имени файла (префикс 01-, 02- и т.д. для управления порядком).
- * Если файлов нет — возвращает fallback-роли (architect, coder, reviewer).
+ * Только файлы с префиксом \d{2}- (01-architect, 02-coder) попадают в цепочку.
+ * Файлы без префикса — доступны только для delegate_to_agent.
+ * Если файлов с префиксом нет — fallback (architect, coder, reviewer).
  */
 export function loadOrchestratorRoles(): AgentRole[] {
   try {
@@ -50,13 +51,13 @@ export function loadOrchestratorRoles(): AgentRole[] {
     if (!fs.existsSync(agentsDir)) return getFallbackRoles();
 
     const entries = fs.readdirSync(agentsDir);
-    const mdFiles = entries
-      .filter(f => f.endsWith('.md'))
-      .sort(); // Алфавитная сортировка → префиксный порядок
+    const chainedFiles = entries
+      .filter(f => f.endsWith('.md') && /^\d{2}-/.test(f))
+      .sort();
 
-    if (mdFiles.length === 0) return getFallbackRoles();
+    if (chainedFiles.length === 0) return getFallbackRoles();
 
-    return mdFiles.map(fileName => {
+    return chainedFiles.map(fileName => {
       const roleName = fileName.replace(/\.md$/, '');
       const filePath = path.join(agentsDir, fileName);
       const systemPrompt = tryReadFile(filePath) || `Ты — ${roleName}. Отвечай кратко, по-русски.`;
@@ -64,6 +65,32 @@ export function loadOrchestratorRoles(): AgentRole[] {
     });
   } catch {
     return getFallbackRoles();
+  }
+}
+
+/**
+ * Возвращает ВСЕ роли из .llma/agents/ для делегирования.
+ * Используется delegate_to_agent: может вызвать любую роль, не только из цепочки.
+ */
+export function loadAllAgentRoles(): AgentRole[] {
+  try {
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+    if (!workspaceFolder) return [];
+
+    const agentsDir = path.join(workspaceFolder.uri.fsPath, '.llma', 'agents');
+    if (!fs.existsSync(agentsDir)) return [];
+
+    const entries = fs.readdirSync(agentsDir);
+    return entries
+      .filter(f => f.endsWith('.md'))
+      .map(fileName => {
+        const roleName = fileName.replace(/\.md$/, '');
+        const filePath = path.join(agentsDir, fileName);
+        const systemPrompt = tryReadFile(filePath) || `Ты — ${roleName}. Отвечай кратко, по-русски.`;
+        return { name: roleName, systemPrompt };
+      });
+  } catch {
+    return [];
   }
 }
 

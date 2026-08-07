@@ -6,6 +6,7 @@
 import { AgentWorker, AgentRole, WorkerResult, AgentWorkerOptions } from './AgentWorker';
 import { AgentSharedContext } from './AgentSharedContext';
 import { setDelegateHandler } from '../chat/ChatAgentTools';
+import { loadAllAgentRoles } from '../../shared/RoleAgentsMdLoader';
 
 /**
  * Стратегия выполнения.
@@ -102,9 +103,9 @@ export class AgentOrchestrator {
     this.log(`Оркестратор '${task.id}': старт, стратегия=${task.strategy}, воркеров=${task.roles.length}`);
 
     // Настраиваем делегирование: любой воркер может вызвать delegate_to_agent
-    const orchestratorRoles = task.roles;
+    const allRoles = loadAllAgentRoles();
     setDelegateHandler(async (role: string, subTask: string): Promise<string> => {
-      const roleDef = orchestratorRoles.find(r => r.name === role);
+      const roleDef = allRoles.find(r => r.name === role);
       if (!roleDef) {
         // Создаём синтетическую роль
         const syntheticRole: AgentRole = { name: role, systemPrompt: `Ты — ${role}. Отвечай кратко, по-русски.` };

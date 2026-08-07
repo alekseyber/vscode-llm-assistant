@@ -6,7 +6,7 @@ import { ProviderManager } from '../../providers/manager';
 import { ConversationManager } from './ConversationManager';
 import { ChatMessage, calculateCost } from '../../providers/types';
 import { loadAgentsMd } from '../../shared/AgentsMdLoader';
-import { loadRoleAgentsMd, loadOrchestratorRoles } from '../../shared/RoleAgentsMdLoader';
+import { loadRoleAgentsMd, loadOrchestratorRoles, loadAllAgentRoles } from '../../shared/RoleAgentsMdLoader';
 import { loadToolAllowListConfig, isConfirmationRequired } from '../apply/ToolAllowList';
 import { McpClient, loadMcpConfig } from '../apply/McpClient';
 import { AgentWorker, AgentRole } from '../apply/AgentWorker';
