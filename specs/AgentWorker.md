@@ -39,6 +39,7 @@ since: 0.7.0
 | `iterations` | `number` |
 | `inputTokens` | `number` — из `usage.prompt_tokens` или chars/4 |
 | `outputTokens` | `number` — из `usage.completion_tokens` или chars/4 |
+| `cost` | `number` — стоимость в USD через `calculateCost()` |
 | `error?` | `string` |
 
 ## Контракты

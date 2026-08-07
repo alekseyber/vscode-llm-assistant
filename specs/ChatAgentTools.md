@@ -21,6 +21,15 @@ since: 0.1.0
 | `run_terminal` | Выполнение команды | `command`, `timeout?` | Да |
 | `delegate_to_agent` | Делегирует задачу другому агенту | `role`, `task` | Нет |
 
+## Контракты
+
+| Ситуация | Поведение |
+|----------|-----------|
+| delegate_to_agent без handler | Ошибка «делегирование не настроено» |
+| role не найден в .llma/agents/ | Синтетическая роль |
+| Файлы с префиксом \d{2}- | В цепочку @orchestrate |
+| Файлы без префикса | Только для delegate_to_agent |
+
 ## Интерфейс
 
 ### `getToolSchemas() → ToolSchema[]`
