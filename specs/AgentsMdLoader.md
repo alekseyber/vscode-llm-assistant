@@ -42,6 +42,15 @@ since: 0.1.0
 - **Отключение:** `llmAssistant.agentsMd.enabled: false` → null
 
 
+## Тесты (agentsMd.test.ts, 6 тестов)
+
+- AC-1.1: loadAgentsMd() возвращает содержимое AGENTS.md
+- AC-1.2: отсутствует — null
+- AC-1.5: agentsMd.enabled: false отключает загрузку
+- Кеширование: повторный вызов не читает файл
+- AC-1.6: invalidateCache() сбрасывает кеш
+- Нет workspace → null
+
 ## История изменений
 
 | Версия | Дата | Изменения |

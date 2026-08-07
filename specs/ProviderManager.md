@@ -95,6 +95,16 @@ since: 0.1.0
 - **defaultProvider:** `llmAssistant.defaultProvider` или `'openai'`
 
 
+## Тесты (providers.test.ts, 11 тестов)
+
+- AC-9.4: refresh() читает конфиг и создаёт провайдеров
+- getProvider() возвращает undefined для неизвестного
+- getDefault() возвращает провайдера по умолчанию; 'openai' если не задан
+- getAllProviders() возвращает всех; refresh() очищает старых
+- Пустая конфигурация: getDefault() → undefined
+- ${VAR} подстановка: из process.env; оставляет если переменная не найдена
+- Провайдер имеет список моделей из конфигурации
+
 ## История изменений
 
 | Версия | Дата | Изменения |

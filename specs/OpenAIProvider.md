@@ -64,6 +64,13 @@ Vision-запрос с изображениями.
 - **Vision:** content-массив `[{type:'text'},{type:'image_url'}]`
 
 
+## Тесты (providers.test.ts)
+
+- AC-9.4: refresh() читает конфиг и создаёт провайдеров
+- getProvider() / getDefault() / getAllProviders()
+- refresh() очищает старых, обрабатывает пустую конфигурацию
+- Подстановка ${VAR} из process.env
+
 ## История изменений
 
 | Версия | Дата | Изменения |

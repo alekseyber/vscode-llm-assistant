@@ -54,6 +54,15 @@ since: 0.7.0
 \`\`\``
 
 
+## Тесты (agentCommunication.test.ts + agentOrchestrator.test.ts)
+
+- MA-3.1: parallel — результаты всех воркеров сохраняются в SharedContext; sequential — следующий воркер видит контекст
+- MA-3.3: pipeline — артефакты сохраняются в SharedContext
+- put/get: артефакт сохраняется и читается
+- list: хронологический порядок; listByRole: фильтрация
+- summary: форматирование всех артефактов
+- Пустой SharedContext: пустой список, get → undefined
+
 ## История изменений
 
 | Версия | Дата | Изменения |

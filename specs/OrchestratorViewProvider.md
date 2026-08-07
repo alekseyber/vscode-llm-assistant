@@ -61,6 +61,15 @@ WebView-вкладка «🎭 Оркестратор» в Activity Bar. Отоб
 - **Escape:** `replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')`
 
 
+## Тесты (orchestratorView.test.ts, 10 тестов)
+
+- MA-4.1: viewType = llmAssistant.orchestrator, конструктор без ошибок
+- MA-4.2: showTask сохраняет задачу с деревом воркеров
+- MA-4.3: updateWorker меняет статус и прогресс; не падает для неизвестного
+- MA-4.4: прогресс = done / total * 100
+- MA-4.5: WorkerInfo содержит поля, с ошибкой содержит error
+- clear: очищает панель без ошибок; OrchestratorTaskInfo заполнен
+
 ## История изменений
 
 | Версия | Дата | Изменения |

@@ -58,6 +58,18 @@ since: 0.3.0
 - **maxRetries=0:** без ретраев, сразу ошибка
 - **Колбэк onRetry:** безопасный вызов в try/catch
 
+## Тесты (retryHandler.test.ts, 25+ тестов)
+
+- isRetryableError: 429/500/502/503/504 → retryable; 400/401/403/404 → НЕ retryable
+- AbortError → НЕ retryable; таймаут → retryable
+- Сетевые коды: ECONNRESET, ETIMEDOUT, ENOTFOUND, ECONNREFUSED → retryable
+- Сетевые фразы в message: "fetch failed", "network error" → retryable
+- calculateDelay: jitter ±25%, attempt=2 ~2s, attempt=3 ~4s, не превышает maxDelay
+- withRetry: успех с первой попытки, ретрай с backoff, max 3 ретрая
+- maxRetries=0 → без ретраев, сразу ошибка
+- onRetry колбэк вызывается при каждом ретрае
+- AbortSignal прерывает ретраи; прерванный сигнал до вызова → сразу AbortError
+
 ## История изменений
 
 | Версия | Дата | Изменения |

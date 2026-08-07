@@ -79,6 +79,15 @@ project/
 - **SystemPrompt:** содержимое файла, fallback `"Ты — {roleName}..."`
 
 
+## Тесты (roleAgentsMd.test.ts, 8 тестов)
+
+- MA-5.1: AGENTS.{role}.md загружается для роли
+- MA-5.2: fallback на main.md если ролевого нет; null если нет файлов
+- Разные роли — разные файлы
+- Кеш: повторный вызов не читает файл; invalidateRoleCache сбрасывает
+- Пустой файл → fallback; нет workspace → null
+- .llma/agents/{role}.md приоритет над AGENTS.{role}.md
+
 ## История изменений
 
 | Версия | Дата | Изменения |

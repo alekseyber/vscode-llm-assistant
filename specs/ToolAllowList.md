@@ -57,6 +57,16 @@ since: 0.4.0
 - **DEFAULT_CONFIG:** `requireConfirmation: ['write_file', 'replace_in_file', 'run_terminal']`
 
 
+## Тесты (toolAllowList.test.ts, 12+ тестов)
+
+- AC-4.1: allowedTools: ["read_file"] — агент видит только read_file
+- AC-4.2: без allowedTools — все доступны (обратная совместимость)
+- AC-4.4: write_file из requireConfirmation требует подтверждения
+- Несуществующий инструмент в allowedTools — игнорируется
+- DEFAULT_CONFIG: requireConfirmation содержит опасные инструменты
+- AC-4.3: .vscode/llm-assistant.json переопределяет глобальные настройки
+- Без файла — глобальные; невалидный JSON — fallback; нет workspace — глобальные
+
 ## История изменений
 
 | Версия | Дата | Изменения |

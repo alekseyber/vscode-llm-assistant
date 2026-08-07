@@ -68,6 +68,15 @@ data: {"id":"chatcmpl-xxx","object":"chat.completion.chunk","choices":[{"delta":
 data: [DONE]\n\n
 ```
 
+## Тесты (streaming.test.ts, 17 тестов)
+
+- AC-9.3: parseSSE разбирает многострочный SSE-поток; пустой ввод → []
+- parseSSE: обрабатывает event: поле, игнорирует комментарии, многострочные данные
+- isStreamDone: определяет [DONE]
+- extractDeltaContent: извлекает content из чанка; null при отсутствии choices/delta/content
+- parseChatCompletionStream: полный SSE → токены; пропускает невалидный JSON
+- createMockStream: выдаёт чанки по порядку, прерывается при AbortSignal, пустой поток
+
 ## История изменений
 
 | Версия | Дата | Изменения |

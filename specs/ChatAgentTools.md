@@ -76,6 +76,11 @@ since: 0.1.0
 - **run_terminal:** `child_process.exec`, timeout сек->мс, maxBuffer 1MB
 
 
+## Тесты
+
+Тестируется через AgentWorker и ToolAllowList тесты.
+Прямые тесты: фильтрация через getAllowedTools, выполнение в мок-контексте.
+
 ## История изменений
 
 | Версия | Дата | Изменения |

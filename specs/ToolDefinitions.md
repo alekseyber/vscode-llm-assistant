@@ -43,6 +43,10 @@ since: 0.1.0
 - **run_terminal:** `exec` с timeout, maxBuffer 10MB
 
 
+## Тесты
+
+Тестируется через ToolSystem тесты. Инструменты регистрируются через createTools() → ToolSystem.registerAll().
+
 ## История изменений
 
 | Версия | Дата | Изменения |

@@ -65,6 +65,13 @@ since: 0.1.0
 - **debugChannel:** `vscode.window.createOutputChannel('LLM Assistant')`
 
 
+## Тесты
+
+Прямых юнит-тестов нет. Покрывается интеграционно через:
+- AgentWorker тесты (runAgentLoop)
+- ConversationManager тесты (история)
+- Ручное тестирование (20-пунктовый чек-лист)
+
 ## История изменений
 
 | Версия | Дата | Изменения |
