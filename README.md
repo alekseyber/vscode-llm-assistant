@@ -192,6 +192,7 @@
 - **Тесты:** Mocha + Sinon (234 теста), GitHub Actions CI
 - **SDD:** 26 spec-файлов (`specs/`), валидатор, pre-commit + CI
 - **Репозиторий:** github.com/alekseyber/vscode-llm-assistant
+- **Спецификации:** [specs/](https://github.com/alekseyber/vscode-llm-assistant/tree/main/specs) — 26 компонентов, интерфейсы, контракты, AC
 
 ```bash
 npm install
