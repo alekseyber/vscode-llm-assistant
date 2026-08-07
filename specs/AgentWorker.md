@@ -83,3 +83,4 @@ since: 0.7.0
 |--------|------|-----------|
 | 0.8.0 | 2026-08-06 | Добавлены extraTools, onConfirm, enableSummary, initialMessages, usage API |
 | 0.7.0 | 2026-08-05 | Базовая реализация |
+<!-- test -->

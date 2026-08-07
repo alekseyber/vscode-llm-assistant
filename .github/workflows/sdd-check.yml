@@ -16,7 +16,7 @@ jobs:
         with:
           fetch-depth: 2
 
-      - name: Check spec consistency
+      - name: Check spec consistency (src/X.ts → specs/X.md)
         run: |
           CHANGED_TS=$(git diff --name-only HEAD~1 HEAD -- 'src/**/*.ts' 2>/dev/null || git diff --name-only HEAD -- 'src/**/*.ts')
           CHANGED_SPECS=$(git diff --name-only HEAD~1 HEAD -- 'specs/**/*.md' 2>/dev/null || git diff --name-only HEAD -- 'specs/**/*.md')
@@ -29,13 +29,30 @@ jobs:
           echo "Changed .ts files:"
           echo "$CHANGED_TS"
 
-          if [ -z "$CHANGED_SPECS" ]; then
+          VIOLATIONS=0
+
+          for ts_file in $CHANGED_TS; do
+            component=$(basename "$ts_file" .ts)
+
+            case "$component" in
+              index|types|extension|registerCommands|base|diff|ContextBuilder|GhostTextManager|ChatPanel)
+                echo "  ⏭️  $ts_file — exempt (infrastructure)" ;;
+              *)
+                spec_file="specs/${component}.md"
+                if echo "$CHANGED_SPECS" | grep -qF "$spec_file"; then
+                  echo "  ✅ $ts_file → $spec_file"
+                else
+                  echo "  ❌ $ts_file → $spec_file NOT updated"
+                  VIOLATIONS=$((VIOLATIONS + 1))
+                fi ;;
+            esac
+          done
+
+          if [ $VIOLATIONS -gt 0 ]; then
             echo ""
-            echo "❌ SDD VIOLATION: source files changed but specs/ not updated."
-            echo "   Please update the relevant spec in specs/ directory."
+            echo "❌ SDD VIOLATION: $VIOLATIONS component(s) without updated spec."
+            echo "   Please update the relevant specs/<Component>.md file."
             exit 1
           fi
 
-          echo "Changed spec files:"
-          echo "$CHANGED_SPECS"
-          echo "✅ SDD consistency check passed."
+          echo "✅ All components have updated specs."
