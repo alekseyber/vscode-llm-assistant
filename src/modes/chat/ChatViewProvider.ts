@@ -454,6 +454,21 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     // Сохраняем ответ в историю
     this.conversationManager.addMessage({ role: 'user', content: `@orchestrate ${taskText}` });
     this.conversationManager.addMessage({ role: 'assistant', content: result.summary });
+
+    // Записываем в историю запусков
+    const orchStartTime = Date.now();
+    this.recordChatRun(
+      `orch_${orchStartTime}`,
+      orchStartTime,
+      taskText,
+      'orchestrator',
+      model,
+      'agent',
+      result.totalInputTokens,
+      result.totalOutputTokens,
+      result.workers.reduce((s, w) => s + w.result.iterations, 0),
+      result.success ? 'success' : 'error',
+    );
   }
 
   /** Запросить подтверждение у пользователя для опасной операции */
