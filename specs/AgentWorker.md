@@ -77,6 +77,35 @@ since: 0.7.0
 - **Используется:** `ChatViewProvider.runAgentLoop`, `AgentOrchestrator`
 - **Модель:** `deepseek-v4-pro` (по умолчанию) или из `AgentRole.model`
 
+## Детали реализации
+
+- **Итерации:** max 5 в чате (runAgentLoop), 10 в headless (оркестратор)
+- **initialMessages:** если передан — используется как есть; иначе строится system + task
+- **Summary:** срабатывает при `enableSummary && i >= 2 && messages.length > 6`. Сжимаются все сообщения кроме system, task, и последних 2 пар. Результат вставляется как system-сообщение.
+- **All tools merging:** `[...baseToolSchemas, ...extraTools]`, затем фильтр по `allowedTools`
+- **Confirmation:** `onConfirm` получает `(toolName, args) → Promise<boolean>`. Если false — tool-сообщение с «Операция отклонена».
+- **Токены:** приоритет `response.usage.prompt_tokens/completion_tokens`, fallback `chars/4`. Накопление за все итерации.
+- **Ошибки:** throw Error — оркестратор ловит и изолирует; runAgentLoop ловит в handleSendMessage
+- **Messages мутация:** ответы ассистента и tool-результаты пушатся в массив; при summary массив пересобирается
+
+## Промпты
+
+### Системный (воркер)
+```
+{systemPrompt}
+
+## Доступные инструменты:
+{toolDescriptions}
+
+Используй инструменты по одному за шаг. Отвечай кратко, по-русски.
+```
+
+### Summary
+```
+## Краткое содержание предыдущих шагов:
+{summary}
+```
+
 ## История изменений
 
 | Версия | Дата | Изменения |

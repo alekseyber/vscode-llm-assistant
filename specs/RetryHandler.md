@@ -46,6 +46,18 @@ since: 0.3.0
 - **Используется:** OpenAIProvider (chat, createWithTools, chatComplete)
 - **Конфигурация:** `llmAssistant.retry.*` в settings.json
 
+## Детали реализации
+
+- **Формула задержки:** `min(baseDelay * 2^(attempt-1), maxDelay) * (1 + random(-0.25, +0.25))`
+- **Составной сигнал:** `AbortSignal.any([userSignal, timeoutSignal])` — любой прерывает запрос
+- **Таймаут:** `AbortSignal.timeout(requestTimeoutMs)`
+- **AbortError:** если `userSignal.aborted` → не ретрай (пользователь). Если нет → ретрай (таймаут)
+- **Сетевые коды:** ECONNRESET, ETIMEDOUT, ENOTFOUND, ECONNREFUSED, EAI_AGAIN, UND_ERR_CONNECT_TIMEOUT
+- **Сетевые фразы в message:** fetch failed, network error, connection reset, connection error, connection refused, econnrefused
+- **HTTP-статусы для ретрая:** [429, 500, 502, 503, 504] (настраивается)
+- **maxRetries=0:** без ретраев, сразу ошибка
+- **Колбэк onRetry:** безопасный вызов в try/catch
+
 ## История изменений
 
 | Версия | Дата | Изменения |

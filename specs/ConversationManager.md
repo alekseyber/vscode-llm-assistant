@@ -42,6 +42,25 @@ since: 0.1.0
 - **Использует:** SessionManager, ContextSummarizer, AgentsMdLoader
 - **Используется:** ChatViewProvider
 
+## Детали реализации
+
+- **Оценка токенов:** `chars.length / 4`
+- **Учёт контекста:** `pendingContext` прикрепляется к user-сообщению при `addMessage()`. Контекст форматируется: `--- Файл: {path} --- \`\`\`\n{content}\n\`\`\``
+- **Порядок:** `attachCodeContext()` должен вызываться ДО `addMessage()` — иначе контекст прикрепится к следующему сообщению
+- **Обрезка истории:** с конца (новые остаются). Сообщения без контекста кода идут в trimmed (для summary)
+- **MAX_MESSAGES:** 100 в SessionManager
+- **Инвалидация кеша:** при каждом `addMessage()` сбрасывается `summarizer.invalidateCache()`
+
+## Форматы данных
+
+### System prompt
+```
+{systemPrompt}
+
+## Правила проекта (AGENTS.md):
+{agentsMd}
+```
+
 ## История изменений
 
 | Версия | Дата | Изменения |

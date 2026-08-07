@@ -54,6 +54,31 @@ ReAct-агент для **Apply Mode** (отдельная команда, не 
 - **Использует:** ToolSystem, ContextSummarizer, ToolAllowList
 - **Используется:** `registerCommands.startApplyMode()`
 
+## Детали реализации
+
+- **Парсинг JSON:** `parseToolCall()` ищет `{"tool": "...", "arguments": {...}}`. Сначала весь ответ как JSON, затем markdown-блок, затем от `{` до `}`. Проверяет что `tool` есть в ToolSystem.
+- **Temperature:** 0 (детерминированный выбор инструментов)
+- **maxTokens:** 4096 на запрос
+- **История:** system + user → цикл: assistant (JSON) + tool result (как user)
+- **Summary:** однократно при `i > 1 && messages.length > 2`. Сжимаются все кроме system, task, последней пары.
+- **Отмена:** AbortController через `window.withProgress(cancellable:true)`
+
+## Промпты
+
+### Системный
+```
+Ты — AI-ассистент для программирования в VS Code.
+
+Доступные инструменты:
+{toolsDescription}
+
+Формат ответа:
+- Вызов: {"tool": "<имя>", "arguments": {...}}
+- Ответ: обычный текст
+
+Максимум шагов: {maxIterations}. Отвечай по-русски.
+```
+
 ## История изменений
 
 | Версия | Дата | Изменения |

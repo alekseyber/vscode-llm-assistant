@@ -42,6 +42,26 @@ since: 0.1.0
 - **Использует:** `vscode.Memento`
 - **Используется:** `ConversationManager`
 
+## Детали реализации
+
+- **ID:** `session_${crypto.randomUUID()}` — гарантирует уникальность
+- **FIFO:** максимум 100 сообщений, старые вытесняются `slice(-100)`
+- **Хранение:** два ключа в workspaceState — `llmAssistant.chat.sessions` ({id: Session}) и `llmAssistant.chat.activeSession` (id)
+- **Сортировка:** `listSessions()` — по lastActiveAt (новые сверху)
+- **Минимум сессий:** 1 (нельзя удалить последнюю)
+- **Авто-имя:** первые 30 символов первого user-сообщения + «...»
+- **Ошибка загрузки:** сброс, автосоздание новой сессии
+
+## Форматы данных
+
+### Session
+```json
+{
+  "meta": { "id": "session_<uuid>", "name": "...", "createdAt": 123, "lastActiveAt": 123, "messageCount": 0 },
+  "messages": [{ "role": "user", "content": "..." }, ...]
+}
+```
+
 ## История изменений
 
 | Версия | Дата | Изменения |
