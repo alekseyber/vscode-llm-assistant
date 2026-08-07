@@ -33,6 +33,7 @@ function mockTextResponse(content: string) {
     choices: [{
       message: { role: 'assistant', content },
     }],
+    usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
   };
 }
 
@@ -48,6 +49,7 @@ function mockToolCallResponse(toolName: string, args: Record<string, unknown> = 
         }],
       },
     }],
+    usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
   };
 }
 

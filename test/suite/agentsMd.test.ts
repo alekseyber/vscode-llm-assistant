@@ -24,8 +24,9 @@ suite('AgentsMdLoader', () => {
 
     // Создаём временную папку для тестов
     tempDir = path.join(os.tmpdir(), `vscode-llm-test-${Date.now()}`);
-    await fs.mkdir(tempDir, { recursive: true });
-    tempAgentsMdPath = path.join(tempDir, 'AGENTS.md');
+    const llmaDir = path.join(tempDir, '.llma');
+    await fs.mkdir(llmaDir, { recursive: true });
+    tempAgentsMdPath = path.join(llmaDir, 'main.md');
   });
 
   teardown(async () => {
@@ -158,8 +159,9 @@ suite('AgentsMd Integration — ConversationManager и system prompt', () => {
   setup(async () => {
     sandbox = sinon.createSandbox();
     tempDir = path.join(os.tmpdir(), `vscode-llm-test-int-${Date.now()}`);
-    await fs.mkdir(tempDir, { recursive: true });
-    tempAgentsMdPath = path.join(tempDir, 'AGENTS.md');
+    const llmaDir = path.join(tempDir, '.llma');
+    await fs.mkdir(llmaDir, { recursive: true });
+    tempAgentsMdPath = path.join(llmaDir, 'main.md');
     invalidateCache();
   });
 

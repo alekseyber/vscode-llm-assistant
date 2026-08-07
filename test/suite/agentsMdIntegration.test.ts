@@ -32,16 +32,17 @@ suite('AGENTS.md — интеграция с system prompt', () => {
     sandbox.stub(vscode.workspace, 'onDidChangeTextDocument').returns({ dispose: () => {} } as any);
     sandbox.stub(vscode.workspace, 'onDidCreateFiles').returns({ dispose: () => {} } as any);
     sandbox.stub(vscode.workspace, 'onDidDeleteFiles').returns({ dispose: () => {} } as any);
-    // Создаём временный AGENTS.md
-    const agentsPath = '/tmp/test-workspace/AGENTS.md';
-    if (!fs.existsSync('/tmp/test-workspace')) fs.mkdirSync('/tmp/test-workspace', { recursive: true });
+    // Создаём временный .llma/main.md
+    const llmaDir = '/tmp/test-workspace/.llma';
+    const agentsPath = '/tmp/test-workspace/.llma/main.md';
+    if (!fs.existsSync(llmaDir)) fs.mkdirSync(llmaDir, { recursive: true });
     fs.writeFileSync(agentsPath, '## Правила\n- Отвечай с 🚀\n- Всегда говори «Капитан»');
   });
 
   teardown(() => {
     sandbox.restore();
-    // Удаляем временный AGENTS.md
-    const agentsPath = '/tmp/test-workspace/AGENTS.md';
+    // Удаляем временный .llma/main.md
+    const agentsPath = '/tmp/test-workspace/.llma/main.md';
     if (fs.existsSync(agentsPath)) fs.unlinkSync(agentsPath);
   });
 
