@@ -23,27 +23,26 @@
   function showTokenUsage(msg) {
     const price = MODEL_PRICES[msg.model] || { input: 0.5, output: 1.0 };
     const cost = ((msg.inputTokens / 1_000_000) * price.input + (msg.outputTokens / 1_000_000) * price.output);
+
+    // Обновляем индикатор в шапке
+    const tokenText = document.querySelector('.token-text');
+    const tokenFill = document.querySelector('.token-bar-fill');
+    const tokenLimit = document.querySelector('.token-limit');
+
+    if (tokenText && tokenFill && tokenLimit) {
+      tokenText.textContent = `📊 ${msg.inputTokens}+${msg.outputTokens} ≈ $${cost.toFixed(4)}`;
+      const rawPct = (msg.inputTokens / maxContextTokens) * 100;
+      const pct = Math.min(100, rawPct);
+      tokenFill.style.width = pct + '%';
+      tokenFill.className = 'token-bar-fill' + (rawPct > 100 ? ' overflow' : rawPct > 80 ? ' warning' : '');
+      tokenLimit.textContent = `${msg.inputTokens}/${maxContextTokens}`;
+    }
+
+    // Бейдж в чате (сохраняем)
     const badge = document.createElement('div');
     badge.className = 'token-badge';
     badge.innerHTML = `📊 ${msg.inputTokens}+${msg.outputTokens} токенов ≈ $${cost.toFixed(4)}`;
     messagesContainer.appendChild(badge);
-
-    // Индикатор заполнения контекста
-    const contextBar = document.getElementById('context-bar');
-    if (contextBar) {
-      const rawPct = (msg.inputTokens / maxContextTokens) * 100;
-      const pct = Math.min(100, rawPct);
-      contextBar.querySelector('.context-bar-fill').style.width = pct + '%';
-      contextBar.querySelector('.context-bar-text').textContent = `${msg.inputTokens}/${maxContextTokens}`;
-      if (rawPct > 100) {
-        // Переполнение — красный
-        contextBar.className = 'context-bar context-overflow';
-      } else if (rawPct > 80) {
-        contextBar.className = 'context-bar context-warning';
-      } else {
-        contextBar.className = 'context-bar';
-      }
-    }
 
     scrollToBottom();
   }
@@ -547,12 +546,15 @@
       messagesContainer.appendChild(welcome);
     }
 
-    // Сбрасываем контекст-бар при переключении сессии
-    const contextBar = document.getElementById('context-bar');
-    if (contextBar) {
-      contextBar.querySelector('.context-bar-fill').style.width = '0%';
-      contextBar.querySelector('.context-bar-text').textContent = `0 / ${maxContextTokens}`;
-      contextBar.className = 'context-bar';
+    // Сбрасываем индикатор токенов при переключении сессии
+    const tokenText = document.querySelector('.token-text');
+    const tokenFill = document.querySelector('.token-bar-fill');
+    const tokenLimit = document.querySelector('.token-limit');
+    if (tokenText && tokenFill && tokenLimit) {
+      tokenText.textContent = '📊 0+0 ≈ $0.0000';
+      tokenFill.style.width = '0%';
+      tokenFill.className = 'token-bar-fill';
+      tokenLimit.textContent = `0/${maxContextTokens}`;
     }
 
     if (!messages || messages.length === 0) {

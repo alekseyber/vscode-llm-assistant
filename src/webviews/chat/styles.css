@@ -93,25 +93,43 @@ body {
   white-space: nowrap;
 }
 
-/* Контекст-бар в шапке */
-#context-bar {
+/* Индикатор токенов в шапке — как в Оркестраторе */
+#token-indicator {
   display: flex;
   align-items: center;
-  gap: 4px;
-  width: 120px;
-  flex-shrink: 0;
-}
-.context-bar-fill {
-  height: 4px;
-  background: var(--accent);
-  border-radius: 2px;
-  transition: width 0.3s;
-  min-width: 2px;
-}
-.context-bar-text {
-  font-size: 10px;
+  gap: 8px;
+  font-size: 11px;
   color: var(--text-secondary);
+  width: 100%;
+  margin-top: 2px;
+}
+.token-text {
   white-space: nowrap;
+  min-width: 140px;
+}
+.token-bar {
+  flex: 1;
+  height: 3px;
+  background: var(--bg-primary);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.token-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.3s;
+  border-radius: 2px;
+}
+.token-bar-fill.warning { background: #e5a73c; }
+.token-bar-fill.overflow { background: #f14c4c; }
+.token-limit {
+  white-space: nowrap;
+  min-width: 50px;
+  text-align: right;
+}
+
+#context-bar {
+  display: none;
 }
 
 .session-select {
