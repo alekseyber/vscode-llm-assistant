@@ -109,12 +109,12 @@ export class AgentOrchestrator {
       if (!roleDef) {
         // Создаём синтетическую роль
         const syntheticRole: AgentRole = { name: role, systemPrompt: `Ты — ${role}. Отвечай кратко, по-русски.` };
-        const subWorker = new AgentWorker(syntheticRole, provider, { maxIterations: 5, extraTools });
+        const subWorker = new AgentWorker(syntheticRole, provider, { maxIterations: 10, extraTools });
         const result = await subWorker.run(subTask);
         this.log(`Делегирование → ${role}: завершено (${result.iterations} итераций)`);
         return result.answer;
       }
-      const subWorker = new AgentWorker(roleDef, provider, { maxIterations: 5, extraTools });
+      const subWorker = new AgentWorker(roleDef, provider, { maxIterations: 10, extraTools });
       const result = await subWorker.run(subTask);
       this.log(`Делегирование → ${role}: завершено (${result.iterations} итераций)`);
       return result.answer;

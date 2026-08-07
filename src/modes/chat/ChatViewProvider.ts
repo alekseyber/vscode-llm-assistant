@@ -14,6 +14,7 @@ import { AgentOrchestrator, MultiAgentTask } from '../apply/AgentOrchestrator';
 import { RunHistoryStore, generateRunId, RunEntry } from '../../shared/RunHistoryStore';
 import { HistoryViewProvider } from '../history/HistoryViewProvider';
 import { OrchestratorViewProvider, OrchestratorTaskInfo, WorkerInfo } from '../orchestrator/OrchestratorViewProvider';
+import { setDelegateHandler } from './ChatAgentTools';
 
 export class ChatViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = 'llmAssistant.chat';
@@ -307,6 +308,16 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     } catch (err: any) {
       this.debugChannel.appendLine(`[WARN] MCP config error: ${err.message}`);
     }
+
+    // Настраиваем делегирование для чат-агента
+    const allRoles = loadAllAgentRoles();
+    setDelegateHandler(async (role: string, task: string): Promise<string> => {
+      const roleDef = allRoles.find(r => r.name === role);
+      const subRole = roleDef || { name: role, systemPrompt: `Ты — ${role}. Отвечай кратко, по-русски.` };
+      const subWorker = new AgentWorker(subRole, provider, { maxIterations: 10, extraTools: mcpTools });
+      const result = await subWorker.run(task);
+      return result.answer;
+    });
 
     // Создаём AgentWorker с колбэками для UI
     const worker = new AgentWorker(
