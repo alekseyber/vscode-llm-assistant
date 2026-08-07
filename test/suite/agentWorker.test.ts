@@ -224,7 +224,7 @@ suite('AgentWorker', () => {
       mockToolCallResponse('read_file', { path: 'test.txt' }),
     ]);
 
-    const worker = new AgentWorker(role, provider, 2); // maxIterations=2
+    const worker = new AgentWorker(role, provider, { maxIterations: 2 });
     const result = await worker.run('задача');
 
     assert.ok(result.answer.includes('не дал финального ответа'), 'Должен быть fallback-ответ');
