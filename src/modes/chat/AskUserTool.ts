@@ -1,5 +1,6 @@
 // AskUserTool — инструмент для уточняющих вопросов пользователю через VS Code UI
 // Использует showInformationMessage (модальное окно в центре) и QuickPick
+// v0.8.21: stable
 
 import * as vscode from 'vscode';
 import { ChatTool } from './ChatAgentTools';
