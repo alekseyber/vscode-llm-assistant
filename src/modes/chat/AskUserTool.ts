@@ -46,7 +46,15 @@ export function createAskUserTool(): ChatTool {
         return 'Ошибка: вопрос обязателен для ask_user';
       }
 
-      const options = args.options as string[] | undefined;
+      let options = args.options as string[] | undefined;
+
+      // Авто-определение Да/Нет: если вопрос похож на yes/no — добавляем кнопки
+      if (!options || options.length === 0) {
+        const yesNoPattern = /(?:^|\s)(нужно|надо|стоит|следует|добавить|включить|сделать|можно|будем|планируем)(?:\s|[?!.]|$)/i;
+        if (yesNoPattern.test(question)) {
+          options = ['Да', 'Нет'];
+        }
+      }
 
       // С опциями
       if (options && options.length > 0) {

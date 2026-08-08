@@ -168,9 +168,9 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       }
 
       // ── Принудительный ask_user: если пользователь явно просит спросить/уточнить ──
-      const askUserTriggers = /\b(спроси|уточни|предложи\s+варианты|задай\s+вопрос|выясни|поинтересуйся)\b/i;
+      const askUserTriggers = /(?:^|\s)(спроси|уточни|предложи\s+варианты|задай\s+вопрос|выясни|поинтересуйся)(?:\s|[?!.,]|$)/i;
       if (isAgentMode && askUserTriggers.test(text)) {
-        const isYesNo = /\b(нужно|надо|стоит|следует|добавить|включить|сделать)\b/i.test(text);
+        const isYesNo = /(?:^|\s)(нужно|надо|стоит|следует|добавить|включить|сделать)(?:\s|[?!.]|$)/i.test(text);
         const instruction = isYesNo
           ? '⚠️ ВАЖНО: пользователь просит использовать инструмент ask_user. Это вопрос Да/Нет — ВЫЗОВИ ask_user с options: ["Да", "Нет"]. НЕ ОТВЕЧАЙ ТЕКСТОМ!'
           : '⚠️ ВАЖНО: пользователь просит использовать инструмент ask_user. НЕ ОТВЕЧАЙ ТЕКСТОМ — ВЫЗОВИ ask_user СЕЙЧАС.';

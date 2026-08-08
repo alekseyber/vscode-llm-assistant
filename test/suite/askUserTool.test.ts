@@ -130,6 +130,26 @@ suite('AskUserTool', () => {
 
   // ── AC-1.4: Пустой question → ошибка ──
 
+  test('Авто-Да/Нет: вопрос с «нужно» без options → модальное окно с Да/Нет', async () => {
+    (sandbox.stub(vscode.window, 'showInformationMessage') as any).resolves('Да');
+
+    const tool = createAskUserTool();
+    const result = await tool.execute({
+      question: 'Нужно ли добавить обработку ошибок?',
+      // options не переданы — авто-определение
+    });
+
+    assert.strictEqual(result, 'Да');
+    sinon.assert.calledOnce(vscode.window.showInformationMessage as sinon.SinonStub);
+    sinon.assert.calledWith(
+      vscode.window.showInformationMessage as sinon.SinonStub,
+      'Нужно ли добавить обработку ошибок?',
+      { modal: true },
+      'Да',
+      'Нет',
+    );
+  });
+
   test('AC-1.4: Пустой question возвращает ошибку', async () => {
     const tool = createAskUserTool();
     const result = await tool.execute({
