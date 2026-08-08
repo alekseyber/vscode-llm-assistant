@@ -108,7 +108,6 @@ const FALLBACK_PRICING: Record<string, ModelPricing> = {
   'gpt-4o-mini': { input: 0.15, output: 0.60 },
   'claude-sonnet-4': { input: 3.00, output: 15.00 },
   'Qwen/Qwen3.5-32B': { input: 0.07, output: 0.27 },
-  'deepseek-ai/DeepSeek-V4-Flash-0731': { input: 0.09, output: 0.18 },
 };
 
 const DEFAULT_PRICING: ModelPricing = { input: 0.50, output: 1.00 };
