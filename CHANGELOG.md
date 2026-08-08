@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.0 (2026-08-08)
+
+- **Plan Mode:** режим планирования для Agent Mode — план → имплементация → рефлексия (PM-1..PM-13)
+- PlannerAgent: изолированный агент-планировщик, создаёт план в `.llma/plans/`
+- ReviewerAgent: агент-рефлексии, проверяет реализацию по плану (макс. 2 цикла)
+- PlanModeManager: оркестрирует 3 этапа (generatePlan → implementPlan → reflect)
+- WebView: переключатель «📋 Plan» над textarea, отображение плана, кнопки ✅/✏️
+
 ## 0.8.22 (2026-08-08)
 
 - AgentWorker: очистка инжекта ⚠️ после выполнения ask_user (MA-1.11)
