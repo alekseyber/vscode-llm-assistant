@@ -18,8 +18,9 @@ jobs:
 
       - name: Check spec consistency (src/X.ts → specs/X.md)
         run: |
-          CHANGED_TS=$(git diff --name-only HEAD~1 HEAD -- 'src/**/*.ts' 'src/*.ts' 2>/dev/null || echo "")
-          CHANGED_SPECS=$(git diff --name-only HEAD~1 HEAD -- 'specs/**/*.md' 'specs/*.md' 2>/dev/null || echo "")
+          # Используем grep вместо git pathspec — надёжнее
+          CHANGED_TS=$(git diff --name-only HEAD~1 HEAD 2>/dev/null | grep '^src/.*\.ts$' || echo "")
+          CHANGED_SPECS=$(git diff --name-only HEAD~1 HEAD 2>/dev/null | grep '^specs/.*\.md$' || echo "")
 
           if [ -z "$CHANGED_TS" ]; then
             echo "✅ No .ts changes — skipping SDD check."
