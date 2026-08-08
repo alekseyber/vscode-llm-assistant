@@ -56,6 +56,8 @@ since: 0.1.0
 | `@orchestrate` вне агентного режима | Игнорируется |
 | Vision + нет `supportsVision` | Ошибка |
 | MCP-сервер недоступен | Лог в debugChannel, агент работает без MCP |
+| Plan Mode ON + agent-режим | Ветвление в PlanModeManager.generatePlan() вместо runAgentLoop() |
+| Plan Mode ON + chat-режим | Игнорируется — обычный чат |
 | Контекст кода | `attachCodeContext` ДО `addMessage` |
 | Внешний промпт (Code Actions) | `sendExternalPrompt` → agent-режим → фокус |
 | Diagnostics перед agent loop | `DiagnosticsProvider.getDiagnosticsContext()` → в системный промпт |
@@ -89,6 +91,7 @@ since: 0.1.0
 
 | Версия | Дата | Изменения |
 |--------|------|-----------|
+| 0.9.0 | 2026-08-08 | Plan Mode: ветвление handleSendMessage, переключатель UI |
 | 0.8.0 | 2026-08-06 | Делегирование в AgentWorker, loadOrchestratorRoles, MCP для оркестратора |
 | 0.7.0 | 2026-08-05 | @orchestrate, RunHistoryStore |
 | 0.1.0 | 2026-08-04 | Базовая реализация |
