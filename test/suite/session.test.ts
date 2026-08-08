@@ -59,12 +59,15 @@ suite('SessionManager', () => {
     assert.strictEqual(sm.listSessions().length, 2);
   });
 
-  test('нельзя удалить последнюю сессию', () => {
+  test('удаление последней сессии — автосоздаёт новую', () => {
     const sm = new SessionManager(storage);
     const sessions = sm.listSessions();
+    assert.strictEqual(sessions.length, 1);
     const deleted = sm.deleteSession(sessions[0].id);
-    assert.strictEqual(deleted, false);
+    assert.strictEqual(deleted, true);
+    // Должна быть создана новая пустая сессия
     assert.strictEqual(sm.listSessions().length, 1);
+    assert.notStrictEqual(sm.listSessions()[0].id, sessions[0].id);
   });
 
   test('autoNameSession() — имя из первого сообщения', () => {

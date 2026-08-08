@@ -117,7 +117,13 @@ export class SessionManager {
 
   /** Удалить сессию */
   deleteSession(id: string): boolean {
-    if (this.sessions.size <= 1) return false; // Минимум одна сессия
+    if (this.sessions.size <= 1) {
+      // Последняя сессия: удаляем и автосоздаём новую пустую
+      this.sessions.delete(id);
+      this.createSession();
+      this.save();
+      return true;
+    }
     const deleted = this.sessions.delete(id);
     if (deleted && this.activeId === id) {
       // Переключаемся на последнюю оставшуюся
