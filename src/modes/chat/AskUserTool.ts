@@ -1,5 +1,6 @@
 // AskUserTool — инструмент для уточняющих вопросов пользователю через VS Code UI
-// QuickPick / InputBox / showInformationMessage в зависимости от переданных options
+// Использует showInformationMessage (модальное окно в центре) вместо InputBox
+// для гарантированной видимости пользователем
 
 import * as vscode from 'vscode';
 import { ChatTool } from './ChatAgentTools';
@@ -8,9 +9,9 @@ import { ChatTool } from './ChatAgentTools';
  * Создаёт инструмент ask_user.
  *
  * Контракты:
- * - options передан (1+ вариант) → showQuickPick
- * - options.length === 2 → showInformationMessage с кнопками
- * - options не передан → showInputBox
+ * - options передан (3+) → QuickPick (выпадающий список)
+ * - options передан (1-2) → showInformationMessage с кнопками (модальное)
+ * - options не передан → showInformationMessage с кнопкой «Ответить» → InputBox
  * - Escape/закрытие → "(пропущено)"
  * - Пустой question → ошибка
  */
@@ -18,7 +19,10 @@ export function createAskUserTool(): ChatTool {
   return {
     name: 'ask_user',
     description:
-      'Задать уточняющий вопрос пользователю. Используй когда не хватает контекста или нужен выбор.',
+      'Задать уточняющий вопрос пользователю. ВСЕГДА передавай options — массив вариантов. ' +
+      'Пример: question="Какое имя функции?", options=["sum", "sumArray", "arraySum"]. ' +
+      'Если нужно подтверждение да/нет: options=["Да", "Нет"]. ' +
+      'НЕ ОТВЕЧАЙ текстом — ВЫЗОВИ ИНСТРУМЕНТ!',
     parameters: {
       type: 'object',
       properties: {
@@ -26,7 +30,7 @@ export function createAskUserTool(): ChatTool {
         options: {
           type: 'array',
           items: { type: 'string' },
-          description: 'Варианты ответа (опционально). Если 2 — да/нет кнопки.',
+          description: 'Варианты ответа. ВСЕГДА передавай массив строк! 2 варианта — кнопки Да/Нет.',
         },
       },
       required: ['question'],
@@ -44,27 +48,36 @@ export function createAskUserTool(): ChatTool {
 
       // С опциями
       if (options && options.length > 0) {
-        // Ровно 2 опции → showInformationMessage с кнопками «Да» / «Нет»
-        if (options.length === 2) {
-          const result = await vscode.window.showInformationMessage(
-            question,
-            { modal: false },
-            options[0],
-            options[1],
-          );
-          // AC-1.3: Escape/закрытие → "(пропущено)"
+        // 3+ опций → QuickPick (богатый выбор)
+        if (options.length >= 3) {
+          const result = await vscode.window.showQuickPick(options, {
+            placeHolder: question,
+            canPickMany: false,
+          });
           return result ?? '(пропущено)';
         }
 
-        // AC-1.1: QuickPick с вариантами
-        const result = await vscode.window.showQuickPick(options, {
-          placeHolder: question,
-          canPickMany: false,
-        });
+        // 1-2 опции → showInformationMessage с кнопками (модальное, заметное)
+        const result = await vscode.window.showInformationMessage(
+          question,
+          { modal: true },
+          ...options,
+        );
         return result ?? '(пропущено)';
       }
 
-      // AC-1.2: InputBox с открытым вводом
+      // Без опций: модальный запрос → кнопка «Ответить» → InputBox
+      const clicked = await vscode.window.showInformationMessage(
+        question,
+        { modal: true },
+        'Ответить',
+        'Пропустить',
+      );
+
+      if (clicked === 'Пропустить' || !clicked) {
+        return '(пропущено)';
+      }
+
       const result = await vscode.window.showInputBox({
         prompt: question,
         placeHolder: 'Ваш ответ...',
