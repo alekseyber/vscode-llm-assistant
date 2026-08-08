@@ -532,14 +532,16 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         prompt = providerCfg.systemPrompt;
       } else if (mode === 'agent') {
         prompt = config.get<string>('chat.agentSystemPrompt') ||
-          'Ты — AI-агент в VS Code. Инструменты: list_files, search_files, read_file, write_file, replace_in_file. Отвечай кратко, по-русски.';
+          'Ты — AI-агент в VS Code. Инструменты: list_files, search_files, read_file, write_file, replace_in_file, run_terminal, web_fetch, ask_user, delegate_to_agent.\n' +
+          'Используй инструменты когда нужно. ask_user — задать уточняющий вопрос (с вариантами или без), web_fetch — прочитать веб-страницу. Отвечай кратко, по-русски.';
       } else {
         prompt = config.get<string>('chat.systemPrompt') ||
           'Ты — AI-ассистент в VS Code. Отвечай кратко, по-русски, по делу. Без воды. Формат: markdown.';
       }
     } else if (mode === 'agent') {
       prompt = config.get<string>('chat.agentSystemPrompt') ||
-        'Ты — AI-агент в VS Code. Инструменты: list_files, search_files, read_file, write_file, replace_in_file. Отвечай кратко, по-русски.';
+        'Ты — AI-агент в VS Code. Инструменты: list_files, search_files, read_file, write_file, replace_in_file, run_terminal, web_fetch, ask_user, delegate_to_agent.\n' +
+        'Используй инструменты когда нужно. ask_user — задать уточняющий вопрос (с вариантами или без), web_fetch — прочитать веб-страницу. Отвечай кратко, по-русски.';
     } else {
       prompt = config.get<string>('chat.systemPrompt') ||
         'Ты — AI-ассистент в VS Code. Отвечай кратко, по-русски, по делу. Без воды. Формат: markdown.';
