@@ -21,13 +21,17 @@ since: 0.1.0
 | `run_terminal` | Выполнение команды | `command`, `timeout?` | Да |
 | `delegate_to_agent` | Делегирует задачу другому агенту | `role`, `task` | Нет |
 | `web_fetch` | Читает веб-страницу. Возвращает текст (≤15000) | `url`, `selector?` | Да |
+| `ask_user` | Задать уточняющий вопрос пользователю | `question`, `options?` | Нет |
 
 ## Контракты
 
 | Ситуация | Поведение |
 |----------|-----------|
-| delegate_to_agent без handler | Ошибка «делегирование не настроено» |
-| role не найден в .llma/agents/ | Синтетическая роль |
+|| `delegate_to_agent` без handler | Ошибка «делегирование не настроено» |
+|| role не найден в .llma/agents/ | Синтетическая роль |
+|| `ask_user` с options | QuickPick с вариантами + «Пропустить» |
+|| `ask_user` без options | InputBox с открытым вводом |
+|| Пользователь закрыл/Escape | Возвращает «(пропущено)» |
 | Файлы с префиксом \d{2}- | В цепочку @orchestrate |
 | Файлы без префикса | Только для delegate_to_agent |
 
@@ -63,18 +67,19 @@ since: 0.1.0
 ## Связи
 
 - **Используется:** `AgentWorker`, `AgentOrchestrator`
-- **Зависит от:** `ToolAllowList`
+- **Зависит от:** `ToolAllowList`, `AskUserTool`
 
 ## AC
 
 | ID | Критерий | Статус |
 |----|----------|--------|
-| AC-4.1 | allowedTools фильтрует инструменты | ✅ |
-| AC-4.2 | Без allowedTools — все доступны | ✅ |
-| AC-4.4 | write_file из requireConfirmation требует подтверждения | ✅ |
-|  — | read_file, search_files, list_files возвращают результат | ✅ |
-|  — | write_file, replace_in_file записывают через VS Code API | ✅ |
-|  — | run_terminal выполняет команду с timeout | ✅ |
+|| AC-4.1 | allowedTools фильтрует инструменты | ✅ |
+|| AC-4.2 | Без allowedTools — все доступны | ✅ |
+|| AC-4.4 | write_file из requireConfirmation требует подтверждения | ✅ |
+||  — | read_file, search_files, list_files возвращают результат | ✅ |
+||  — | write_file, replace_in_file записывают через VS Code API | ✅ |
+||  — | run_terminal выполняет команду с timeout | ✅ |
+|| AC-1.5 | ask_user доступен в списке инструментов | planned |
 
 ## Детали реализации
 

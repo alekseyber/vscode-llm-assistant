@@ -36,7 +36,17 @@ since: 0.1.0
 
 ### `handleOrchestrate(taskText, provider, model)` → `AgentOrchestrator.execute()`
 
-### `recordChatRun()` — запись в `RunHistoryStore` с `calculateCost()`
+| `recordChatRun()` — запись в `RunHistoryStore` с `calculateCost()`
+
+### `sendExternalPrompt(prompt: string)` ← **0.9.0**
+
+Принимает внешний промпт (из Code Actions), отправляет в чат как агент.
+
+| Вход | Тип | Описание |
+|------|-----|----------|
+| `prompt` | `string` | Текст промпта |
+
+Действия: `postMessage({ type: 'externalPrompt', text })` → `handleSendMessage(prompt, 'agent')` → `commands.executeCommand('llmAssistant.chat.focus')`.
 
 ## Контракты
 
@@ -47,10 +57,12 @@ since: 0.1.0
 | Vision + нет `supportsVision` | Ошибка |
 | MCP-сервер недоступен | Лог в debugChannel, агент работает без MCP |
 | Контекст кода | `attachCodeContext` ДО `addMessage` |
+| Внешний промпт (Code Actions) | `sendExternalPrompt` → agent-режим → фокус |
+| Diagnostics перед agent loop | `DiagnosticsProvider.getDiagnosticsContext()` → в системный промпт |
 
 ## Связи
 
-- **Использует:** ProviderManager, ConversationManager, AgentWorker, AgentOrchestrator, McpClient, RunHistoryStore
+- **Использует:** ProviderManager, ConversationManager, AgentWorker, AgentOrchestrator, McpClient, RunHistoryStore, DiagnosticsProvider, StatusBarIndicator
 - **Используется:** extension.ts (регистрация WebView)
 
 ## Детали реализации

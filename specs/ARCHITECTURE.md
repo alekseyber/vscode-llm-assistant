@@ -25,7 +25,8 @@ extension.ts (вход)
 │   │   ├── ChatViewProvider      [spec ✅] — главный WebView-хаб (569 строк)
 │   │   ├── ConversationManager   [spec ✅] — история + контекст + summary
 │   │   ├── SessionManager        [spec ✅] — мульти-сессии (crypto.randomUUID)
-│   │   └── ChatAgentTools        [spec ✅] — 6 инструментов (read/write/search/terminal)
+│   │   ├── ChatAgentTools        [spec ✅] — 9 инструментов (read/write/search/terminal/delegate/web_fetch/ask_user)
+│   │   ├── AskUserTool            [spec ✅ ← 0.9.0] — уточняющие вопросы (QuickPick/InputBox)
 │   │
 │   ├── 🤖 Агент (ReAct через чат)
 │   │   ├── AgentWorker           [spec ✅] — общий ReAct-движок
@@ -42,6 +43,10 @@ extension.ts (вход)
 │   ├── ✏️ Edit Mode (Ctrl+I)
 │   │   └── EditController        [spec ✅] — inline diff
 │   │
+│   ├── 💡 Code Actions (0.9.0)
+│   │   └── CodeActionsProvider   [spec ✅] — лампочка: «Объясни», «Почини», «Спроси»
+│   │
+│   │
 │   └── 👻 Автокомплит
 │       └── AutocompleteController [spec ✅] — ghost text (ContextBuilder + GhostTextManager)
 │
@@ -51,6 +56,9 @@ extension.ts (вход)
 │
 ├── SHARED
 │   ├── ContextSummarizer         [spec ✅] — сжатие истории в summary
+│   ├── DiagnosticsProvider       [spec ✅ ← 0.9.0] — автосбор ошибок как контекст
+│   ├── StatusBarIndicator        [spec ✅ ← 0.9.0] — индикатор в статус-баре
+│   ├── DecorationsManager        [spec ✅ ← 0.9.0] — подсветка изменённых строк
 │   ├── RetryHandler              [spec ✅] — exponential backoff + jitter
 │   ├── AgentsMdLoader            [spec ✅] — загрузка .llma/main.md
 │   ├── RoleAgentsMdLoader        [spec ✅] — .llma/agents/{role}.md + @orchestrate роли
@@ -69,9 +77,9 @@ extension.ts (вход)
 
 | Статус | Компоненты |
 |--------|-----------|
-| ✅ Есть spec | **Все 25 компонентов** |
+|| ✅ Есть spec | **30 компонентов** |
 
-**Покрытие: 25/25 (100%)**
+**Покрытие: 30/30 (100%)**
 
 ## Потоки данных
 
