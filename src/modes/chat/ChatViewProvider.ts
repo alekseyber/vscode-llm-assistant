@@ -112,7 +112,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     // Определяем провайдера и модель
     const provider = providerName ? this.providerManager.getProvider(providerName) : this.providerManager.getDefault();
     if (!provider) { this.postMessage({ type: 'error', text: 'Провайдер не настроен.' }); return; }
-    const model = modelName || config.get<string>('defaultModel') || 'gpt-4o';
+    const model = (typeof modelName === 'object' && modelName !== null ? (modelName as any).name : modelName) || config.get<string>('defaultModel') || 'gpt-4o';
 
     // --- @orchestrate: запуск multi-agent оркестратора ---
     const orchestrateMatch = text.match(/^@orchestrate\s+(.+)/);
@@ -472,6 +472,9 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
     this.postMessage({ type: 'streamChunk', text: `\n---\n🎭 **Оркестрация завершена.** Токенов: ${result.totalInputTokens}+${result.totalOutputTokens} | Стоимость: $${result.totalCost.toFixed(6)}\n` });
     this.postMessage({ type: 'done' });
+
+    // Токены оркестратора в индикатор
+    this.postMessage({ type: 'tokens', inputTokens: result.totalInputTokens, outputTokens: result.totalOutputTokens, model });
 
     // Сохраняем ответ в историю
     this.conversationManager.addMessage({ role: 'user', content: `@orchestrate ${taskText}` });
