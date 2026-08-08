@@ -621,7 +621,6 @@
 
   if (btnDeleteSession) {
     btnDeleteSession.addEventListener('click', () => {
-      if (sessionSelect?.options.length <= 1) return; // Последнюю не удаляем
       postMessage({ type: 'deleteSession', sessionId: sessionSelect.value });
     });
   }
