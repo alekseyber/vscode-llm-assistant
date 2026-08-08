@@ -170,11 +170,12 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       // ── Принудительный ask_user: если пользователь явно просит спросить/уточнить ──
       const askUserTriggers = /\b(спроси|уточни|предложи\s+варианты|задай\s+вопрос|выясни|поинтересуйся)\b/i;
       if (isAgentMode && askUserTriggers.test(text)) {
-        messages.splice(1, 0, {
-          role: 'system',
-          content: '⚠️ ВАЖНО: пользователь просит использовать инструмент ask_user. НЕ ОТВЕЧАЙ ТЕКСТОМ — ВЫЗОВИ ask_user СЕЙЧАС. Если пользователь дал варианты — передай их в options. Если нет — вызови без options.',
-        });
-        this.debugChannel.appendLine(`[DEBUG] Принудительный ask_user: вставлено system-сообщение`);
+        const isYesNo = /\b(нужно|надо|стоит|следует|добавить|включить|сделать)\b/i.test(text);
+        const instruction = isYesNo
+          ? '⚠️ ВАЖНО: пользователь просит использовать инструмент ask_user. Это вопрос Да/Нет — ВЫЗОВИ ask_user с options: ["Да", "Нет"]. НЕ ОТВЕЧАЙ ТЕКСТОМ!'
+          : '⚠️ ВАЖНО: пользователь просит использовать инструмент ask_user. НЕ ОТВЕЧАЙ ТЕКСТОМ — ВЫЗОВИ ask_user СЕЙЧАС.';
+        messages.splice(1, 0, { role: 'system', content: instruction });
+        this.debugChannel.appendLine(`[DEBUG] Принудительный ask_user: ${isYesNo ? 'Да/Нет' : 'открытый вопрос'}`);
       }
 
       // Оценка входных токенов (символы / 4)
