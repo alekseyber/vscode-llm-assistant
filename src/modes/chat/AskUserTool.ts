@@ -1,19 +1,17 @@
 // AskUserTool — инструмент для уточняющих вопросов пользователю через VS Code UI
-// Использует showInformationMessage (модальное окно в центре) вместо InputBox
-// для гарантированной видимости пользователем
+// Использует showInformationMessage (модальное окно в центре) и QuickPick
 
 import * as vscode from 'vscode';
 import { ChatTool } from './ChatAgentTools';
 
+/** Форматирует ответ пользователя: добавляет пометку, что вопрос закрыт. */
+function formatAnswer(answer: string | undefined, question: string): string {
+  if (!answer) return '(пропущено)';
+  return `[ВОПРОС ЗАКРЫТ] ${question} — ответ: ${answer}`;
+}
+
 /**
  * Создаёт инструмент ask_user.
- *
- * Контракты:
- * - options передан (3+) → QuickPick (выпадающий список)
- * - options передан (1-2) → showInformationMessage с кнопками (модальное)
- * - options не передан → showInformationMessage с кнопкой «Ответить» → InputBox
- * - Escape/закрытие → "(пропущено)"
- * - Пустой question → ошибка
  */
 export function createAskUserTool(): ChatTool {
   return {
@@ -24,7 +22,8 @@ export function createAskUserTool(): ChatTool {
       'Если пользователь НЕ дал вариантов — НЕ передавай options (оставь пустым), откроется поле ввода. ' +
       'Пример с вариантами: question="Какое имя?", options=["sum", "sumArray"]. ' +
       'Пример без вариантов: question="Какой порог использовать?" (без options). ' +
-      'НЕ ПРИДУМЫВАЙ варианты сам — если пользователь их не дал, не передавай options!',
+      'НЕ ПРИДУМЫВАЙ варианты сам — если пользователь их не дал, не передавай options! ' +
+      'ВАЖНО: не повторяй уже заданные вопросы. Если в истории уже есть [ВОПРОС ЗАКРЫТ] — не переспрашивай.',
     parameters: {
       type: 'object',
       properties: {
@@ -41,14 +40,13 @@ export function createAskUserTool(): ChatTool {
     async execute(args: Record<string, unknown>): Promise<string> {
       const question = (args.question as string | undefined) || '';
 
-      // AC-1.4: Пустой question → ошибка
       if (question.trim() === '') {
         return 'Ошибка: вопрос обязателен для ask_user';
       }
 
       let options = args.options as string[] | undefined;
 
-      // Авто-определение Да/Нет: если вопрос похож на yes/no — добавляем кнопки
+      // Авто-определение Да/Нет
       if (!options || options.length === 0) {
         const yesNoPattern = /(?:^|\s)(нужно|надо|стоит|следует|добавить|включить|сделать|можно|будем|планируем)(?:\s|[?!.]|$)/i;
         if (yesNoPattern.test(question)) {
@@ -58,31 +56,31 @@ export function createAskUserTool(): ChatTool {
 
       // С опциями
       if (options && options.length > 0) {
-        // 3+ опций → QuickPick (богатый выбор)
+        // 3+ опций → QuickPick
         if (options.length >= 3) {
           const result = await vscode.window.showQuickPick(options, {
             placeHolder: question,
             canPickMany: false,
           });
-          return result ?? '(пропущено)';
+          return formatAnswer(result, question);
         }
 
-        // 1-2 опции → showInformationMessage с кнопками (модальное, заметное)
+        // 1-2 опции → модальное окно с кнопками
         const result = await vscode.window.showInformationMessage(
           question,
           { modal: true },
           ...options,
         );
-        return result ?? '(пропущено)';
+        return formatAnswer(result, question);
       }
 
-      // Без опций: InputBox напрямую (без промежуточной модалки — коллизия UI)
+      // Без опций: InputBox напрямую
       const result = await vscode.window.showInputBox({
         prompt: question,
         placeHolder: 'Ваш ответ...',
         ignoreFocusOut: true,
       });
-      return result ?? '(пропущено)';
+      return formatAnswer(result, question);
     },
   };
 }
