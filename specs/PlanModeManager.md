@@ -1,5 +1,5 @@
 ---
-component: PlanMode
+component: PlanModeManager
 version: 0.1.0
 status: planned
 since: 0.9.0

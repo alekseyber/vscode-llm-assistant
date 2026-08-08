@@ -1,7 +1,7 @@
 # PLAN: Plan Mode (📋) — планирование + имплементация + рефлексия
 
 **Версия:** 0.9.0
-**Spec:** specs/PlanMode.md
+**Spec:** specs/PlanModeManager.md
 
 ---
 
@@ -162,5 +162,5 @@
 | `src/webviews/chat/main.js` | Переключатель + отображение плана + кнопки |
 | `src/webviews/chat/index.html` | Элементы UI |
 | `src/webviews/chat/styles.css` | Стили |
-| `specs/PlanMode.md` | **Новый:** полная спецификация |
+| `specs/PlanModeManager.md` | **Новый:** полная спецификация |
 | `specs/ChatViewProvider.md` | Обновлён: контракты Plan Mode |
