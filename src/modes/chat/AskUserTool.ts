@@ -66,21 +66,11 @@ export function createAskUserTool(): ChatTool {
         return result ?? '(пропущено)';
       }
 
-      // Без опций: модальный запрос → кнопка «Ответить» → InputBox
-      const clicked = await vscode.window.showInformationMessage(
-        question,
-        { modal: true },
-        'Ответить',
-        'Пропустить',
-      );
-
-      if (clicked === 'Пропустить' || !clicked) {
-        return '(пропущено)';
-      }
-
+      // Без опций: InputBox напрямую (без промежуточной модалки — коллизия UI)
       const result = await vscode.window.showInputBox({
         prompt: question,
         placeHolder: 'Ваш ответ...',
+        ignoreFocusOut: true,
       });
       return result ?? '(пропущено)';
     },

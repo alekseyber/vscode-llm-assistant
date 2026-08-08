@@ -72,10 +72,9 @@ suite('AskUserTool', () => {
     assert.strictEqual(result, 'OK');
   });
 
-  // ── AC-1.2: без options → модальное окно → кнопка «Ответить» → InputBox ──
+  // ── AC-1.2: без options → InputBox напрямую ──
 
-  test('AC-1.2: без options — модальное окно → Ответить → InputBox', async () => {
-    (sandbox.stub(vscode.window, 'showInformationMessage') as any).resolves('Ответить');
+  test('AC-1.2: без options — InputBox с ignoreFocusOut, возвращает ввод', async () => {
     (sandbox.stub(vscode.window, 'showInputBox') as any).resolves('Пользовательский ответ');
 
     const tool = createAskUserTool();
@@ -84,22 +83,12 @@ suite('AskUserTool', () => {
     });
 
     assert.strictEqual(result, 'Пользовательский ответ');
-    sinon.assert.calledOnce(vscode.window.showInformationMessage as sinon.SinonStub);
     sinon.assert.calledOnce(vscode.window.showInputBox as sinon.SinonStub);
-  });
-
-  test('AC-1.2: без options — нажал Пропустить → "(пропущено)"', async () => {
-    (sandbox.stub(vscode.window, 'showInformationMessage') as any).resolves('Пропустить');
-    (sandbox.stub(vscode.window, 'showInputBox') as any).resolves('не должен вызываться');
-
-    const tool = createAskUserTool();
-    const result = await tool.execute({
-      question: 'Как назвать файл?',
+    sinon.assert.calledWith(vscode.window.showInputBox as sinon.SinonStub, {
+      prompt: 'Как назвать файл?',
+      placeHolder: 'Ваш ответ...',
+      ignoreFocusOut: true,
     });
-
-    assert.strictEqual(result, '(пропущено)');
-    // InputBox не должен вызываться при нажатии «Пропустить»
-    sinon.assert.notCalled(vscode.window.showInputBox as sinon.SinonStub);
   });
 
   // ── AC-1.3: Escape/закрытие ──
