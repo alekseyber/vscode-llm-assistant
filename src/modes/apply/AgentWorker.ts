@@ -278,6 +278,12 @@ export class AgentWorker {
             emit({ iteration: i, type: 'error', message: `Ошибка ${toolName}: ${e.message}` });
           }
         }
+
+        // Очистка инжекта: удаляем system-сообщение с ⚠️ на позиции 1
+        // (инжектируется ChatViewProvider для принудительного вызова ask_user)
+        if (messages.length > 1 && messages[1]?.role === 'system' && messages[1]?.content?.includes('⚠️')) {
+          messages.splice(1, 1);
+        }
       } catch (e: any) {
         emit({ iteration: i, type: 'error', message: `Ошибка LLM: ${e.message}` });
         const errMsg = e.message || String(e);

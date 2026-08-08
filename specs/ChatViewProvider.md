@@ -75,6 +75,7 @@ since: 0.1.0
 - **recordChatRun:** стоимость через `calculateCost()` с `providerManager.pricingMap`
 - **abortController:** создаётся в handleSendMessage, проверяется в runAgentLoop
 - **debugChannel:** `vscode.window.createOutputChannel('LLM Assistant')`
+- **Инжект ask_user:** перед agent-режимом, если текст содержит триггер-слова (`спроси`, `уточни`, ...), в `messages` на позицию 1 вставляется system-сообщение с `⚠️`, принуждающее модель вызвать инструмент. AgentWorker удаляет этот инжект после выполнения `ask_user` (см. AgentWorker#Очистка инжекта). При следующем `handleSendMessage` инжект создаётся заново.
 
 
 ## Тесты
