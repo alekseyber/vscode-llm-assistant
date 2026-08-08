@@ -1,6 +1,6 @@
 ---
 component: ChatAgentTools
-version: 0.8.0
+version: 0.8.21
 status: stable
 since: 0.1.0
 ---
@@ -79,7 +79,7 @@ since: 0.1.0
 ||  — | read_file, search_files, list_files возвращают результат | ✅ |
 ||  — | write_file, replace_in_file записывают через VS Code API | ✅ |
 ||  — | run_terminal выполняет команду с timeout | ✅ |
-|| AC-1.5 | ask_user доступен в списке инструментов | planned |
+|| AC-1.5 | ask_user доступен в списке инструментов | ✅ |
 
 ## Детали реализации
 
