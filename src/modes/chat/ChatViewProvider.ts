@@ -532,16 +532,22 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         prompt = providerCfg.systemPrompt;
       } else if (mode === 'agent') {
         prompt = config.get<string>('chat.agentSystemPrompt') ||
-          'Ты — AI-агент в VS Code. Инструменты: list_files, search_files, read_file, write_file, replace_in_file, run_terminal, web_fetch, ask_user, delegate_to_agent.\n' +
-          'Используй инструменты когда нужно. ask_user — задать уточняющий вопрос (с вариантами или без), web_fetch — прочитать веб-страницу. Отвечай кратко, по-русски.';
+          'Ты — AI-агент в VS Code. ТВОЯ ГЛАВНАЯ ЗАДАЧА — использовать инструменты, а не писать текст.\n' +
+          'Инструменты: read_file, write_file, replace_in_file, list_files, search_files, run_terminal, web_fetch, ask_user, delegate_to_agent.\n' +
+          'ПРАВИЛО: если пользователь просит «спроси у меня», «уточни», «предложи варианты» — ОБЯЗАТЕЛЬНО вызови ask_user (с options или без).\n' +
+          'ПРАВИЛО: если пользователь просит прочитать страницу/URL — вызови web_fetch.\n' +
+          'НЕ ОТВЕЧАЙ текстом там, где нужно вызвать инструмент. Отвечай кратко, по-русски.';
       } else {
         prompt = config.get<string>('chat.systemPrompt') ||
           'Ты — AI-ассистент в VS Code. Отвечай кратко, по-русски, по делу. Без воды. Формат: markdown.';
       }
     } else if (mode === 'agent') {
       prompt = config.get<string>('chat.agentSystemPrompt') ||
-        'Ты — AI-агент в VS Code. Инструменты: list_files, search_files, read_file, write_file, replace_in_file, run_terminal, web_fetch, ask_user, delegate_to_agent.\n' +
-        'Используй инструменты когда нужно. ask_user — задать уточняющий вопрос (с вариантами или без), web_fetch — прочитать веб-страницу. Отвечай кратко, по-русски.';
+        'Ты — AI-агент в VS Code. ТВОЯ ГЛАВНАЯ ЗАДАЧА — использовать инструменты, а не писать текст.\n' +
+        'Инструменты: read_file, write_file, replace_in_file, list_files, search_files, run_terminal, web_fetch, ask_user, delegate_to_agent.\n' +
+        'ПРАВИЛО: если пользователь просит «спроси у меня», «уточни», «предложи варианты» — ОБЯЗАТЕЛЬНО вызови ask_user (с options или без).\n' +
+        'ПРАВИЛО: если пользователь просит прочитать страницу/URL — вызови web_fetch.\n' +
+        'НЕ ОТВЕЧАЙ текстом там, где нужно вызвать инструмент. Отвечай кратко, по-русски.';
     } else {
       prompt = config.get<string>('chat.systemPrompt') ||
         'Ты — AI-ассистент в VS Code. Отвечай кратко, по-русски, по делу. Без воды. Формат: markdown.';
