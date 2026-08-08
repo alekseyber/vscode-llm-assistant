@@ -15,6 +15,7 @@ import { RunHistoryStore, generateRunId, RunEntry } from '../../shared/RunHistor
 import { HistoryViewProvider } from '../history/HistoryViewProvider';
 import { OrchestratorViewProvider, OrchestratorTaskInfo, WorkerInfo } from '../orchestrator/OrchestratorViewProvider';
 import { setDelegateHandler } from './ChatAgentTools';
+import { PlanModeManager } from './PlanModeManager';
 
 export class ChatViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = 'llmAssistant.chat';
@@ -65,7 +66,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   private async handleWebviewMessage(message: any): Promise<void> {
     switch (message.type) {
       case 'sendMessage':
-        await this.handleSendMessage(message.text, message.mode, message.provider, message.model);
+        await this.handleSendMessage(message.text, message.mode, message.provider, message.model, message.planMode);
+        break;
+      case 'implementPlan':
+        await this.handleImplementPlan(message.planPath, message.provider, message.model);
         break;
       case 'cancelRequest': this.handleCancelRequest(); break;
       case 'clearHistory': this.conversationManager.clearHistory(); this.sendSessionListToWebview(); break;
@@ -102,7 +106,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     }
   }
 
-  private async handleSendMessage(text: string, mode = 'chat', providerName?: string, modelName?: string): Promise<void> {
+  private async handleSendMessage(text: string, mode = 'chat', providerName?: string, modelName?: string, planMode?: boolean): Promise<void> {
     const config = vscode.workspace.getConfiguration('llmAssistant');
     const isVision = !!this.pendingImage;
     const isAgentMode = mode === 'agent';
@@ -216,6 +220,12 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       }
 
       this.pendingImage = null;
+
+      // ── Plan Mode: ветвление для агента с планом ──
+      if (isAgentMode && planMode) {
+        await this.handlePlanMode(text, provider, model);
+        return;
+      }
 
       if (mode === 'agent') {
         // Проверяем, поддерживает ли провайдер function calling
@@ -366,6 +376,85 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     this.postMessage({ type: 'done' });
     this.conversationManager.addMessage({ role: 'assistant', content: result.answer });
     this.postTokens(messages, result.answer, model);
+  }
+
+  /** Plan Mode: генерация плана (Этап 1) */
+  private async handlePlanMode(text: string, provider: any, model: string): Promise<void> {
+    const workspaceFolders = vscode.workspace.workspaceFolders;
+    if (!workspaceFolders || workspaceFolders.length === 0) {
+      this.postMessage({ type: 'error', text: 'Plan Mode требует открытый workspace.' });
+      return;
+    }
+    const workspacePath = workspaceFolders[0].uri.fsPath;
+
+    this.postMessage({ type: 'streamChunk', text: '📋 **Генерирую план...**\n' });
+
+    try {
+      const planManager = new PlanModeManager(workspacePath);
+      const planResult = await planManager.generatePlan(text, provider, model);
+
+      // Отправляем план в WebView
+      this.postMessage({
+        type: 'planGenerated',
+        planContent: planResult.content,
+        planPath: planResult.planPath,
+      });
+
+      this.postMessage({ type: 'done' });
+    } catch (err: any) {
+      this.postMessage({ type: 'error', text: `Ошибка планирования: ${err.message}` });
+    }
+  }
+
+  /** Plan Mode: имплементация плана (Этап 2-3) */
+  private async handleImplementPlan(planPath: string, providerName?: string, modelName?: string): Promise<void> {
+    const config = vscode.workspace.getConfiguration('llmAssistant');
+    const provider = this.providerManager.getProvider(providerName || config.get<string>('defaultProvider') || 'deepseek');
+    const model = (typeof modelName === 'object' && modelName !== null
+      ? (modelName as any).name : modelName)
+      || config.get<string>('defaultModel') || 'deepseek-v4-pro';
+
+    if (!provider) {
+      this.postMessage({ type: 'error', text: 'Провайдер не найден.' });
+      return;
+    }
+
+    const workspaceFolders = vscode.workspace.workspaceFolders;
+    const workspacePath = workspaceFolders?.[0]?.uri.fsPath || '/tmp';
+
+    this.postMessage({ type: 'implementStarted' });
+    this.postMessage({ type: 'streamChunk', text: '🚀 **Имплементирую план...**\n' });
+
+    const planManager = new PlanModeManager(workspacePath);
+
+    try {
+      // Этап 2: Имплементация
+      const implResult = await planManager.implementPlan(planPath, provider, model, (msg) => {
+        this.debugChannel.appendLine(`[PlanMode] ${msg}`);
+      });
+
+      this.postMessage({
+        type: 'streamChunk',
+        text: `\n✅ Имплементация завершена (воркеров: ${implResult.orchestratorResult.workers.length})\n`,
+      });
+
+      // Этап 3: Рефлексия
+      this.postMessage({ type: 'streamChunk', text: '🔍 **Рефлексия...**\n' });
+
+      const reflectResult = await planManager.reflect(planPath, provider, model, 2, (cycle, report) => {
+        this.debugChannel.appendLine(`[PlanMode] Рефлексия цикл ${cycle}: ${report.slice(0, 200)}`);
+      });
+
+      this.postMessage({
+        type: 'reflectReport',
+        report: reflectResult.report,
+        allPassed: reflectResult.allPassed,
+      });
+
+      this.postMessage({ type: 'done' });
+    } catch (err: any) {
+      this.postMessage({ type: 'error', text: `Ошибка имплементации: ${err.message}` });
+    }
   }
 
   /** Запустить multi-agent оркестрацию по команде @orchestrate */
