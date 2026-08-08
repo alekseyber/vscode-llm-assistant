@@ -534,7 +534,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         prompt = config.get<string>('chat.agentSystemPrompt') ||
           'Ты — AI-агент в VS Code. ТВОЯ ГЛАВНАЯ ЗАДАЧА — использовать инструменты, а не писать текст.\n' +
           'Инструменты: read_file, write_file, replace_in_file, list_files, search_files, run_terminal, web_fetch, ask_user, delegate_to_agent.\n' +
-          'ПРАВИЛО: если пользователь просит «спроси у меня», «уточни», «предложи варианты» — ОБЯЗАТЕЛЬНО вызови ask_user (с options или без).\n' +
+          'ПРАВИЛО: если пользователь говорит «спроси», «уточни», «предложи варианты», «задай вопрос», «выясни» — ОБЯЗАТЕЛЬНО вызови инструмент ask_user. ' +
+          'НЕ отвечай текстом на такие запросы — ВЫЗЫВАЙ ИНСТРУМЕНТ! ' +
           'ПРАВИЛО: если пользователь просит прочитать страницу/URL — вызови web_fetch.\n' +
           'НЕ ОТВЕЧАЙ текстом там, где нужно вызвать инструмент. Отвечай кратко, по-русски.';
       } else {
