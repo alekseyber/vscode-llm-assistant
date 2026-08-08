@@ -91,7 +91,7 @@ since: 0.1.0
 
 | Версия | Дата | Изменения |
 |--------|------|-----------|
-| 0.9.0 | 2026-08-08 | Plan Mode: ветвление handleSendMessage, переключатель UI |
+| 0.9.0 | 2026-08-08 | Plan Mode: ветвление handleSendMessage → PlanModeManager, переключатель UI |
 | 0.8.0 | 2026-08-06 | Делегирование в AgentWorker, loadOrchestratorRoles, MCP для оркестратора |
 | 0.7.0 | 2026-08-05 | @orchestrate, RunHistoryStore |
 | 0.1.0 | 2026-08-04 | Базовая реализация |

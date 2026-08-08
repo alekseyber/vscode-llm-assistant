@@ -1,4 +1,5 @@
 // ChatViewProvider — WebviewViewProvider для боковой панели чата
+// Plan Mode: ветвление handleSendMessage → PlanModeManager (v0.9.0)
 
 import * as vscode from 'vscode';
 import * as fs from 'fs';
