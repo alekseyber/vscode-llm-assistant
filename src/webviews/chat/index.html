@@ -57,8 +57,25 @@
     <button id="btn-cancel" class="icon-btn" title="Отменить">⏹️</button>
   </div>
 
+  <!-- Отображение плана (Plan Mode) -->
+  <div id="plan-container" class="plan-container hidden">
+    <div id="plan-content" class="plan-content"></div>
+    <div id="plan-actions" class="plan-actions">
+      <button id="btn-implement-plan" class="plan-btn plan-btn-yes">✅ Имплементировать</button>
+      <button id="btn-edit-plan" class="plan-btn plan-btn-edit">✏️ Исправить</button>
+    </div>
+  </div>
+
   <!-- Блок ввода сообщения -->
   <div id="input-container">
+    <!-- Переключатель Plan Mode (только для agent-режима) -->
+    <div id="plan-mode-toggle" class="plan-mode-toggle hidden">
+      <label class="toggle-label">
+        <input type="checkbox" id="plan-mode-checkbox" />
+        <span class="toggle-switch"></span>
+        <span class="toggle-text">📋 Plan</span>
+      </label>
+    </div>
     <textarea id="message-input"
               placeholder="Напиши сообщение... (Enter — отправить, Shift+Enter — новая строка)"
               rows="3"></textarea>

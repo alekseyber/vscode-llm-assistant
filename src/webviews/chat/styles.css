@@ -806,3 +806,157 @@ body {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.6; }
 }
+
+/* ---------- Plan Mode ---------- */
+
+/* Переключатель Plan Mode */
+.plan-mode-toggle {
+  display: flex;
+  align-items: center;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+}
+
+.plan-mode-toggle.hidden {
+  display: none;
+}
+
+.toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.toggle-label input[type="checkbox"] {
+  display: none;
+}
+
+.toggle-switch {
+  width: 36px;
+  height: 20px;
+  background: var(--bg-tertiary);
+  border-radius: 10px;
+  position: relative;
+  transition: background 0.2s;
+  border: 1px solid var(--border-color);
+}
+
+.toggle-switch::after {
+  content: '';
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--text-secondary);
+  top: 2px;
+  left: 2px;
+  transition: transform 0.2s, background 0.2s;
+}
+
+.toggle-label input:checked + .toggle-switch {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.toggle-label input:checked + .toggle-switch::after {
+  transform: translateX(16px);
+  background: #fff;
+}
+
+.toggle-text {
+  font-size: 13px;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+/* Контейнер плана */
+.plan-container {
+  margin: 12px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: var(--bg-secondary);
+  max-height: 50vh;
+  overflow-y: auto;
+}
+
+.plan-container.hidden {
+  display: none;
+}
+
+.plan-content {
+  padding: 16px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.plan-content h1 { font-size: 1.3em; margin: 0 0 12px; }
+.plan-content h2 { font-size: 1.1em; margin: 16px 0 8px; }
+.plan-content h3 { font-size: 1em; margin: 12px 0 6px; }
+.plan-content table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 8px 0;
+  font-size: 12px;
+}
+.plan-content th, .plan-content td {
+  border: 1px solid var(--border-color);
+  padding: 6px 10px;
+  text-align: left;
+}
+.plan-content th {
+  background: var(--bg-tertiary);
+  font-weight: 600;
+}
+.plan-content code {
+  background: var(--bg-tertiary);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 12px;
+}
+.plan-content pre {
+  background: var(--bg-primary);
+  padding: 12px;
+  border-radius: 4px;
+  overflow-x: auto;
+}
+
+/* Кнопки действий с планом */
+.plan-actions {
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border-color);
+  justify-content: flex-end;
+}
+
+.plan-btn {
+  padding: 8px 20px;
+  border: none;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.plan-btn-yes {
+  background: var(--accent);
+  color: #fff;
+}
+
+.plan-btn-yes:hover {
+  background: var(--accent-hover);
+}
+
+.plan-btn-edit {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+}
+
+.plan-btn-edit:hover {
+  background: var(--bg-hover);
+}

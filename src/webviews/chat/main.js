@@ -457,8 +457,10 @@
     const mode = document.getElementById('mode-select')?.value || 'agent';
     const provider = document.getElementById('provider-select')?.value || '';
     const model = document.getElementById('model-select')?.value || '';
+    // Plan Mode: добавляем флаг в сообщение
+    const planMode = document.getElementById('plan-mode-checkbox')?.checked || false;
 
-    postMessage({ type: 'sendMessage', text, mode, provider, model });
+    postMessage({ type: 'sendMessage', text, mode, provider, model, planMode });
 
     streamingIndicator.classList.remove('hidden');
     sendButton.disabled = true;
@@ -526,6 +528,21 @@
 
       case 'retryStatus':
         showRetryStatus(message);
+        break;
+
+      case 'planGenerated':
+        // Plan Mode: план сгенерирован — показать с кнопками
+        showPlan(message.planContent, message.planPath);
+        break;
+
+      case 'implementStarted':
+        // Plan Mode: имплементация началась — скрыть план
+        hidePlan();
+        break;
+
+      case 'reflectReport':
+        // Plan Mode: отчёт ревьюера
+        showReflectReport(message.report, message.allPassed);
         break;
 
       default:
@@ -898,6 +915,97 @@
       btn.className = 'code-toggle';
       btn.textContent = '▼';
       pre.appendChild(btn);
+    });
+  }
+
+  // ---------- Plan Mode ----------
+
+  /** Текущий режим (agent/chat) */
+  let currentMode = 'agent';
+
+  /**
+   * Показать/скрыть переключатель Plan Mode в зависимости от режима.
+   */
+  function updatePlanModeToggle() {
+    const toggle = document.getElementById('plan-mode-toggle');
+    if (!toggle) return;
+    if (currentMode === 'agent') {
+      toggle.classList.remove('hidden');
+    } else {
+      toggle.classList.add('hidden');
+      // Сбрасываем Plan Mode при переключении в chat
+      const checkbox = document.getElementById('plan-mode-checkbox');
+      if (checkbox) checkbox.checked = false;
+    }
+  }
+
+  /**
+   * Показать сгенерированный план.
+   * @param {string} content — markdown плана
+   * @param {string} planPath — путь к файлу плана
+   */
+  function showPlan(content, planPath) {
+    const container = document.getElementById('plan-container');
+    const planContent = document.getElementById('plan-content');
+    if (!container || !planContent) return;
+
+    // Рендерим markdown плана
+    planContent.innerHTML = marked.parse(content);
+    addCodeToggles(planContent);
+
+    // Сохраняем путь для кнопок
+    container.dataset.planPath = planPath;
+    container.classList.remove('hidden');
+    scrollToBottom();
+  }
+
+  /**
+   * Скрыть план.
+   */
+  function hidePlan() {
+    const container = document.getElementById('plan-container');
+    if (container) {
+      container.classList.add('hidden');
+    }
+  }
+
+  /**
+   * Показать отчёт ревьюера.
+   * @param {string} report — текст отчёта
+   * @param {boolean} allPassed — все AC пройдены
+   */
+  function showReflectReport(report, allPassed) {
+    const prefix = allPassed ? '🎉 **Рефлексия пройдена:**' : '⚠️ **Рефлексия — есть замечания:**';
+    addMessage('assistant', `${prefix}\n\n${report}`);
+  }
+
+  // Обработчик кнопки «Имплементировать»
+  const btnImplement = document.getElementById('btn-implement-plan');
+  if (btnImplement) {
+    btnImplement.addEventListener('click', () => {
+      const container = document.getElementById('plan-container');
+      const planPath = container?.dataset.planPath;
+      if (planPath) {
+        postMessage({ type: 'implementPlan', planPath });
+      }
+    });
+  }
+
+  // Обработчик кнопки «Исправить»
+  const btnEdit = document.getElementById('btn-edit-plan');
+  if (btnEdit) {
+    btnEdit.addEventListener('click', () => {
+      hidePlan();
+      addMessage('assistant', '_План отклонён. Уточни задачу и отправь снова._');
+    });
+  }
+
+  // Обработчик смены режима (agent ↔ chat) — показать/скрыть Plan Mode
+  const modeSelect = document.getElementById('mode-select');
+  if (modeSelect) {
+    modeSelect.addEventListener('change', () => {
+      currentMode = modeSelect.value;
+      updatePlanModeToggle();
     });
   }
 
