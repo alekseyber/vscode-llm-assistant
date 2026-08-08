@@ -654,8 +654,9 @@
     modelSelect.innerHTML = '';
     for (const m of models) {
       const opt = document.createElement('option');
-      opt.value = m;
-      opt.textContent = m;
+      const name = typeof m === 'string' ? m : (m.name || String(m));
+      opt.value = name;
+      opt.textContent = name;
       modelSelect.appendChild(opt);
     }
   }
