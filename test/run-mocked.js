@@ -30,6 +30,7 @@ const mocha = new Mocha({
 
 // Добавляем тестовые файлы
 const testFiles = [
+  '../out/test/suite/askUserTool.test.js',
   '../out/test/suite/providers.test.js',
   '../out/test/suite/streaming.test.js',
   '../out/test/suite/tools.test.js',

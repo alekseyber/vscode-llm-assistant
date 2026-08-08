@@ -6,6 +6,7 @@ import * as path from 'path';
 import { exec } from 'child_process';
 import { TextDecoder, TextEncoder } from 'util';
 import { getAllowedTools, loadToolAllowListConfig } from '../apply/ToolAllowList';
+import { createAskUserTool } from './AskUserTool';
 
 export interface ChatTool {
   name: string;
@@ -291,7 +292,9 @@ const webFetchTool: ChatTool = {
   },
 };
 
-export const CHAT_AGENT_TOOLS: ChatTool[] = [readFileTool, writeFileTool, replaceInFileTool, listFilesTool, searchFilesTool, runTerminalTool, delegateToAgentTool, webFetchTool];
+const askUserTool = createAskUserTool();
+
+export const CHAT_AGENT_TOOLS: ChatTool[] = [askUserTool, readFileTool, writeFileTool, replaceInFileTool, listFilesTool, searchFilesTool, runTerminalTool, delegateToAgentTool, webFetchTool];
 
 /** Получить отфильтрованные по allow-list инструменты */
 function getAllowedChatTools(): ChatTool[] {

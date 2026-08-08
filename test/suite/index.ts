@@ -18,6 +18,7 @@ const Mocha = require('mocha');
 
 // Список тестовых модулей
 const testModules: string[] = [
+  './askUserTool.test',
   './providers.test',
   './streaming.test',
   './tools.test',
