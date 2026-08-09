@@ -46,6 +46,25 @@ project/
 
 Из имени файла без `.md`: `01-architect.md` → роль `01-architect`.
 
+### `getSkillCatalog(workspacePath) → SkillInfo[]`
+
+Сканирует `.llma/agents/`, парсит frontmatter.
+
+```typescript
+interface SkillInfo {
+  name: string;        // имя роли (из frontmatter role или имя файла)
+  description: string; // из frontmatter description или первые 80 символов контента
+}
+```
+
+### `getSkillTemplate(workspacePath?) → string`
+
+Возвращает системный шаблон структуры скила. Если передан `workspacePath` — добавляет таблицу доступных скилов из `getSkillCatalog()`.
+
+### `parseFrontmatter(content) → Record<string, string>`
+
+Парсит YAML-подобный frontmatter между `---`. Допустимые ключи: `role`, `version`, `tools`, `description`.
+
 ## Контракты
 
 | Ситуация | Поведение |
@@ -55,6 +74,11 @@ project/
 | `main.md` нет | `null` |
 | Нет workspace | `null` / fallback-роли |
 | Повторный вызов | Из кеша |
+| `getSkillCatalog()` — есть файлы с frontmatter | Массив `[{name, description}]` |
+| `getSkillCatalog()` — файл без frontmatter | `name = имя_файла`, `description = первые 80 символов` |
+| `getSkillCatalog()` — пустая директория | Пустой массив `[]` |
+| `getSkillTemplate()` с workspace | Шаблон + таблица скилов из каталога |
+| `getSkillTemplate()` без workspace | Только шаблон структуры скила |
 
 ## Связи
 
@@ -69,6 +93,12 @@ project/
 |  — | `loadOrchestratorRoles()` сканирует `.llma/agents/*.md` | ✅ |
 |  — | Порядок ролей определяется алфавитной сортировкой имён | ✅ |
 |  — | Fallback-роли при отсутствии директории | ✅ |
+| SC-1 | `getSkillCatalog()` сканирует `.llma/agents/` и возвращает `[{name, description}]` | ✅ |
+| SC-2 | `parseFrontmatter()` извлекает `role` и `description` из YAML между `---` | ✅ |
+| SC-3 | Без frontmatter: `name = имя_файла`, `description = первые 80 символов` | ✅ |
+| SC-4 | Допустимые поля frontmatter: `role`, `version`, `tools`, `description` | ✅ |
+| SC-5 | `getSkillTemplate()` добавляет секцию «Доступные скилы» в формате таблицы | ✅ |
+| SC-6 | Пустая директория `.llma/agents/` → секция не добавляется | ✅ |
 
 ## Детали реализации
 
@@ -77,6 +107,12 @@ project/
 - **Оркестратор:** `fs.readdirSync()` → `.md` фильтр → сортировка
 - **Имя роли:** `fileName.replace(/\.md$/, '')` (сохраняет префикс)
 - **SystemPrompt:** содержимое файла, fallback `"Ты — {roleName}..."`
+- **SKILL_TEMPLATE:** системный шаблон структуры скила — инжектится в промт каждого агента через `getSkillTemplate()`. Содержит обязательные секции: frontmatter (role, version, tools, description), Описание, Задача, Правила, Запрещено.
+- **getSkillCatalog():** сканирует `.llma/agents/`, парсит frontmatter каждого `.md` файла, возвращает `[{name, description}]`. Используется для построения каталога в system prompt.
+- **parseFrontmatter():** извлекает YAML-подобный frontmatter между `---`. Допустимые поля: `role`, `version`, `tools`, `description`. Остальное игнорируется.
+- **Fallback без frontmatter:** `name = имя_файла`, `description = content.slice(0, 80).trim()`
+- **Каталог в промте:** формат `| имя | description |`. Если скилов нет — секция не добавляется.
+- **Размер:** ~200 токенов на 10 скилов
 
 
 ## Тесты (roleAgentsMd.test.ts, 8 тестов)
@@ -92,5 +128,5 @@ project/
 
 | Версия | Дата | Изменения |
 |--------|------|-----------|
-| 0.8.0 | 2026-08-06 | `loadOrchestratorRoles()` — динамические роли |
+| 0.9.0 | 2026-08-08 | SKILL_TEMPLATE, getSkillCatalog, parseFrontmatter — каталог скилов |
 | 0.7.0 | 2026-08-05 | `loadRoleAgentsMd()` |

@@ -7,6 +7,105 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { AgentRole } from '../modes/apply/AgentWorker';
 
+/** Системный шаблон структуры скила — добавляется в промт каждого агента */
+const SKILL_TEMPLATE = `
+## Структура скила (системное требование)
+
+При создании или обновлении скила в .llma/agents/ используй следующий формат:
+
+---
+role: <имя-роли>
+version: 1.0.0
+tools: [read_file, write_file, search_files, ...]
+description: <краткое описание назначения скила — 1 предложение>
+---
+
+# Роль: <Название>
+
+## Описание
+Краткое описание назначения скила (1-2 предложения).
+
+## Задача
+Что делает эта роль, какие типы задач решает.
+
+## Правила
+- Конкретные инструкции по выполнению задач
+- ...
+
+## Запрещено
+- Что нельзя делать этой роли
+- ...
+`;
+
+/** Добавить системный шаблон к промту */
+function enrichPrompt(prompt: string): string {
+  return prompt + SKILL_TEMPLATE;
+}
+
+/** Получить системный шаблон структуры скила.
+ *  Если передан workspacePath — добавляет каталог доступных скилов. */
+export function getSkillTemplate(workspacePath?: string): string {
+  let template = SKILL_TEMPLATE;
+
+  if (workspacePath) {
+    const catalog = getSkillCatalog(workspacePath);
+    if (catalog.length > 0) {
+      const table = catalog
+        .map(s => `| ${s.name} | ${s.description} |`)
+        .join('\n');
+      template += `\n\n## Доступные скилы\n\n| Имя | Описание |\n|-----|----------|\n${table}\n\nЕсли задача соответствует одному из скилов — прочитай его через read_file(.llma/agents/<имя>.md) и действуй по нему.`;
+    }
+  }
+
+  return template;
+}
+
+/** Информация о скиле из каталога */
+export interface SkillInfo {
+  name: string;
+  description: string;
+}
+
+/** Парсинг YAML-подобного frontmatter между ---. Допустимые ключи. */
+export function parseFrontmatter(content: string): Record<string, string> {
+  const result: Record<string, string> = {};
+  const match = content.match(/^---\n([\s\S]*?)\n---/);
+  if (!match) return result;
+
+  const allowedKeys = new Set(['role', 'version', 'tools', 'description']);
+  const lines = match[1].split('\n');
+  for (const line of lines) {
+    const colonIdx = line.indexOf(':');
+    if (colonIdx === -1) continue;
+    const key = line.slice(0, colonIdx).trim();
+    if (!allowedKeys.has(key)) continue;
+    result[key] = line.slice(colonIdx + 1).trim();
+  }
+  return result;
+}
+
+/** Сканирует .llma/agents/ и возвращает каталог скилов. */
+export function getSkillCatalog(workspacePath: string): SkillInfo[] {
+  try {
+    const agentsDir = path.join(workspacePath, '.llma', 'agents');
+    if (!fs.existsSync(agentsDir)) return [];
+
+    const entries = fs.readdirSync(agentsDir);
+    return entries
+      .filter(f => f.endsWith('.md'))
+      .map(fileName => {
+        const filePath = path.join(agentsDir, fileName);
+        const content = tryReadFile(filePath) || '';
+        const fm = parseFrontmatter(content);
+        const name = fm.role || fileName.replace(/\.md$/, '');
+        const description = fm.description || content.replace(/^---[\s\S]*?---\n?/, '').slice(0, 80).trim();
+        return { name, description };
+      });
+  } catch {
+    return [];
+  }
+}
+
 const roleCache = new Map<string, string | null>();
 
 export function loadRoleAgentsMd(roleName: string): string | null {

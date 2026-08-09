@@ -13,7 +13,7 @@ import * as vscode from 'vscode';
 import { ChatMessage } from '../../providers/types';
 import { getToolSchemas, getTool } from '../chat/ChatAgentTools';
 import { ContextSummarizer } from '../../shared/ContextSummarizer';
-import { loadRoleAgentsMd } from '../../shared/RoleAgentsMdLoader';
+import { loadRoleAgentsMd, getSkillTemplate } from '../../shared/RoleAgentsMdLoader';
 import { calculateCost } from '../../providers/types';
 
 /**
@@ -153,8 +153,16 @@ export class AgentWorker {
         ? `${systemPrompt}\n\n## Правила роли (AGENTS.${this.role.name}.md):\n${roleAgentsMd}`
         : systemPrompt;
 
+      // --- Системный шаблон структуры скила + каталог (для всех агентов) ---
+      const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+      const workspacePath = workspaceFolder?.uri.fsPath;
+      const skillTemplate = getSkillTemplate(workspacePath);
+      const enrichedPrompt = skillTemplate
+        ? `${finalSystemPrompt}\n\n${skillTemplate}`
+        : finalSystemPrompt;
+
       messages = [
-        { role: 'system', content: finalSystemPrompt },
+        { role: 'system', content: enrichedPrompt },
         { role: 'user', content: task },
       ];
     }

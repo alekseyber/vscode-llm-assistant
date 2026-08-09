@@ -61,10 +61,11 @@ since: 0.1.0
 | Контекст кода | `attachCodeContext` ДО `addMessage` |
 | Внешний промпт (Code Actions) | `sendExternalPrompt` → agent-режим → фокус |
 | Diagnostics перед agent loop | `DiagnosticsProvider.getDiagnosticsContext()` → в системный промпт |
+| SkillsLoader: скилы в system prompt | `loadSkillsSummary()` → после AGENTS.md в getSystemPrompt() |
 
 ## Связи
 
-- **Использует:** ProviderManager, ConversationManager, AgentWorker, AgentOrchestrator, McpClient, RunHistoryStore, DiagnosticsProvider, StatusBarIndicator
+- **Использует:** ProviderManager, ConversationManager, AgentWorker, AgentOrchestrator, McpClient, RunHistoryStore, DiagnosticsProvider, StatusBarIndicator, AgentsMdLoader, SkillsLoader
 - **Используется:** extension.ts (регистрация WebView)
 
 ## Детали реализации
@@ -91,6 +92,7 @@ since: 0.1.0
 
 | Версия | Дата | Изменения |
 |--------|------|-----------|
+| 0.9.0 | 2026-08-09 | SkillsLoader: инжект скилов в getSystemPrompt() |
 | 0.9.0 | 2026-08-08 | Plan Mode: ветвление handleSendMessage → PlanModeManager, переключатель UI |
 | 0.8.0 | 2026-08-06 | Делегирование в AgentWorker, loadOrchestratorRoles, MCP для оркестратора |
 | 0.7.0 | 2026-08-05 | @orchestrate, RunHistoryStore |

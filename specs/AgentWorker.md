@@ -47,7 +47,7 @@ since: 0.7.0
 | Ситуация | Поведение |
 |----------|-----------|
 | `initialMessages` передан | Используется как есть (system + история) |
-| `initialMessages` не передан | Строится: systemPrompt + task |
+| `initialMessages` не передан | Строится: systemPrompt + task + SKILL_TEMPLATE + каталог скилов |
 | `allowedTools` задан | Фильтруются схемы инструментов |
 | `extraTools` задан | Добавляются к базовым из ChatAgentTools |
 | `onConfirm` задан и tool требует подтверждения | Вызывается onConfirm, при false — операция пропускается |
@@ -73,10 +73,11 @@ since: 0.7.0
 | MA-1.9 | usage из API используется для подсчёта токенов | ✅ |
 | MA-1.10 | initialMessages принимает готовый массив сообщений | ✅ |
 | MA-1.11 | Инжект-сообщение (⚠️ system на позиции 1) удаляется после выполнения ask_user | ✅ |
+| SK-3.2 | `SkillsLoader.loadSkillsSummary()` инжектится в system prompt воркера | planned |
 
 ## Связи
 
-- **Использует:** `ChatAgentTools`, `ContextSummarizer`, `RoleAgentsMdLoader`
+- **Использует:** `ChatAgentTools`, `ContextSummarizer`, `RoleAgentsMdLoader`, `SkillsLoader`
 - **Используется:** `ChatViewProvider.runAgentLoop`, `AgentOrchestrator`
 - **Модель:** `deepseek-v4-pro` (по умолчанию) или из `AgentRole.model`
 
@@ -123,6 +124,7 @@ since: 0.7.0
 
 | Версия | Дата | Изменения |
 |--------|------|-----------|
+| 0.9.0 | 2026-08-09 | Добавлен SkillsLoader: инжект скилов в system prompt воркера |
 | 0.8.1 | 2026-08-08 | Очистка инжекта ⚠️ после выполнения ask_user (MA-1.11) |
 | 0.8.0 | 2026-08-06 | Добавлены extraTools, onConfirm, enableSummary, initialMessages, usage API |
 | 0.8.0 | 2026-08-07 | Исправлены тесты: конструктор { maxIterations }, мок usage, очистка тестового мусора |

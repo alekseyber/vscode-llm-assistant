@@ -25,6 +25,7 @@ version: 0.8.0
 | RetryHandler | `src/shared/RetryHandler.ts` | `test/suite/retryHandler.test.ts` | AC-3.1–AC-3.7 |
 | AgentsMdLoader | `src/shared/AgentsMdLoader.ts` | `test/suite/agentsMd.test.ts` | AC-1.1–AC-1.6 |
 | RoleAgentsMdLoader | `src/shared/RoleAgentsMdLoader.ts` | `test/suite/roleAgentsMd.test.ts` | MA-5.1–MA-5.2 |
+| SkillsLoader | `src/shared/SkillsLoader.ts` | `test/suite/skillsLoader.test.ts` | SK-1.1–SK-3.4 |
 | RunHistoryStore | `src/shared/RunHistoryStore.ts` | `test/suite/runHistoryStore.test.ts` | AC-6.6 |
 | HistoryViewProvider | `src/modes/history/HistoryViewProvider.ts` | — | — |
 | OrchestratorViewProvider | `src/modes/orchestrator/OrchestratorViewProvider.ts` | `test/suite/orchestratorView.test.ts` | MA-4.1–MA-4.5 |
@@ -37,9 +38,9 @@ version: 0.8.0
 
 ## Статистика
 
-- **Всего компонентов:** 25
-- **С исходниками:** 25/25 (100%)
-- **С тестами:** 16/25 (64%)
+- **Всего компонентов:** 26
+- **С исходниками:** 26/26 (100%)
+- **С тестами:** 17/26 (65%)
 - **Без тестов:** AgentController, ToolDefinitions, ChatViewProvider, ChatAgentTools, HistoryViewProvider, Logger, EditController, AutocompleteController, ChatPanel
 
 ## Правило обновления

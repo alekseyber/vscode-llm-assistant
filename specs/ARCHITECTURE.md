@@ -62,6 +62,7 @@ extension.ts (вход)
 │   ├── RetryHandler              [spec ✅] — exponential backoff + jitter
 │   ├── AgentsMdLoader            [spec ✅] — загрузка .llma/main.md
 │   ├── RoleAgentsMdLoader        [spec ✅] — .llma/agents/{role}.md + @orchestrate роли
+│   ├── SkillsLoader              [spec ✅ ← 0.9.0] — загрузка .llma/skills/*.md
 │   ├── ToolAllowList             [spec ✅] — фильтрация инструментов
 │   ├── streaming.ts              [spec ✅] — SSE-парсинг
 │   └── logger.ts                 [spec ✅] — логирование
@@ -77,9 +78,9 @@ extension.ts (вход)
 
 | Статус | Компоненты |
 |--------|-----------|
-|| ✅ Есть spec | **30 компонентов** |
+|| ✅ Есть spec | **31 компонент** |
 
-**Покрытие: 30/30 (100%)**
+**Покрытие: 31/31 (100%)**
 
 ## Потоки данных
 
@@ -149,7 +150,8 @@ ChatViewProvider
   ├── AgentOrchestrator        (оркестратор)
   ├── McpClient                (MCP)
   ├── ContextSummarizer        (было, убрано в 0.8.0)
-  └── AgentsMdLoader           (правила)
+  ├── AgentsMdLoader           (правила)
+  └── SkillsLoader             (скилы)
 
 AgentWorker
   ├── ChatAgentTools           (инструменты)
@@ -176,6 +178,7 @@ AgentController (Apply Mode)
 | Новый провайдер | Добавить в `llmAssistant.providers` settings.json | `"groq": { baseUrl, apiKey, models }` |
 | Новый инструмент | `ChatAgentTools.ts` → `CHAT_AGENT_TOOLS` | `git_commit`, `run_tests` |
 | Новая роль @orchestrate | `.llma/agents/tester.md` | Авто-обнаружение |
+| Новый скил | `.llma/skills/python-testing.md` | Авто-обнаружение + автоинжект |
 | MCP-сервер | `.vscode/mcp.json` → `McpClient` | `@anthropic/mcp-server-git` |
 | Новый режим | `registerCommands.ts` + новый контроллер | `Diff Mode`, `Review Mode` |
 | Allow-list | `.vscode/llm-assistant.json` | `allowedTools`, `requireConfirmation` |

@@ -5,7 +5,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as sinon from 'sinon';
-import { loadRoleAgentsMd, invalidateRoleCache } from '../../src/shared/RoleAgentsMdLoader';
+import { loadRoleAgentsMd, invalidateRoleCache, parseFrontmatter, getSkillCatalog, getSkillTemplate } from '../../src/shared/RoleAgentsMdLoader';
 
 function setupDir(files: Record<string, string>): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vscode-llm-test-ma5-'));
@@ -109,5 +109,68 @@ suite('RoleAgentsMdLoader', () => {
       mockWs(sb, dir);
       assert.ok(loadRoleAgentsMd('coder')?.includes('Из ролевого'));
     } finally { sb.restore(); fs.rmSync(dir, { recursive: true, force: true }); }
+  });
+
+  // --- SC-1..SC-6: Каталог скилов ---
+
+  test('SC-1: getSkillCatalog() возвращает каталог', () => {
+    const dir = setupDir({
+      '.llma/agents/coder.md': '---\nrole: coder\ndescription: Пишет код\n---\n\n# Роль',
+      '.llma/agents/tester.md': '---\nrole: tester\ndescription: Тестирует\n---\n\n# Роль',
+    });
+    try {
+      const catalog = getSkillCatalog(dir);
+      assert.strictEqual(catalog.length, 2);
+      assert.strictEqual(catalog[0].name, 'coder');
+      assert.strictEqual(catalog[0].description, 'Пишет код');
+      assert.strictEqual(catalog[1].name, 'tester');
+    } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  });
+
+  test('SC-2: parseFrontmatter() — валидный frontmatter', () => {
+    const result = parseFrontmatter('---\nrole: coder\nversion: 1.0\ntools: [read_file]\ndescription: Dev\n---\n# Content');
+    assert.strictEqual(result.role, 'coder');
+    assert.strictEqual(result.version, '1.0');
+    assert.strictEqual(result.tools, '[read_file]');
+    assert.strictEqual(result.description, 'Dev');
+  });
+
+  test('SC-3: getSkillCatalog() — fallback без frontmatter', () => {
+    const dir = setupDir({
+      '.llma/agents/builder.md': 'Просто текст без frontmatter',
+    });
+    try {
+      const catalog = getSkillCatalog(dir);
+      assert.strictEqual(catalog.length, 1);
+      assert.strictEqual(catalog[0].name, 'builder');
+      assert.ok(catalog[0].description.includes('Просто текст'));
+    } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  });
+
+  test('SC-5: getSkillTemplate() содержит таблицу скилов', () => {
+    const dir = setupDir({
+      '.llma/agents/coder.md': '---\nrole: coder\ndescription: Dev\n---\n# Role',
+    });
+    try {
+      const tmpl = getSkillTemplate(dir);
+      assert.ok(tmpl.includes('## Доступные скилы'));
+      assert.ok(tmpl.includes('| coder | Dev |'));
+      assert.ok(tmpl.includes('Структура скила'));
+    } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  });
+
+  test('SC-6: getSkillTemplate() без скилов — без секции', () => {
+    const dir = setupDir({});
+    try {
+      const tmpl = getSkillTemplate(dir);
+      assert.ok(tmpl.includes('Структура скила'));
+      assert.ok(!tmpl.includes('Доступные скилы'));
+    } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  });
+
+  test('SC-6: getSkillTemplate() без workspace — без секции', () => {
+    const tmpl = getSkillTemplate();
+    assert.ok(tmpl.includes('Структура скила'));
+    assert.ok(!tmpl.includes('Доступные скилы'));
   });
 });
