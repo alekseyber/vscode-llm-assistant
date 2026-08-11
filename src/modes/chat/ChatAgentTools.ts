@@ -314,7 +314,24 @@ export function getToolSchemas(): Array<Record<string, unknown>> {
   }));
 }
 
+/** OpenAI function calling формат БЕЗ учёта глобального allow-list (для AgentWorker, где фильтрация через role.allowedTools) */
+export function getToolSchemasUnfiltered(): Array<Record<string, unknown>> {
+  return CHAT_AGENT_TOOLS.map(t => ({
+    type: 'function' as const,
+    function: {
+      name: t.name,
+      description: t.description,
+      parameters: t.parameters,
+    },
+  }));
+}
+
 /** Получить инструмент по имени (только если он в allow-list) */
 export function getTool(name: string): ChatTool | undefined {
   return getAllowedChatTools().find(t => t.name === name);
+}
+
+/** Получить инструмент по имени БЕЗ учёта глобального allow-list */
+export function getToolUnfiltered(name: string): ChatTool | undefined {
+  return CHAT_AGENT_TOOLS.find(t => t.name === name);
 }

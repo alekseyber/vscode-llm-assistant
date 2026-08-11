@@ -79,16 +79,20 @@ export class AgentOrchestrator {
   private onWorkerDone?: (roleName: string, error?: string) => void;
   /** Общий контекст для коммуникации между воркерами */
   readonly sharedContext: AgentSharedContext;
+  /** Базовые опции для всех AgentWorker */
+  private workerOptions: AgentWorkerOptions;
 
   constructor(
     onLog?: (msg: string) => void,
     onWorkerStart?: (roleName: string) => void,
     onWorkerDone?: (roleName: string, error?: string) => void,
+    workerOptions: AgentWorkerOptions = {},
   ) {
     this.onLog = onLog;
     this.onWorkerStart = onWorkerStart;
     this.onWorkerDone = onWorkerDone;
     this.sharedContext = new AgentSharedContext();
+    this.workerOptions = workerOptions;
   }
 
   /**
@@ -109,12 +113,12 @@ export class AgentOrchestrator {
       if (!roleDef) {
         // Создаём синтетическую роль
         const syntheticRole: AgentRole = { name: role, systemPrompt: `Ты — ${role}. Отвечай кратко, по-русски.` };
-        const subWorker = new AgentWorker(syntheticRole, provider, { maxIterations: 15, extraTools });
+        const subWorker = new AgentWorker(syntheticRole, provider, { maxIterations: 15, extraTools, ...this.workerOptions });
         const result = await subWorker.run(subTask);
         this.log(`Делегирование → ${role}: завершено (${result.iterations} итераций)`);
         return result.answer;
       }
-      const subWorker = new AgentWorker(roleDef, provider, { maxIterations: 15, extraTools });
+      const subWorker = new AgentWorker(roleDef, provider, { maxIterations: 15, extraTools, ...this.workerOptions });
       const result = await subWorker.run(subTask);
       this.log(`Делегирование → ${role}: завершено (${result.iterations} итераций)`);
       return result.answer;
@@ -178,7 +182,7 @@ export class AgentOrchestrator {
     const promises = task.roles.map(async (role) => {
       const wt: WorkerTaskResult = { roleName: role.name, result: { answer: '', steps: [], iterations: 0, inputTokens: 0, outputTokens: 0, cost: 0 } };
       try {
-        const worker = new AgentWorker(role, provider, { extraTools });
+        const worker = new AgentWorker(role, provider, { extraTools, ...this.workerOptions });
         this.onWorkerStart?.(role.name);
         wt.result = await worker.run(this.buildSubTask(task.goal, role));
         // Сохраняем результат в общий контекст
@@ -211,7 +215,7 @@ export class AgentOrchestrator {
     for (const role of task.roles) {
       const wt: WorkerTaskResult = { roleName: role.name, result: { answer: '', steps: [], iterations: 0, inputTokens: 0, outputTokens: 0, cost: 0 } };
       try {
-        const worker = new AgentWorker(role, provider, { extraTools });
+        const worker = new AgentWorker(role, provider, { extraTools, ...this.workerOptions });
         this.onWorkerStart?.(role.name);
 
         // Формируем задачу с контекстом от предыдущего воркера
@@ -252,7 +256,7 @@ export class AgentOrchestrator {
     for (const role of task.roles) {
       const wt: WorkerTaskResult = { roleName: role.name, result: { answer: '', steps: [], iterations: 0, inputTokens: 0, outputTokens: 0, cost: 0 } };
       try {
-        const worker = new AgentWorker(role, provider, { extraTools });
+        const worker = new AgentWorker(role, provider, { extraTools, ...this.workerOptions });
         this.onWorkerStart?.(role.name);
 
         let subTask = this.buildSubTask(task.goal, role);

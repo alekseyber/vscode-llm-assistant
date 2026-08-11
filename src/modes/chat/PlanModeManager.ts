@@ -168,6 +168,7 @@ export class PlanModeManager {
       maxIterations: 5,  // план не требует много итераций
       enableSummary: true,
       signal,
+      skipGlobalAllowList: true,  // PlannerAgent использует role.allowedTools, не глобальный
     });
 
     // Задача: создать план и записать в указанный путь
@@ -230,7 +231,7 @@ export class PlanModeManager {
       strategy: 'sequential',
     };
 
-    const orchestrator = new AgentOrchestrator(onLog);
+    const orchestrator = new AgentOrchestrator(onLog, undefined, undefined, { skipGlobalAllowList: true });
     const orchestratorResult = await orchestrator.execute(task, provider);
 
     // Читаем обновлённый план
@@ -285,6 +286,7 @@ export class PlanModeManager {
 
       const reviewer = new AgentWorker(reviewerRole, provider, {
         maxIterations: 5,
+        skipGlobalAllowList: true,
       });
       const reviewerResult = await reviewer.run(reviewerTask);
       currentReport = reviewerResult.answer;
@@ -316,6 +318,7 @@ export class PlanModeManager {
 
         const coderFixer = new AgentWorker(coderRole, provider, {
           maxIterations: 8,
+          skipGlobalAllowList: true,
         });
         await coderFixer.run(coderFixTask);
       }

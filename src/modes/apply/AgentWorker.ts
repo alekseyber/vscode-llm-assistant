@@ -11,7 +11,7 @@
 
 import * as vscode from 'vscode';
 import { ChatMessage } from '../../providers/types';
-import { getToolSchemas, getTool } from '../chat/ChatAgentTools';
+import { getToolSchemas, getTool, getToolSchemasUnfiltered, getToolUnfiltered } from '../chat/ChatAgentTools';
 import { ContextSummarizer } from '../../shared/ContextSummarizer';
 import { loadRoleAgentsMd, getSkillTemplate } from '../../shared/RoleAgentsMdLoader';
 import { calculateCost } from '../../providers/types';
@@ -77,6 +77,8 @@ export interface AgentWorkerOptions {
   enableSummary?: boolean;
   /** AbortSignal для отмены выполнения */
   signal?: AbortSignal;
+  /** Пропустить глобальный allow-list (для Plan Mode и оркестратора, где фильтрация через role.allowedTools) */
+  skipGlobalAllowList?: boolean;
 }
 
 /**
@@ -127,8 +129,10 @@ export class AgentWorker {
     const config = vscode.workspace.getConfiguration('llmAssistant');
     const model = this.role.model || config.get<string>('defaultModel') || 'gpt-4o';
 
-    // Получаем схемы инструментов: базовые + MCP, фильтруем по allowedTools
-    const baseToolSchemas = getToolSchemas();
+    // Получаем схемы инструментов: unfiltered для Plan Mode/оркестратора, filtered для чат-агента
+    const baseToolSchemas = this.options.skipGlobalAllowList
+      ? getToolSchemasUnfiltered()
+      : getToolSchemas();
     const extraTools = this.options.extraTools || [];
     const allToolSchemas = [...baseToolSchemas, ...extraTools];
     const toolSchemas = this.role.allowedTools?.length
@@ -246,7 +250,9 @@ export class AgentWorker {
             continue;
           }
 
-          const tool = getTool(toolName);
+          const tool = this.options.skipGlobalAllowList
+            ? getToolUnfiltered(toolName)
+            : getTool(toolName);
           if (!tool) {
             messages.push({
               role: 'tool', tool_call_id: tc.id,
