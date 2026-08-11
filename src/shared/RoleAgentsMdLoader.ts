@@ -14,13 +14,13 @@ const SKILL_TEMPLATE = `
 При создании или обновлении скила в .llma/skills/ используй следующий формат:
 
 ---
-role: <имя-роли>
+name: <имя-скила>
 version: 1.0.0
 tools: [read_file, write_file, search_files, ...]
 description: <краткое описание назначения скила — 1 предложение>
 ---
 
-# Роль: <Название>
+# Скил: <Название>
 
 ## Описание
 Краткое описание назначения скила (1-2 предложения).
@@ -33,7 +33,7 @@ description: <краткое описание назначения скила �
 - ...
 
 ## Запрещено
-- Что нельзя делать этой роли
+- Что нельзя делать этому скилу
 - ...
 `;
 
@@ -72,7 +72,7 @@ export function parseFrontmatter(content: string): Record<string, string> {
   const match = content.match(/^---\n([\s\S]*?)\n---/);
   if (!match) return result;
 
-  const allowedKeys = new Set(['role', 'version', 'tools', 'description']);
+  const allowedKeys = new Set(['name', 'role', 'version', 'tools', 'description']);
   const lines = match[1].split('\n');
   for (const line of lines) {
     const colonIdx = line.indexOf(':');
@@ -97,7 +97,7 @@ export function getSkillCatalog(workspacePath: string): SkillInfo[] {
         const filePath = path.join(skillsDir, fileName);
         const content = tryReadFile(filePath) || '';
         const fm = parseFrontmatter(content);
-        const name = fm.role || fileName.replace(/\.md$/, '');
+        const name = fm.name || fm.role || fileName.replace(/\.md$/, '');
         const description = fm.description || content.replace(/^---[\s\S]*?---\n?/, '').slice(0, 80).trim();
         return { name, description };
       });

@@ -117,7 +117,7 @@ suite('RoleAgentsMdLoader', () => {
     const dir = setupDir({
       '.llma/skills/coder.md': [
         '---',
-        'role: coder',
+        'name: coder',
         'description: Пишет код',
         '---',
         '',
@@ -142,19 +142,14 @@ suite('RoleAgentsMdLoader', () => {
   });
 
   test('SC-2: parseFrontmatter() — валидный frontmatter', () => {
-    const result = parseFrontmatter([
-      '---',
-      'role: coder',
-      'version: 1.0',
-      'tools: [read_file]',
-      'description: Dev',
-      '---',
-      '# Content',
-    ].join('\n'));
-    assert.strictEqual(result.role, 'coder');
-    assert.strictEqual(result.version, '1.0');
-    assert.strictEqual(result.tools, '[read_file]');
-    assert.strictEqual(result.description, 'Dev');
+    // name (приоритетный)
+    const r1 = parseFrontmatter(['---', 'name: coder', 'version: 1.0', 'description: Dev', '---', '# Content'].join('\n'));
+    assert.strictEqual(r1.name, 'coder');
+    assert.strictEqual(r1.description, 'Dev');
+    // role (обратная совместимость)
+    const r2 = parseFrontmatter(['---', 'role: builder', 'version: 1.0', 'description: Build', '---', '# Content'].join('\n'));
+    assert.strictEqual(r2.role, 'builder');
+    assert.strictEqual(r2.description, 'Build');
   });
 
   test('SC-3: getSkillCatalog() — fallback без frontmatter', () => {
@@ -173,7 +168,7 @@ suite('RoleAgentsMdLoader', () => {
     const dir = setupDir({
       '.llma/skills/coder.md': [
         '---',
-        'role: coder',
+        'name: coder',
         'description: Dev',
         '---',
         '# Role',
