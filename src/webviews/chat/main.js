@@ -391,6 +391,7 @@
 
     streamingIndicator.classList.add('hidden');
     sendButton.disabled = false;
+    sendButton.textContent = '➤';
     messageInput.disabled = false;
     messageInput.focus();
   }
@@ -463,7 +464,8 @@
     postMessage({ type: 'sendMessage', text, mode, provider, model, planMode });
 
     streamingIndicator.classList.remove('hidden');
-    sendButton.disabled = true;
+    sendButton.textContent = '⏹️';
+    sendButton.disabled = false;  // кнопка активна для отмены
     messageInput.disabled = true;
     isStreaming = true;
   }
@@ -538,6 +540,9 @@
       case 'implementStarted':
         // Plan Mode: имплементация началась — скрыть план, показать индикатор с кнопкой отмены
         hidePlan();
+        isStreaming = true;
+        sendButton.textContent = '⏹️';
+        sendButton.disabled = false;
         streamingIndicator.classList.remove('hidden');
         break;
 
@@ -798,8 +803,14 @@
     }
   });
 
-  // Отправка по кнопке
-  sendButton.addEventListener('click', sendUserMessage);
+  // Отправка / отмена по кнопке: ➤ отправляет, ⏹️ отменяет
+  sendButton.addEventListener('click', () => {
+    if (isStreaming) {
+      postMessage({ type: 'cancelRequest' });
+    } else {
+      sendUserMessage();
+    }
+  });
 
   // Очистка истории
   clearButton.addEventListener('click', () => {
