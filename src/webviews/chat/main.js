@@ -1003,6 +1003,8 @@
   // Обработчик смены режима (agent ↔ chat) — показать/скрыть Plan Mode
   const modeSelect = document.getElementById('mode-select');
   if (modeSelect) {
+    currentMode = modeSelect.value; // синхронизируем начальное состояние
+    updatePlanModeToggle();         // показываем/скрываем при загрузке
     modeSelect.addEventListener('change', () => {
       currentMode = modeSelect.value;
       updatePlanModeToggle();
