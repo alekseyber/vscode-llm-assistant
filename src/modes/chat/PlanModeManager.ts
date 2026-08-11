@@ -45,19 +45,6 @@ function generateUUID(): string {
   });
 }
 
-/** Генерация короткого slug из первых 3 слов задачи */
-function generateSlug(task: string): string {
-  return task
-    .toLowerCase()
-    .replace(/[^а-яёa-z0-9\s-]/g, '')
-    .split(/[\s_]+/)
-    .slice(0, 3)
-    .join('-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '')
-    .slice(0, 30);
-}
-
 /** Системный промпт для PlannerAgent */
 const PLANNER_SYSTEM_PROMPT = `Ты — архитектор-планировщик. Твоя задача — создать детальный план реализации.
 
@@ -154,8 +141,9 @@ export class PlanModeManager {
     this.ensurePlansDir();
 
     const planId = generateUUID();
-    const slug = generateSlug(task);
-    const planFileName = `plan-${planId}-${slug}.md`;
+    const shortId = planId.split('-')[0]; // первые 8 символов UUID
+    const dateStr = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    const planFileName = `plan_${dateStr}_${shortId}.md`;
     const planPath = path.join(this.plansDir, planFileName);
 
     // PlannerAgent: только чтение + запись плана
