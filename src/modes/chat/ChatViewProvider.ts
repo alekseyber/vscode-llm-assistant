@@ -423,6 +423,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     const workspaceFolders = vscode.workspace.workspaceFolders;
     const workspacePath = workspaceFolders?.[0]?.uri.fsPath || '/tmp';
 
+    // Создаём AbortController для возможности отмены
+    this.abortController = new AbortController();
+    const signal = this.abortController.signal;
+
     this.postMessage({ type: 'implementStarted' });
     this.postMessage({ type: 'streamChunk', text: '🚀 **Имплементирую план...**\n' });
 
@@ -432,7 +436,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       // Этап 2: Имплементация
       const implResult = await planManager.implementPlan(planPath, provider, model, (msg) => {
         this.debugChannel.appendLine(`[PlanMode] ${msg}`);
-      });
+      }, signal);
 
       this.postMessage({
         type: 'streamChunk',
@@ -444,7 +448,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
       const reflectResult = await planManager.reflect(planPath, provider, model, 2, (cycle, report) => {
         this.debugChannel.appendLine(`[PlanMode] Рефлексия цикл ${cycle}: ${report.slice(0, 200)}`);
-      });
+      }, signal);
 
       this.postMessage({
         type: 'reflectReport',

@@ -197,6 +197,7 @@ export class PlanModeManager {
     provider: any,
     model: string,
     onLog?: (msg: string) => void,
+    signal?: AbortSignal,
   ): Promise<ImplementResult> {
     // Читаем план
     const planContent = fs.readFileSync(planPath, 'utf-8');
@@ -247,6 +248,7 @@ export class PlanModeManager {
     model: string,
     maxCycles: number = 2,
     onCycle?: (cycle: number, report: string) => void,
+    signal?: AbortSignal,
   ): Promise<ReflectResult> {
     const reviewerRole: AgentRole = {
       name: 'reviewer',
@@ -280,6 +282,7 @@ export class PlanModeManager {
       const reviewer = new AgentWorker(reviewerRole, provider, {
         maxIterations: 8,
         skipGlobalAllowList: true,
+        signal,
       });
       const reviewerResult = await reviewer.run(reviewerTask);
       currentReport = reviewerResult.answer;
@@ -316,6 +319,7 @@ export class PlanModeManager {
         const coderFixer = new AgentWorker(coderRole, provider, {
           maxIterations: 8,
           skipGlobalAllowList: true,
+          signal,
         });
         await coderFixer.run(coderFixTask);
       }
