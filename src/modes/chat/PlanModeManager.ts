@@ -45,15 +45,17 @@ function generateUUID(): string {
   });
 }
 
-/** Генерация slug из названия задачи */
+/** Генерация короткого slug из первых 3 слов задачи */
 function generateSlug(task: string): string {
   return task
     .toLowerCase()
     .replace(/[^а-яёa-z0-9\s-]/g, '')
-    .replace(/[\s_]+/g, '-')
+    .split(/[\s_]+/)
+    .slice(0, 3)
+    .join('-')
     .replace(/-+/g, '-')
-    .trim()
-    .slice(0, 50);
+    .replace(/^-|-$/g, '')
+    .slice(0, 30);
 }
 
 /** Системный промпт для PlannerAgent */
@@ -172,6 +174,7 @@ export class PlanModeManager {
     });
 
     // Задача: создать план и записать в указанный путь
+    const now = new Date().toISOString();
     const plannerTask = [
       `## Задача пользователя\n${task}`,
       '',
@@ -181,6 +184,8 @@ export class PlanModeManager {
       '1. СРАЗУ запиши план через write_file по указанному пути (не трать время на чтение файлов)',
       '2. Затем кратко сообщи что план создан',
       '3. Если остались итерации — прочитай затронутые файлы и уточни план',
+      '',
+      `## Важно\nИспользуй ТОЛЬКО эту дату в плане: **Дата:** ${now}`,
     ].join('\n');
 
     const result = await planner.run(plannerTask);
