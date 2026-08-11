@@ -11,7 +11,7 @@ import { AgentRole } from '../modes/apply/AgentWorker';
 const SKILL_TEMPLATE = `
 ## Структура скила (системное требование)
 
-При создании или обновлении скила в .llma/agents/ используй следующий формат:
+При создании или обновлении скила в .llma/skills/ используй следующий формат:
 
 ---
 role: <имя-роли>
@@ -53,7 +53,7 @@ export function getSkillTemplate(workspacePath?: string): string {
       const table = catalog
         .map(s => `| ${s.name} | ${s.description} |`)
         .join('\n');
-      template += `\n\n## Доступные скилы\n\n| Имя | Описание |\n|-----|----------|\n${table}\n\nЕсли задача соответствует одному из скилов — прочитай его через read_file(.llma/agents/<имя>.md) и действуй по нему.`;
+      template += `\n\n## Доступные скилы\n\n| Имя | Описание |\n|-----|----------|\n${table}\n\nЕсли задача соответствует одному из скилов — прочитай его через read_file(.llma/skills/<имя>.md) и действуй по нему.`;
     }
   }
 
@@ -84,17 +84,17 @@ export function parseFrontmatter(content: string): Record<string, string> {
   return result;
 }
 
-/** Сканирует .llma/agents/ и возвращает каталог скилов. */
+/** Сканирует .llma/skills/ и возвращает каталог скилов. */
 export function getSkillCatalog(workspacePath: string): SkillInfo[] {
   try {
-    const agentsDir = path.join(workspacePath, '.llma', 'agents');
-    if (!fs.existsSync(agentsDir)) return [];
+    const skillsDir = path.join(workspacePath, '.llma', 'skills');
+    if (!fs.existsSync(skillsDir)) return [];
 
-    const entries = fs.readdirSync(agentsDir);
+    const entries = fs.readdirSync(skillsDir);
     return entries
       .filter(f => f.endsWith('.md'))
       .map(fileName => {
-        const filePath = path.join(agentsDir, fileName);
+        const filePath = path.join(skillsDir, fileName);
         const content = tryReadFile(filePath) || '';
         const fm = parseFrontmatter(content);
         const name = fm.role || fileName.replace(/\.md$/, '');

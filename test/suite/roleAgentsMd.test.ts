@@ -111,12 +111,26 @@ suite('RoleAgentsMdLoader', () => {
     } finally { sb.restore(); fs.rmSync(dir, { recursive: true, force: true }); }
   });
 
-  // --- SC-1..SC-6: Каталог скилов ---
+  // --- SC-1..SC-6: Каталог скилов (.llma/skills/) ---
 
   test('SC-1: getSkillCatalog() возвращает каталог', () => {
     const dir = setupDir({
-      '.llma/agents/coder.md': '---\nrole: coder\ndescription: Пишет код\n---\n\n# Роль',
-      '.llma/agents/tester.md': '---\nrole: tester\ndescription: Тестирует\n---\n\n# Роль',
+      '.llma/skills/coder.md': [
+        '---',
+        'role: coder',
+        'description: Пишет код',
+        '---',
+        '',
+        '# Роль',
+      ].join('\n'),
+      '.llma/skills/tester.md': [
+        '---',
+        'role: tester',
+        'description: Тестирует',
+        '---',
+        '',
+        '# Роль',
+      ].join('\n'),
     });
     try {
       const catalog = getSkillCatalog(dir);
@@ -128,7 +142,15 @@ suite('RoleAgentsMdLoader', () => {
   });
 
   test('SC-2: parseFrontmatter() — валидный frontmatter', () => {
-    const result = parseFrontmatter('---\nrole: coder\nversion: 1.0\ntools: [read_file]\ndescription: Dev\n---\n# Content');
+    const result = parseFrontmatter([
+      '---',
+      'role: coder',
+      'version: 1.0',
+      'tools: [read_file]',
+      'description: Dev',
+      '---',
+      '# Content',
+    ].join('\n'));
     assert.strictEqual(result.role, 'coder');
     assert.strictEqual(result.version, '1.0');
     assert.strictEqual(result.tools, '[read_file]');
@@ -137,7 +159,7 @@ suite('RoleAgentsMdLoader', () => {
 
   test('SC-3: getSkillCatalog() — fallback без frontmatter', () => {
     const dir = setupDir({
-      '.llma/agents/builder.md': 'Просто текст без frontmatter',
+      '.llma/skills/builder.md': 'Просто текст без frontmatter',
     });
     try {
       const catalog = getSkillCatalog(dir);
@@ -149,7 +171,13 @@ suite('RoleAgentsMdLoader', () => {
 
   test('SC-5: getSkillTemplate() содержит таблицу скилов', () => {
     const dir = setupDir({
-      '.llma/agents/coder.md': '---\nrole: coder\ndescription: Dev\n---\n# Role',
+      '.llma/skills/coder.md': [
+        '---',
+        'role: coder',
+        'description: Dev',
+        '---',
+        '# Role',
+      ].join('\n'),
     });
     try {
       const tmpl = getSkillTemplate(dir);
