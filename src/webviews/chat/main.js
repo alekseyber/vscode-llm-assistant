@@ -536,8 +536,9 @@
         break;
 
       case 'implementStarted':
-        // Plan Mode: имплементация началась — скрыть план
+        // Plan Mode: имплементация началась — скрыть план, показать индикатор с кнопкой отмены
         hidePlan();
+        streamingIndicator.classList.remove('hidden');
         break;
 
       case 'reflectReport':
