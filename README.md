@@ -1,4 +1,4 @@
-# VS Code LLM Assistant v0.8.2
+# VS Code LLM Assistant v0.9.0
 
 **AI-ассистент для VS Code** — 4 режима работы с LLM через любые OpenAI-совместимые API.
 
@@ -9,7 +9,20 @@
 | ⚡ **Autocomplete** | Tab/Escape | Ghost text на паузе печати |
 | 🤖 **Agent** | Вкладка в чате | ReAct-агент с инструментами, делегированием, MCP, оркестрацией |
 
-## Что нового в v0.7.0
+## Что нового в v0.9.0
+
+### 📋 Plan Mode
+- Переключатель «📋 Plan» в Agent-режиме — план перед кодом
+- **Три этапа:** планирование → имплементация → рефлексия
+- **PlannerAgent** генерирует план в `.llma/plans/plan_YYYY-MM-DD_UUID.md`
+- **AgentOrchestrator** (architect → coder) реализует план
+- **ReviewerAgent** проверяет каждый AC, запускает циклы исправлений
+
+### 🗂 Каталог скилов (.llma/skills/)
+- Агент видит доступные скилы в system prompt
+- **`/coder задача`** — вызов скила по имени с инжектом содержимого
+- Frontmatter: `name`, `version`, `tools`, `description`
+- Поддержка `role` для обратной совместимости
 
 ### 🎭 Multi-Agent Harness (MVP)
 - **Вкладка «Оркестратор»** — панель для мониторинга multi-agent задач

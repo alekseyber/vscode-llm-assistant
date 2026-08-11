@@ -1,12 +1,20 @@
 # Changelog
 
-## 0.9.0 (2026-08-08)
+## 0.9.0 (2026-08-11)
 
-- **Plan Mode:** режим планирования для Agent Mode — план → имплементация → рефлексия
-- **Каталог скилов:** агенты видят доступные скилы (имя + description) в system prompt
-- `parseFrontmatter()`: парсинг YAML frontmatter в скилах
-- `getSkillCatalog()`: сканирование `.llma/agents/` → каталог
+- **Plan Mode:** режим планирования — план → имплементация → рефлексия (PM-1..PM-13)
+- **Каталог скилов:** `.llma/skills/`, frontmatter с `name`, `/skill` команда (SC-1..SC-7)
+- `parseFrontmatter()`: `name || role` для обратной совместимости
+- `getSkillCatalog()`: сканирование `.llma/skills/` → каталог
 - `getSkillTemplate()`: системный шаблон структуры скила + каталог
+- `loadSkillMd()`: загрузка скила для инжекта через `/skill`
+- `getToolSchemasUnfiltered()` / `getToolUnfiltered()` — обход глобального allow-list
+- `AgentWorkerOptions`: `signal`, `skipGlobalAllowList`
+- `AgentOrchestrator`: `workerOptions` в конструкторе
+- Кнопка отправки ➤↔⏹️ — отмена ReAct одним кликом
+- AbortSignal для Plan Mode (генерация + имплементация + рефлексия)
+- Формат имени плана: `plan_YYYY-MM-DD_shortUUID.md`
+- Фикс регекса `AC-\d+❌|❌AC-` для обоих форматов отчёта ревьюера
 
 ## 0.8.22 (2026-08-08)
 
