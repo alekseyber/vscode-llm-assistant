@@ -210,4 +210,12 @@ function tryReadFile(filePath: string): string | null {
   } catch { return null; }
 }
 
+/** Загрузить скил из .llma/skills/{name}.md */
+export function loadSkillMd(skillName: string): string | null {
+  const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+  if (!workspaceFolder) return null;
+  const skillPath = path.join(workspaceFolder.uri.fsPath, '.llma', 'skills', `${skillName}.md`);
+  return tryReadFile(skillPath);
+}
+
 export function invalidateRoleCache(): void { roleCache.clear(); }

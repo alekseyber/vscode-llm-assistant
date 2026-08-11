@@ -7,7 +7,7 @@ import { ProviderManager } from '../../providers/manager';
 import { ConversationManager } from './ConversationManager';
 import { ChatMessage, calculateCost } from '../../providers/types';
 import { loadAgentsMd } from '../../shared/AgentsMdLoader';
-import { loadRoleAgentsMd, loadOrchestratorRoles, loadAllAgentRoles, getSkillTemplate } from '../../shared/RoleAgentsMdLoader';
+import { loadRoleAgentsMd, loadOrchestratorRoles, loadAllAgentRoles, getSkillTemplate, loadSkillMd } from '../../shared/RoleAgentsMdLoader';
 import { loadToolAllowListConfig, isConfirmationRequired } from '../apply/ToolAllowList';
 import { McpClient, loadMcpConfig } from '../apply/McpClient';
 import { AgentWorker, AgentRole } from '../apply/AgentWorker';
@@ -126,6 +126,23 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       return;
     }
 
+    // --- /skill: вызов скила по имени (Агент и Чат, кроме Plan Mode) ---
+    let skillContent: string | null = null;
+    const skillMatch = text.match(/^\/(\S+)\s*(.*)/);
+    if (skillMatch && !planMode) {
+      const skillName = skillMatch[1];
+      const skillText = skillMatch[2] || '';
+      skillContent = loadSkillMd(skillName);
+      if (skillContent) {
+        // Заменяем текст: убираем /skillName, оставляем только задачу
+        text = skillText || text; // если задача пустая, оставляем исходный текст
+        if (!skillText) {
+          // Если только /coder без задачи — просто инжектим скил в контекст
+          text = `Действуй по правилам скила ${skillName}`;
+        }
+      }
+    }
+
     const providerDisplayName = providerName || config.get<string>('defaultProvider') || 'unknown';
 
     // Авто-контекст — должен быть ПЕРЕД addMessage, чтобы прикрепиться к ТЕКУЩЕМУ сообщению
@@ -170,6 +187,12 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         messages.unshift({ role: 'system', content: systemPrompt });
       } else if (messages[0].content !== systemPrompt) {
         messages[0].content = systemPrompt;
+      }
+
+      // ── Инжект скила: /coder → содержимое .llma/skills/coder.md ──
+      if (skillContent) {
+        messages.splice(1, 0, { role: 'system', content: `## Правила скила (обязательно к выполнению):\n${skillContent}` });
+        this.debugChannel.appendLine(`[DEBUG] Инжект скила: ${skillContent.slice(0, 80)}...`);
       }
 
       // ── Принудительный ask_user: если пользователь явно просит спросить/уточнить ──
