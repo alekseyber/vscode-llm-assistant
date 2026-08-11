@@ -92,6 +92,8 @@ since: 0.1.0
 
 | Версия | Дата | Изменения |
 |--------|------|-----------|
+| 0.9.0 | 2026-08-11 | Фикс: каталог скилов (getSkillTemplate) в getSystemPrompt() для agent-режима |
+| 0.9.0 | 2026-08-11 | Фикс: Plan Mode сохраняет сообщение пользователя в историю |
 | 0.9.0 | 2026-08-09 | SkillsLoader: инжект скилов в getSystemPrompt() |
 | 0.9.0 | 2026-08-08 | Plan Mode: ветвление handleSendMessage → PlanModeManager, переключатель UI |
 | 0.8.0 | 2026-08-06 | Делегирование в AgentWorker, loadOrchestratorRoles, MCP для оркестратора |

@@ -5,7 +5,6 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { AgentWorker, AgentRole } from '../apply/AgentWorker';
 import { AgentOrchestrator, MultiAgentTask, MultiAgentResult } from '../apply/AgentOrchestrator';
-import { loadAllAgentRoles } from '../../shared/RoleAgentsMdLoader';
 
 /** Результат этапа планирования */
 export interface PlanResult {
@@ -160,6 +159,7 @@ export class PlanModeManager {
       name: 'planner',
       systemPrompt: PLANNER_SYSTEM_PROMPT,
       allowedTools: ['read_file', 'search_files', 'list_files', 'write_file'],
+      model,
     };
 
     const planner = new AgentWorker(plannerRole, provider, {
@@ -206,9 +206,6 @@ export class PlanModeManager {
     // Читаем план
     const planContent = fs.readFileSync(planPath, 'utf-8');
 
-    // Загружаем роли из .llma/agents/
-    const allRoles = loadAllAgentRoles();
-
     // Задача для оркестратора
     const task: MultiAgentTask = {
       id: `impl_${Date.now()}`,
@@ -226,8 +223,8 @@ export class PlanModeManager {
         planContent,
       ].join('\n'),
       roles: [
-        { name: 'architect', systemPrompt: 'Ты — архитектор. Проверь план на полноту и реализуемость. Если есть проблемы — сообщи.' },
-        { name: 'coder', systemPrompt: 'Ты — разработчик. Реализуй план по этапам. После каждого этапа отмечай AC в плане. Пиши реальный код, а не описания.' },
+        { name: 'architect', model, systemPrompt: 'Ты — архитектор. Проверь план на полноту и реализуемость. Если есть проблемы — сообщи.' },
+        { name: 'coder', model, systemPrompt: 'Ты — разработчик. Реализуй план по этапам. После каждого этапа отмечай AC в плане. Пиши реальный код, а не описания.' },
       ],
       strategy: 'sequential',
     };
@@ -260,12 +257,14 @@ export class PlanModeManager {
       name: 'reviewer',
       systemPrompt: REVIEWER_SYSTEM_PROMPT,
       allowedTools: ['read_file', 'search_files', 'list_files'],
+      model,
     };
 
     const coderRole: AgentRole = {
       name: 'coder',
       systemPrompt: 'Ты — разработчик. Исправь замечания ревьюера. После исправления отметь AC в плане.',
       allowedTools: ['read_file', 'write_file', 'search_files', 'list_files', 'replace_in_file'],
+      model,
     };
 
     let currentReport = '';

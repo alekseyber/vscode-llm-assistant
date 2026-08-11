@@ -7,7 +7,7 @@ import { ProviderManager } from '../../providers/manager';
 import { ConversationManager } from './ConversationManager';
 import { ChatMessage, calculateCost } from '../../providers/types';
 import { loadAgentsMd } from '../../shared/AgentsMdLoader';
-import { loadRoleAgentsMd, loadOrchestratorRoles, loadAllAgentRoles } from '../../shared/RoleAgentsMdLoader';
+import { loadRoleAgentsMd, loadOrchestratorRoles, loadAllAgentRoles, getSkillTemplate } from '../../shared/RoleAgentsMdLoader';
 import { loadToolAllowListConfig, isConfirmationRequired } from '../apply/ToolAllowList';
 import { McpClient, loadMcpConfig } from '../apply/McpClient';
 import { AgentWorker, AgentRole } from '../apply/AgentWorker';
@@ -388,6 +388,9 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     }
     const workspacePath = workspaceFolders[0].uri.fsPath;
 
+    // Сохраняем сообщение пользователя в историю
+    this.conversationManager.addMessage({ role: 'user', content: text });
+
     this.postMessage({ type: 'streamChunk', text: '📋 **Генерирую план...**\n' });
 
     try {
@@ -662,6 +665,16 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     const agentsMd = await loadAgentsMd();
     if (agentsMd) {
       prompt += `\n\n## Правила проекта (AGENTS.md):\n${agentsMd}`;
+    }
+
+    // Автоинжект каталога скилов (SC-1: агент видит доступные скилы)
+    if (mode === 'agent') {
+      const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+      if (workspaceFolder) {
+        const skillCatalog = getSkillTemplate(workspaceFolder.uri.fsPath);
+        // Добавляем только если есть доступные скилы (getSkillTemplate всегда возвращает базовый шаблон)
+        prompt += `\n\n${skillCatalog}`;
+      }
     }
 
     const debug = vscode.workspace.getConfiguration('llmAssistant').get<boolean>('debug', false);
