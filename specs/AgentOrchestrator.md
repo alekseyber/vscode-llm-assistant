@@ -94,5 +94,6 @@ since: 0.7.0
 
 | Версия | Дата | Изменения |
 |--------|------|-----------|
+| 0.9.0 | 2026-08-11 | workerOptions в конструкторе — проброс skipGlobalAllowList во все AgentWorker |
 | 0.8.0 | 2026-08-06 | extraTools в execute() и всех стратегиях |
 | 0.7.0 | 2026-08-05 | Базовая реализация (parallel/sequential/pipeline) |

@@ -128,5 +128,6 @@ interface SkillInfo {
 
 | Версия | Дата | Изменения |
 |--------|------|-----------|
+| 0.9.0 | 2026-08-11 | .llma/skills/ вместо agents/; name вместо role; loadSkillMd(); /skill инжект |
 | 0.9.0 | 2026-08-08 | SKILL_TEMPLATE, getSkillCatalog, parseFrontmatter — каталог скилов |
 | 0.7.0 | 2026-08-05 | `loadRoleAgentsMd()` |
