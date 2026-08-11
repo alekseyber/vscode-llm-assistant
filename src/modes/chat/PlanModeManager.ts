@@ -278,7 +278,7 @@ export class PlanModeManager {
       ].join('\n\n');
 
       const reviewer = new AgentWorker(reviewerRole, provider, {
-        maxIterations: 5,
+        maxIterations: 8,
         skipGlobalAllowList: true,
       });
       const reviewerResult = await reviewer.run(reviewerTask);
@@ -286,13 +286,17 @@ export class PlanModeManager {
 
       onCycle?.(cycle + 1, currentReport);
 
-      // Проверяем: есть ли ❌ в отчёте
+      // Проверяем: есть ли ❌ в отчёте или фолбэк (ревьюер не справился)
       const hasFailures = /❌\s*AC-/.test(currentReport);
+      const isFallback = /исчерпан лимит итераций|не дал финального ответа/.test(currentReport);
 
-      if (!hasFailures) {
+      if (!hasFailures && !isFallback) {
         allPassed = true;
         break;
       }
+
+      // Если ревьюер не справился — это не ❌, но и не ✅; пробуем ещё
+      if (isFallback && cycle < maxCycles - 1) continue;
 
       // Если есть замечания и не последний цикл — запускаем coder для исправлений
       if (cycle < maxCycles - 1) {
