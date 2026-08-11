@@ -53,7 +53,7 @@ export function getSkillTemplate(workspacePath?: string): string {
       const table = catalog
         .map(s => `| ${s.name} | ${s.description} |`)
         .join('\n');
-      template += `\n\n## Доступные скилы\n\n| Имя | Описание |\n|-----|----------|\n${table}\n\nЕсли задача соответствует одному из скилов — прочитай его через read_file(.llma/skills/<имя>.md) и действуй по нему.`;
+      template += `\n\n## Доступные скилы\n\n| Имя | Описание |\n|-----|----------|\n${table}\n\n**ПРАВИЛО:** если задача пользователя соответствует скилу — ПЕРВЫМ ДЕЛОМ вызови read_file(.llma/skills/<имя>.md) и строго следуй его правилам. НЕ ПРИСТУПАЙ к задаче пока не прочитал скил.`;
     }
   }
 
