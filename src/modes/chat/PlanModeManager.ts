@@ -218,8 +218,8 @@ export class PlanModeManager {
         planContent,
       ].join('\n'),
       roles: [
-        { name: 'architect', model, systemPrompt: 'Ты — архитектор. Проверь план на полноту и реализуемость. Если есть проблемы — сообщи.' },
-        { name: 'coder', model, systemPrompt: 'Ты — разработчик. Реализуй план по этапам. После каждого этапа отмечай AC в плане. Пиши реальный код, а не описания.' },
+        { name: 'architect', model, allowedTools: ['read_file', 'search_files', 'list_files'], systemPrompt: 'Ты — архитектор. Проверь план на полноту и реализуемость. Если есть проблемы — сообщи.' },
+        { name: 'coder', model, allowedTools: ['read_file', 'write_file', 'replace_in_file', 'search_files', 'list_files'], systemPrompt: 'Ты — разработчик. Реализуй план по этапам. После каждого этапа отмечай AC в плане. Пиши реальный код, а не описания.' },
       ],
       strategy: 'sequential',
     };
