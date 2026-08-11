@@ -388,9 +388,6 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     }
     const workspacePath = workspaceFolders[0].uri.fsPath;
 
-    // Сохраняем сообщение пользователя в историю
-    this.conversationManager.addMessage({ role: 'user', content: text });
-
     this.postMessage({ type: 'streamChunk', text: '📋 **Генерирую план...**\n' });
 
     try {
