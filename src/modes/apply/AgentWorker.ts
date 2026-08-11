@@ -75,6 +75,8 @@ export interface AgentWorkerOptions {
   onConfirm?: (toolName: string, args: Record<string, unknown>) => Promise<boolean>;
   /** Включить сжатие длинной истории (summary) в цикле */
   enableSummary?: boolean;
+  /** AbortSignal для отмены выполнения */
+  signal?: AbortSignal;
 }
 
 /**
@@ -203,6 +205,7 @@ export class AgentWorker {
         // Вызов LLM с инструментами
         const response = await this.provider.createWithTools(
           messages, model, toolSchemas,
+          this.options.signal,
         );
 
         const choice = response.choices?.[0];

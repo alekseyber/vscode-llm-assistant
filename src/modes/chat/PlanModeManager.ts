@@ -146,6 +146,7 @@ export class PlanModeManager {
     task: string,
     provider: any,
     model: string,
+    signal?: AbortSignal,
   ): Promise<PlanResult> {
     this.ensurePlansDir();
 
@@ -163,8 +164,9 @@ export class PlanModeManager {
     };
 
     const planner = new AgentWorker(plannerRole, provider, {
-      maxIterations: 10,
+      maxIterations: 5,  // план не требует много итераций
       enableSummary: true,
+      signal,
     });
 
     // Задача: создать план и записать в указанный путь

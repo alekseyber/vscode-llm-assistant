@@ -395,7 +395,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
     try {
       const planManager = new PlanModeManager(workspacePath);
-      const planResult = await planManager.generatePlan(text, provider, model);
+      const planResult = await planManager.generatePlan(text, provider, model, this.abortController?.signal);
 
       // Отправляем план в WebView
       this.postMessage({
