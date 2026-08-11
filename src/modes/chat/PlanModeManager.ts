@@ -290,7 +290,8 @@ export class PlanModeManager {
       onCycle?.(cycle + 1, currentReport);
 
       // Проверяем: есть ли ❌ в отчёте или фолбэк (ревьюер не справился)
-      const hasFailures = /AC-\d+\s*❌/.test(currentReport);
+      // Поддерживаем оба формата: "AC-N ❌" и "❌ AC-N"
+      const hasFailures = /(?:AC-\d+\s*❌|❌\s*AC-)/.test(currentReport);
       const isFallback = /исчерпан лимит итераций|не дал финального ответа/.test(currentReport);
 
       if (!hasFailures && !isFallback) {

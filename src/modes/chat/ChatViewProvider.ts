@@ -448,6 +448,14 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
       const reflectResult = await planManager.reflect(planPath, provider, model, 2, (cycle, report) => {
         this.debugChannel.appendLine(`[PlanMode] Рефлексия цикл ${cycle}: ${report.slice(0, 200)}`);
+        // Показываем прогресс циклов в чате
+        const hasFailures = /(?:AC-\d+\s*❌|❌\s*AC-)/.test(report);
+        const isFallback = /исчерпан лимит итераций/.test(report);
+        if (hasFailures && cycle < 2) {
+          this.postMessage({ type: 'streamChunk', text: `\n🔄 **Цикл ${cycle}:** найдены замечания, запускаю исправление...\n` });
+        } else if (isFallback) {
+          this.postMessage({ type: 'streamChunk', text: `\n⚠️ **Цикл ${cycle}:** ревьюер не справился, пробую ещё раз...\n` });
+        }
       }, signal);
 
       this.postMessage({
