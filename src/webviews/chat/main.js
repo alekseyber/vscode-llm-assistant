@@ -961,8 +961,8 @@
     const planContent = document.getElementById('plan-content');
     if (!container || !planContent) return;
 
-    // Рендерим markdown плана
-    planContent.innerHTML = marked.parse(content);
+    // Рендерим markdown плана (без auto-linking)
+    planContent.innerHTML = marked.parse(content, { breaks: true, gfm: false });
     addCodeToggles(planContent);
 
     // Сохраняем путь для кнопок
