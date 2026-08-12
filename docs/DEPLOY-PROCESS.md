@@ -157,6 +157,47 @@ https://marketplace.visualstudio.com/manage/publishers/alekseyber
 
 ## Часть 2. Процесс публикации (каждый релиз)
 
+### ⚠️ Синхронизация версий (обязательно перед тегом)
+
+**Причина ошибки v0.9.0 (12.08.2026):** тег `v0.9.0` был создан, но `package.json`
+оставался на `0.8.21`. vsce публикует версию **из `package.json`**, а не из тега —
+попытка залить уже существующую `0.8.21` упала с `already exists`.
+
+**Правило:** версия должна быть согласована в **трёх местах**:
+
+| Файл | Где | Что |
+|------|-----|-----|
+| `package.json` | поле `version` | целевая версия |
+| `package-lock.json` | 2 места: корень `"version"` + `packages[""].version` | целевая версия |
+| git-тег | `v{version}` | должен совпадать с `package.json` |
+
+**Порядок действий:**
+```bash
+cd ~/projects/vscode-llm-assistant
+
+# 1. Поднять версию в ОБОИХ файлах (не только package.json!)
+V=0.9.0
+sed -i "s/\"version\": \"[0-9.]*\"/\"version\": \"$V\"/" package.json
+# package-lock.json содержит версию ДВАЖДЫ — обе нужно менять:
+sed -i "0,/{/{s/\"version\": \"[0-9.]*\"/\"version\": \"$V\"/}" package-lock.json
+sed -i "s/\"version\": \"[0-9.]*\"/\"version\": \"$V\"/" package-lock.json
+
+# 2. Проверить согласованность (обязательно!)
+grep '"version"' package.json
+grep -A1 '"packages"' package-lock.json | grep '"version"'
+
+# 3. Закоммитить и запушить
+git add package.json package-lock.json
+git commit -m "фикс: версия $V в package.json и package-lock.json"
+git push origin main
+
+# 4. Только теперь — тег
+git tag v$V && git push origin v$V
+```
+
+**Важно:** `release.py` читает версию из `package.json` и сам создаёт тег
+`v{version}` — поэтому если `package.json` не поднят, тег и версия рассинхронизируются.
+
 ### Шаг 2.1. Локальная сборка и проверка
 
 ```bash
@@ -281,6 +322,7 @@ cd /opt/data && python3 scripts/release.py
 | 4 | Расширение не находится через `code --install-extension` сразу | "Расширение не найдено" | Индексация Marketplace занимает время (часы) |
 | 5 | OIDC endpoint путаница Client/Tenant ID | Некорректные secrets | Проверка через login.microsoftonline.com (200=tenant) |
 | 6 | West Europe не принимает новых клиентов | RequestDisallowedByAzure | Выбрать North Europe |
+| 7 | Рассинхрон версий: тег `v0.9.0`, но `package.json` = `0.8.21` | `vsce publish` → "v0.8.21 already exists" | Синхронизировать `package.json` + `package-lock.json` (2 места) + тег, затем force-push тега |
 
 ---
 
@@ -300,18 +342,21 @@ cd /opt/data && python3 scripts/release.py
 
 ---
 
-## Чек-лист следующего релиза (v0.2.0)
+## Чек-лист следующего релиза (v0.10.0)
 
 ```bash
-# 1. Поднять версию
-sed -i 's/"version": "0.1.0"/"version": "0.2.0"/' package.json
-npm install && git add package.json package-lock.json
-git commit -m "chore: версия 0.2.0" && git push origin main
+# 1. Синхронизировать версию (см. раздел «Синхронизация версий» выше!)
+#    package.json + package-lock.json (2 места) + CHANGELOG
+V=0.10.0
+sed -i "s/\"version\": \"[0-9.]*\"/\"version\": \"$V\"/" package.json
+sed -i "s/\"version\": \"[0-9.]*\"/\"version\": \"$V\"/" package-lock.json
+git add package.json package-lock.json
+git commit -m "фикс: версия $V" && git push origin main
 
 # 2. Запустить релиз (автоматически)
 # → агент: cronjob run baafba05ca78
-# Или вручную:
-git tag v0.2.0 && git push origin v0.2.0
+# Или вручную (тег создаётся из package.json):
+git tag v$V && git push origin v$V
 
 # 3. Дождаться workflow (2-3 мин) и проверить Marketplace
 ```
