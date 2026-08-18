@@ -17,6 +17,7 @@ import { HistoryViewProvider } from '../history/HistoryViewProvider';
 import { OrchestratorViewProvider, OrchestratorTaskInfo, WorkerInfo } from '../orchestrator/OrchestratorViewProvider';
 import { setDelegateHandler } from './ChatAgentTools';
 import { PlanModeManager } from './PlanModeManager';
+import { parseSlashCommand, getSlashCommand } from './SlashCommands';
 
 export class ChatViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = 'llmAssistant.chat';
@@ -126,19 +127,22 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       return;
     }
 
-    // --- /skill: вызов скила по имени (Агент и Чат, кроме Plan Mode) ---
+    // --- /skill и слэш-команды код-действий (Агент и Чат, кроме Plan Mode) ---
     let skillContent: string | null = null;
-    const skillMatch = text.match(/^\/(\S+)\s*(.*)/);
-    if (skillMatch && !planMode) {
-      const skillName = skillMatch[1];
-      const skillText = skillMatch[2] || '';
-      skillContent = loadSkillMd(skillName);
+    let slashPrompt: string | null = null;
+    const slashMatch = parseSlashCommand(text);
+    if (slashMatch && !planMode) {
+      // 1) Скил по имени (.llma/skills/{name}.md) — обратная совместимость /skill
+      skillContent = loadSkillMd(slashMatch.name);
       if (skillContent) {
-        // Заменяем текст: убираем /skillName, оставляем только задачу
-        text = skillText || text; // если задача пустая, оставляем исходный текст
-        if (!skillText) {
-          // Если только /coder без задачи — просто инжектим скил в контекст
-          text = `Действуй по правилам скила ${skillName}`;
+        // Убираем /имя, оставляем только задачу (или дефолтную инструкцию)
+        text = slashMatch.argument || `Действуй по правилам скила ${slashMatch.name}`;
+      } else {
+        // 2) Встроенная слэш-команда (/explain, /doc, /test, /review, /improve)
+        const command = getSlashCommand(slashMatch.name);
+        if (command) {
+          slashPrompt = command.promptTemplate;
+          text = slashMatch.argument || command.defaultTask;
         }
       }
     }
@@ -193,6 +197,13 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       if (skillContent) {
         messages.splice(1, 0, { role: 'system', content: `## Правила скила (обязательно к выполнению):\n${skillContent}` });
         this.debugChannel.appendLine(`[DEBUG] Инжект скила: ${skillContent.slice(0, 80)}...`);
+      }
+
+      // ── Инжект слэш-команды: /explain, /doc, /test, /review, /improve ──
+      // Промпт НЕ содержит ⚠️, чтобы AgentWorker не удалил его при очистке инжекта (MA-1.11).
+      if (slashPrompt) {
+        messages.splice(1, 0, { role: 'system', content: slashPrompt });
+        this.debugChannel.appendLine(`[DEBUG] Инжект слэш-команды: ${slashPrompt.slice(0, 80)}...`);
       }
 
       // ── Принудительный ask_user: если пользователь явно просит спросить/уточнить ──

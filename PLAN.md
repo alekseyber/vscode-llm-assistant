@@ -95,3 +95,43 @@
 | `src/modes/apply/AgentWorker.ts` | B | Передача workspace в `getSkillTemplate()` |
 | `specs/RoleAgentsMdLoader.md` | B | Обновлён: интерфейс, контракты, AC, детали |
 | `test/suite/roleAgentsMd.test.ts` | B | +3 теста |
+
+---
+
+## Часть C: Слэш-команды код-действий в чате (фича P1)
+
+Слэш-команды в чате (agent + chat режимы, НЕ в Plan Mode). Каждая инжектирует system-промпт с директивной инструкцией.
+
+**Команды:** `/explain`, `/explain_stepbystep`, `/doc`, `/test`, `/review`, `/improve`
+
+### Этап C1: Модуль SlashCommands + интеграция
+
+| AC | Критерий | Статус |
+|----|----------|--------|
+| SL-1 | `SlashCommands.ts` содержит 6 команд с `name`, `description`, `defaultTask`, `promptTemplate` | ✅ |
+| SL-2 | `parseSlashCommand()` разбирает префикс `/имя` и аргумент | ✅ |
+| SL-3 | `getSlashCommand()` по имени, `undefined` для неизвестной | ✅ |
+| SL-4 | Все 6 команд распознаются в `handleSendMessage()` | ✅ |
+| SL-5 | Инжект system-промпта на позицию 1 в `messages` | ✅ |
+| SL-6 | Работает в chat + agent, НЕ в Plan Mode | ✅ |
+| SL-7 | `/skill` — обратная совместимость | ✅ |
+| SL-8 | `@orchestrate` не затронут | ✅ |
+| SL-9 | Все юнит-тесты зелёные, tsc 0 ошибок, lint 0 ошибок | ✅ |
+
+**Действия:**
+1. `src/modes/chat/SlashCommands.ts` — новый компонент
+2. `src/modes/chat/ChatViewProvider.ts` — парсинг и инжект
+3. `specs/SlashCommands.md` + `specs/ChatViewProvider.md`
+4. `test/suite/slashCommands.test.ts` + `test/run-mocked.js`
+5. `instructions/MANUAL_TEST_SCENARIOS_SLASH_COMMANDS.md`
+
+**Затронутые файлы (часть C):**
+
+| Файл | Изменение |
+|------|-----------|
+| `src/modes/chat/SlashCommands.ts` | Новый: 6 команд + парсер |
+| `src/modes/chat/ChatViewProvider.ts` | Интеграция парсинга и инжекта |
+| `specs/SlashCommands.md` | Новый spec |
+| `specs/ChatViewProvider.md` | Обновлён: интерфейс, контракты, история |
+| `test/suite/slashCommands.test.ts` | +10 тестов |
+| `test/run-mocked.js` | +запись slashCommands.test.js |

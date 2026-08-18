@@ -28,6 +28,8 @@ since: 0.1.0
 
 - Определяет провайдера и модель
 - `@orchestrate` → `handleOrchestrate()`
+- `/skill` → инжект скила из `.llma/skills/`
+- слэш-команды (`/explain`, `/doc`, `/test`, `/review`, `/improve`, `/explain_stepbystep`) → инжект директивного system-промпта (см. `specs/SlashCommands.md`)
 - `mode='agent'` → проверка `createWithTools` → `runAgentLoop()`
 - `mode='chat'` → `provider.chat(stream)`
 - Vision → `provider.chatWithVision()`
@@ -62,10 +64,11 @@ since: 0.1.0
 | Внешний промпт (Code Actions) | `sendExternalPrompt` → agent-режим → фокус |
 | Diagnostics перед agent loop | `DiagnosticsProvider.getDiagnosticsContext()` → в системный промпт |
 | SkillsLoader: скилы в system prompt | `loadSkillsSummary()` → после AGENTS.md в getSystemPrompt() |
+| Слэш-команда (`/explain`, `/doc`, ...) | Инжект `promptTemplate` на позицию 1, `text` = аргумент или `defaultTask` |
 
 ## Связи
 
-- **Использует:** ProviderManager, ConversationManager, AgentWorker, AgentOrchestrator, McpClient, RunHistoryStore, DiagnosticsProvider, StatusBarIndicator, AgentsMdLoader, SkillsLoader
+- **Использует:** ProviderManager, ConversationManager, AgentWorker, AgentOrchestrator, McpClient, RunHistoryStore, DiagnosticsProvider, StatusBarIndicator, AgentsMdLoader, SkillsLoader, SlashCommands
 - **Используется:** extension.ts (регистрация WebView)
 
 ## Детали реализации
@@ -79,6 +82,7 @@ since: 0.1.0
 - **abortController:** создаётся в handleSendMessage, проверяется в runAgentLoop
 - **debugChannel:** `vscode.window.createOutputChannel('LLM Assistant')`
 - **Инжект ask_user:** перед agent-режимом, если текст содержит триггер-слова (`спроси`, `уточни`, ...), в `messages` на позицию 1 вставляется system-сообщение с `⚠️`, принуждающее модель вызвать инструмент. AgentWorker удаляет этот инжект после выполнения `ask_user` (см. AgentWorker#Очистка инжекта). При следующем `handleSendMessage` инжект создаётся заново.
+- **Слэш-команды:** `parseSlashCommand()` разбирает префикс `/<имя> [аргумент]`. Сначала `loadSkillMd()` (обратная совместимость `/skill`), затем `getSlashCommand()`. Промпт слэш-команды НЕ содержит `⚠️` — иначе AgentWorker удалит его при очистке инжекта (MA-1.11). Инжект на позицию 1, `text` = аргумент или `defaultTask`.
 
 
 ## Тесты
@@ -92,6 +96,7 @@ since: 0.1.0
 
 | Версия | Дата | Изменения |
 |--------|------|-----------|
+| 0.9.0 | 2026-08-18 | Слэш-команды код-действий: /explain, /explain_stepbystep, /doc, /test, /review, /improve (интеграция SlashCommands) |
 | 0.9.0 | 2026-08-11 | Фикс: каталог скилов (getSkillTemplate) в getSystemPrompt() для agent-режима |
 | 0.9.0 | 2026-08-11 | Фикс: Plan Mode сохраняет сообщение пользователя в историю |
 | 0.9.0 | 2026-08-09 | SkillsLoader: инжект скилов в getSystemPrompt() |
