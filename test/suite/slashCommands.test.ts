@@ -106,4 +106,13 @@ suite('SlashCommands', () => {
       }
     }
   });
+
+  test('SL-7: директива FOCUS_ON_ARGUMENT — уважать названную функцию/класс', () => {
+    for (const cmd of SLASH_COMMANDS) {
+      assert.ok(
+        cmd.promptTemplate.includes('работай ТОЛЬКО с ней'),
+        `директива «работай только с названной сущностью» у /${cmd.name}`,
+      );
+    }
+  });
 });
