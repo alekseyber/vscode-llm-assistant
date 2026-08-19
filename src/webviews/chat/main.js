@@ -365,6 +365,18 @@
   /** Сырой текст текущего стрима (для избежания разрывов markdown) */
   let streamingRawText = '';
 
+  /** Ход выполнения агента (tool calls/результаты) — показывается во время работы, скрывается по завершении */
+  let streamingActivity = '';
+
+  /** Показать текущее состояние: активность агента + текст ответа */
+  function renderStreamingState() {
+    const parts = [];
+    if (streamingActivity) parts.push(streamingActivity);
+    if (streamingRawText) parts.push(streamingRawText);
+    lastAssistantContentEl.textContent = parts.join('\n') + '▊';
+    scrollToBottom();
+  }
+
   /**
    * Добавить токен (чанк) к текущему стриминг-сообщению.
    */
@@ -379,13 +391,23 @@
     }
 
     streamingRawText += chunk;
-    // Показываем сырой текст без рендеринга markdown (чтобы не было разрывов)
-    lastAssistantContentEl.textContent = streamingRawText + '▊';
-    scrollToBottom();
+    renderStreamingState();
   }
 
   /**
-   * Завершить стриминг — рендерить markdown и добавить кнопки копирования.
+   * Добавить чанк хода выполнения (tool calls) — отдельный буфер, не попадает в финальный ответ.
+   */
+  function appendToolActivity(chunk) {
+    if (!lastAssistantContentEl) {
+      addMessage('assistant', '', true);
+      if (!lastAssistantContentEl) return;
+    }
+    streamingActivity += chunk;
+    renderStreamingState();
+  }
+
+  /**
+   * Завершить стриминг — рендерить ТОЛЬКО финальный ответ (без хода выполнения).
    */
   function finishStreaming() {
     if (lastAssistantContentEl) {
@@ -402,6 +424,7 @@
     lastAssistantMessageEl = null;
     lastAssistantContentEl = null;
     streamingRawText = '';
+    streamingActivity = '';
 
     streamingIndicator.classList.add('hidden');
     sendButton.disabled = false;
@@ -510,6 +533,11 @@
       case 'streamChunk':
         // Токен стрима
         appendStreamChunk(message.text);
+        break;
+
+      case 'toolActivity':
+        // Ход выполнения (tool calls) — показывается во время работы, скрывается по завершении
+        appendToolActivity(message.text);
         break;
 
       case 'done':
