@@ -717,11 +717,42 @@
 
   // ---------- Confirmation Dialog ----------
 
+  /** LCS-диф строк: возвращает список операций {type: context|remove|add, line} */
+  function computeLineDiff(oldLines, newLines) {
+    const m = oldLines.length, n = newLines.length;
+    const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+    for (let i = m - 1; i >= 0; i--) {
+      for (let j = n - 1; j >= 0; j--) {
+        dp[i][j] = oldLines[i] === newLines[j]
+          ? dp[i + 1][j + 1] + 1
+          : Math.max(dp[i + 1][j], dp[i][j + 1]);
+      }
+    }
+    const ops = [];
+    let i = 0, j = 0;
+    while (i < m && j < n) {
+      if (oldLines[i] === newLines[j]) {
+        ops.push({ type: 'context', line: oldLines[i] });
+        i++; j++;
+      } else if (dp[i + 1][j] >= dp[i][j + 1]) {
+        ops.push({ type: 'remove', line: oldLines[i] });
+        i++;
+      } else {
+        ops.push({ type: 'add', line: newLines[j] });
+        j++;
+      }
+    }
+    while (i < m) { ops.push({ type: 'remove', line: oldLines[i] }); i++; }
+    while (j < n) { ops.push({ type: 'add', line: newLines[j] }); j++; }
+    return ops;
+  }
+
   function showConfirmDialog(msg) {
     const existing = document.getElementById('confirm-dialog');
     if (existing) existing.remove();
 
     let diffHtml = '';
+    let diffStats = '';
     if (msg.toolName === 'replace_in_file') {
       const oldLines = (msg.oldStr || '').split('\n');
       const newLines = (msg.newStr || '').split('\n');
@@ -733,6 +764,26 @@
         diffHtml += `<div class="diff-line diff-added"><span class="diff-sign">+</span>${escapeHtml(l)}</div>`;
       }
       diffHtml += '</div>';
+    } else if (msg.toolName === 'write_file' && typeof msg.oldContent === 'string') {
+      // git-style diff: сравнение старого и нового содержимого файла
+      const oldLines = (msg.oldContent || '').split('\n');
+      const newLines = (msg.content || '').split('\n');
+      const ops = computeLineDiff(oldLines, newLines);
+      let added = 0, removed = 0;
+      diffHtml = '<div class="git-diff">';
+      for (const op of ops) {
+        if (op.type === 'context') {
+          diffHtml += `<div class="diff-line diff-context">${escapeHtml(op.line)}</div>`;
+        } else if (op.type === 'remove') {
+          removed++;
+          diffHtml += `<div class="diff-line diff-removed"><span class="diff-sign">−</span>${escapeHtml(op.line)}</div>`;
+        } else {
+          added++;
+          diffHtml += `<div class="diff-line diff-added"><span class="diff-sign">+</span>${escapeHtml(op.line)}</div>`;
+        }
+      }
+      diffHtml += '</div>';
+      diffStats = `<span class="diff-stat-add">+${added}</span> <span class="diff-stat-del">−${removed}</span>`;
     } else {
       const contentLines = (msg.content || '').split('\n');
       diffHtml = '<div class="git-diff">';
@@ -748,6 +799,7 @@
     overlay.innerHTML = `
       <div class="confirm-box">
         <div class="confirm-title">🔧 ${msg.toolName} — <code>${escapeHtml(msg.filePath || '')}</code></div>
+        ${diffStats ? `<div class="diff-stats">${diffStats}</div>` : ''}
         <div class="confirm-body">${diffHtml}</div>
         <div class="confirm-buttons">
           <button class="confirm-reject">❌ Отклонить</button>

@@ -675,9 +675,9 @@ body {
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 16px;
-  max-width: 700px;
-  width: 95%;
-  max-height: 80vh;
+  max-width: 1100px;
+  width: 92%;
+  max-height: 88vh;
   display: flex;
   flex-direction: column;
   box-shadow: 0 8px 32px rgba(0,0,0,0.4);
@@ -738,6 +738,16 @@ body {
 
 .diff-removed { background: rgba(244, 135, 113, 0.15); color: #f48771; }
 .diff-added   { background: rgba(137, 209, 133, 0.15); color: #89d185; }
+.diff-context { color: var(--text-primary); }
+
+.diff-stats {
+  font-family: 'Cascadia Code', 'Fira Code', monospace;
+  font-size: 12px;
+  margin-bottom: 8px;
+  flex-shrink: 0;
+}
+.diff-stat-add { color: #89d185; font-weight: 600; }
+.diff-stat-del { color: #f48771; font-weight: 600; margin-left: 10px; }
 
 .confirm-buttons {
   display: flex;

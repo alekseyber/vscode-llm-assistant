@@ -3,6 +3,7 @@
 
 import * as vscode from 'vscode';
 import * as fs from 'fs';
+import * as path from 'path';
 import { ProviderManager } from '../../providers/manager';
 import { ConversationManager } from './ConversationManager';
 import { ChatMessage, calculateCost } from '../../providers/types';
@@ -647,7 +648,19 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   }
 
   /** Запросить подтверждение у пользователя для опасной операции */
-  private requestConfirmation(toolName: string, args: Record<string, unknown>): Promise<boolean> {
+  private async requestConfirmation(toolName: string, args: Record<string, unknown>): Promise<boolean> {
+    // Для write_file читаем текущее содержимое файла (если есть) — для git-дифа в диалоге
+    let oldContent = '';
+    if (toolName === 'write_file' && args.path) {
+      try {
+        const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+        const p = args.path as string;
+        const filePath = root ? (path.isAbsolute(p) ? p : path.join(root, p)) : p;
+        if (fs.existsSync(filePath)) {
+          oldContent = fs.readFileSync(filePath, 'utf-8');
+        }
+      } catch { /* файла нет — новый, oldContent остаётся пустым */ }
+    }
     return new Promise((resolve) => {
       const requestId = `confirm_${Date.now()}`;
       this.postMessage({
@@ -656,6 +669,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         toolName,
         filePath: args.path || '',
         content: args.content || '',
+        oldContent,
         oldStr: args.old_str || '',
         newStr: args.new_str || '',
       });
