@@ -229,8 +229,22 @@
    */
   function highlightByRules(code, rulesList) {
     let result = code;
+    // Плейсхолдеры защищают уже-выделенные спаны от повторного матча последующими правилами:
+    // иначе number/keyword попадают внутрь string-спана → вложенные спаны (<span><span>).
+    const placeholders = [];
     for (const rule of rulesList) {
-      result = result.replace(rule.pattern, rule.replace);
+      result = result.replace(rule.pattern, (...args) => {
+        const groups = args.slice(1, -2); // capture-группы (без match/offset/string)
+        const replaced = rule.replace.replace(/\$(\d)/g, (_, n) => groups[Number(n) - 1] ?? '');
+        // Префикс 'X' не даёт number-правилу (\b\d) сматчить цифру индекса
+        const ph = '\u0000X' + placeholders.length + '\u0000';
+        placeholders.push(replaced);
+        return ph;
+      });
+    }
+    // Восстанавливаем плейсхолдеры (уникальные по индексу)
+    for (let i = 0; i < placeholders.length; i++) {
+      result = result.split('\u0000X' + i + '\u0000').join(placeholders[i]);
     }
     return `<pre><code>${result}</code></pre>`;
   }
@@ -825,13 +839,15 @@
   /** Обработать ввод: показать/скрыть попап автокомплита при наборе /команды */
   function handleSlashAutocomplete() {
     const text = messageInput.value;
-    // Показываем только если строка целиком — /имя без пробелов (ввод имени команды)
-    if (!/^\/[^\s]*$/.test(text)) {
+    // Триггеры: / — слэш-команды и скилы, @ — оркестратор
+    const match = text.match(/^([/@])([^\s]*)$/);
+    if (!match) {
       hideSlashPopup();
       return;
     }
-    const query = text.slice(1).toLowerCase();
-    slashFiltered = slashItems.filter((item) => item.name.toLowerCase().startsWith(query));
+    const prefix = match[1];
+    const query = match[2].toLowerCase();
+    slashFiltered = slashItems.filter((item) => item.prefix === prefix && item.name.toLowerCase().startsWith(query));
     if (slashFiltered.length > 0) {
       slashActiveIndex = 0;
       renderSlashPopup();
@@ -849,7 +865,7 @@
       el.className = 'slash-item' + (i === slashActiveIndex ? ' active' : '');
       const name = document.createElement('span');
       name.className = 'slash-name';
-      name.textContent = '/' + item.name;
+      name.textContent = item.prefix + item.name;
       const desc = document.createElement('span');
       desc.className = 'slash-desc';
       desc.textContent = item.description || '';
@@ -877,7 +893,7 @@
 
   /** Выбрать команду — подставить в поле ввода */
   function selectSlashItem(item) {
-    messageInput.value = '/' + item.name + ' ';
+    messageInput.value = item.prefix + item.name + ' ';
     hideSlashPopup();
     messageInput.focus();
   }

@@ -744,15 +744,16 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     for (const [name, cfg] of Object.entries(providersConfig)) providers[name] = { models: cfg.models ?? [] };
     this.postMessage({ type: 'providerList', providers, defaultProvider: config.get<string>('defaultProvider') ?? '' });
   }
-  /** Отправить в WebView список слэш-команд для автокомплита (встроенные + скилы) */
+  /** Отправить в WebView список команд для автокомплита (слэш + @orchestrate) */
   private sendSlashCommandsToWebview(): void {
     if (!this.view) return;
     const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-    const builtin = SLASH_COMMANDS.map((c) => ({ name: c.name, description: c.description, kind: 'builtin' as const }));
+    const builtin = SLASH_COMMANDS.map((c) => ({ name: c.name, description: c.description, kind: 'builtin' as const, prefix: '/' as const }));
     const skills = workspacePath
-      ? getSkillCatalog(workspacePath).map((s) => ({ name: s.name, description: s.description, kind: 'skill' as const }))
+      ? getSkillCatalog(workspacePath).map((s) => ({ name: s.name, description: s.description, kind: 'skill' as const, prefix: '/' as const }))
       : [];
-    this.postMessage({ type: 'slashCommands', items: [...builtin, ...skills] });
+    const orchestrate = [{ name: 'orchestrate', description: 'Оркестратор — цепочка воркеров', kind: 'builtin' as const, prefix: '@' as const }];
+    this.postMessage({ type: 'slashCommands', items: [...builtin, ...skills, ...orchestrate] });
   }
   private postMessage(m: any): void { if (this.view) this.view.webview.postMessage(m); }
 
