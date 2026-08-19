@@ -362,48 +362,89 @@
     return el;
   }
 
-  /** Сырой текст текущего стрима (для избежания разрывов markdown) */
+  /** Сырой текст финального ответа (для избежания разрывов markdown) */
   let streamingRawText = '';
 
-  /** Ход выполнения агента (tool calls/результаты) — показывается во время работы, скрывается по завершении */
-  let streamingActivity = '';
+  /** DOM-элементы для структурированного хода выполнения агента */
+  let streamingActivityEl = null;   // <div class="agent-activity">
+  let streamingAnswerEl = null;     // <div class="streaming-answer">
+  let currentActivityStep = null;   // текущий <details> шаг
 
-  /** Показать текущее состояние: активность агента + текст ответа */
-  function renderStreamingState() {
-    const parts = [];
-    if (streamingActivity) parts.push(streamingActivity);
-    if (streamingRawText) parts.push(streamingRawText);
-    lastAssistantContentEl.textContent = parts.join('\n') + '▊';
+  /** Создать (при необходимости) контейнеры активности и ответа */
+  function ensureStreamingEls() {
+    if (!lastAssistantContentEl) {
+      hideRetryStatus();
+      addMessage('assistant', '', true);
+      if (!lastAssistantContentEl) return false;
+    }
+    if (!streamingActivityEl) {
+      streamingActivityEl = document.createElement('div');
+      streamingActivityEl.className = 'agent-activity';
+      lastAssistantContentEl.appendChild(streamingActivityEl);
+    }
+    if (!streamingAnswerEl) {
+      streamingAnswerEl = document.createElement('div');
+      streamingAnswerEl.className = 'streaming-answer';
+      lastAssistantContentEl.appendChild(streamingAnswerEl);
+    }
+    return true;
+  }
+
+  /** Новый шаг: заголовок «🔧 toolName» (сворачиваемый details) */
+  function appendActivityStep(toolName) {
+    if (!ensureStreamingEls()) return;
+    const step = document.createElement('details');
+    step.className = 'activity-step';
+    const summary = document.createElement('summary');
+    summary.className = 'activity-step-summary';
+    summary.innerHTML = `<span class="activity-icon">🔧</span><span class="activity-tool">${escapeHtml(toolName)}</span><span class="activity-status">…</span>`;
+    step.appendChild(summary);
+    const body = document.createElement('div');
+    body.className = 'activity-step-body';
+    step.appendChild(body);
+    streamingActivityEl.appendChild(step);
+    currentActivityStep = step;
     scrollToBottom();
   }
 
-  /**
-   * Добавить токен (чанк) к текущему стриминг-сообщению.
-   */
-  function appendStreamChunk(chunk) {
-    // Первый чанк — ретраи закончились, сбрасываем индикатор
-    if (!lastAssistantContentEl) {
-      hideRetryStatus();
-    }
-    if (!lastAssistantContentEl) {
-      addMessage('assistant', '', true);
-      if (!lastAssistantContentEl) return;
-    }
+  /** Заполнить результат текущего шага (сворачиваемое тело) */
+  function appendActivityResult(text) {
+    if (!currentActivityStep) return;
+    const body = currentActivityStep.querySelector('.activity-step-body');
+    const status = currentActivityStep.querySelector('.activity-status');
+    if (body) body.textContent = text || '';
+    if (status) status.textContent = '✓';
+    // Короткий результат раскрываем сразу, длинный — оставляем свёрнутым
+    if (text && text.length < 200) currentActivityStep.open = true;
+    scrollToBottom();
+  }
 
-    streamingRawText += chunk;
-    renderStreamingState();
+  /** Заметка (например, запрос подтверждения) */
+  function appendActivityNote(text) {
+    if (!ensureStreamingEls()) return;
+    const note = document.createElement('div');
+    note.className = 'activity-note';
+    note.textContent = text;
+    streamingActivityEl.appendChild(note);
+    scrollToBottom();
+  }
+
+  /** Обработчик структурированного хода выполнения */
+  function handleToolActivity(activity) {
+    if (!activity) return;
+    if (activity.kind === 'start') appendActivityStep(activity.toolName);
+    else if (activity.kind === 'result') appendActivityResult(activity.text);
+    else if (activity.kind === 'note') appendActivityNote(activity.text);
   }
 
   /**
-   * Добавить чанк хода выполнения (tool calls) — отдельный буфер, не попадает в финальный ответ.
+   * Добавить токен (чанк) финального ответа.
    */
-  function appendToolActivity(chunk) {
-    if (!lastAssistantContentEl) {
-      addMessage('assistant', '', true);
-      if (!lastAssistantContentEl) return;
-    }
-    streamingActivity += chunk;
-    renderStreamingState();
+  function appendStreamChunk(chunk) {
+    if (!ensureStreamingEls()) return;
+    streamingRawText += chunk;
+    streamingAnswerEl.textContent = streamingRawText + '▊';
+    scrollToBottom();
   }
 
   /**
@@ -424,7 +465,9 @@
     lastAssistantMessageEl = null;
     lastAssistantContentEl = null;
     streamingRawText = '';
-    streamingActivity = '';
+    streamingActivityEl = null;
+    streamingAnswerEl = null;
+    currentActivityStep = null;
 
     streamingIndicator.classList.add('hidden');
     sendButton.disabled = false;
@@ -536,8 +579,8 @@
         break;
 
       case 'toolActivity':
-        // Ход выполнения (tool calls) — показывается во время работы, скрывается по завершении
-        appendToolActivity(message.text);
+        // Ход выполнения (tool calls) — структурированные шаги
+        handleToolActivity(message.activity);
         break;
 
       case 'done':

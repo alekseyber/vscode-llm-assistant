@@ -398,7 +398,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         onConfirm: async (toolName, args) => {
           this.debugChannel.appendLine(`[DEBUG] onConfirm: toolName=${toolName}, requires=${isConfirmationRequired(toolName, allowListConfig)}`);
           if (isConfirmationRequired(toolName, allowListConfig)) {
-            this.postMessage({ type: 'toolActivity', text: `\n⚠️ **${toolName}** требует подтверждения...\n` });
+            this.postMessage({ type: 'toolActivity', activity: { kind: 'note', text: `⚠️ ${toolName} требует подтверждения` } });
             const approved = await this.requestConfirmation(toolName, args);
             this.debugChannel.appendLine(`[DEBUG] onConfirm: toolName=${toolName}, approved=${approved}`);
             return approved;
@@ -408,10 +408,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         onStep: (step) => {
           switch (step.type) {
             case 'tool_call':
-              this.postMessage({ type: 'toolActivity', text: `\n🔧 **${step.toolName}**\n` });
+              this.postMessage({ type: 'toolActivity', activity: { kind: 'start', toolName: step.toolName } });
               break;
             case 'tool_result':
-              this.postMessage({ type: 'toolActivity', text: (step.toolResult || step.message) + '\n' });
+              this.postMessage({ type: 'toolActivity', activity: { kind: 'result', toolName: step.toolName, text: step.toolResult || step.message } });
               break;
           }
         },
