@@ -208,7 +208,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         // Команды записи (/doc, /test) в агентном режиме: принуждаем вызвать write_file,
         // а не выводить текст (DeepSeek склонен отвечать текстом вместо function calling).
         if (isAgentMode && slashWrites) {
-          prompt += '\n\n⚠️ ВАЖНО: ты в агентном режиме. НЕ выводи результат текстом — вызови write_file/replace_in_file СЕЙЧАС и запиши изменения в файл.';
+          // Убираем инструкцию «в chat-режиме выведи текст» — она сбивает модель с толку
+          prompt = prompt.replace(/[^\n]*В chat-режиме[^\n]*(\n|$)/g, '');
+          prompt += '\n\n⚠️ ВАЖНО: ты в АГЕНТНОМ режиме (у тебя есть инструмент write_file). Инструкция «в chat-режиме выведи текст» к тебе НЕ относится — ИГНОРИРУЙ её. ЗАПИШИ результат в файл через write_file/replace_in_file. Вызови write_file СЕЙЧАС, НЕ выводи текст!';
+          this.debugChannel.appendLine(`[DEBUG] write-директива добавлена (mode=${mode}, writes=${slashWrites})`);
         }
         messages.splice(1, 0, { role: 'system', content: prompt });
         this.debugChannel.appendLine(`[DEBUG] Инжект слэш-команды: ${slashPrompt.slice(0, 80)}...`);
@@ -392,9 +395,12 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         extraTools: mcpTools,
         enableSummary: true,
         onConfirm: async (toolName, args) => {
+          this.debugChannel.appendLine(`[DEBUG] onConfirm: toolName=${toolName}, requires=${isConfirmationRequired(toolName, allowListConfig)}`);
           if (isConfirmationRequired(toolName, allowListConfig)) {
             this.postMessage({ type: 'streamChunk', text: `\n⚠️ **${toolName}** требует подтверждения...\n` });
-            return this.requestConfirmation(toolName, args);
+            const approved = await this.requestConfirmation(toolName, args);
+            this.debugChannel.appendLine(`[DEBUG] onConfirm: toolName=${toolName}, approved=${approved}`);
+            return approved;
           }
           return true;
         },
@@ -653,15 +659,6 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         oldStr: args.old_str || '',
         newStr: args.new_str || '',
       });
-
-      const handler = (message: any) => {
-        if (message.type === 'confirmResponse' && message.requestId === requestId) {
-          this.view?.webview.onDidReceiveMessage((m) => {
-            if (m === message) return; // уже обработали
-          });
-          resolve(message.approved === true);
-        }
-      };
 
       // Временно подписываемся на ответ
       const disposable = this.view?.webview.onDidReceiveMessage((m: any) => {
