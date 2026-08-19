@@ -420,10 +420,20 @@
 
   /**
    * Извлечь текст из HTML, удаляя теги.
+   * <br> конвертируются в переносы строк (textContent не даёт переносов для <br>),
+   * <pre> блоки кода оборачиваются в ```-фенсы, чтобы сохранить форматирование.
    */
   function extractTextFromHtml(html) {
     const div = document.createElement('div');
     div.innerHTML = html;
+    // <br> → \n (иначе tool-результаты read_file слипаются в одну строку)
+    div.querySelectorAll('br').forEach(br => br.replaceWith('\n'));
+    // <pre> → ```-фенсы (код читаемо в экспорте)
+    div.querySelectorAll('pre').forEach(pre => {
+      const lang = pre.querySelector('code')?.className?.match(/language-(\w+)/)?.[1] || '';
+      const code = pre.querySelector('code')?.textContent || '';
+      pre.replaceWith(`\n\`\`\`${lang}\n${code}\n\`\`\`\n`);
+    });
     return div.textContent || '';
   }
 
