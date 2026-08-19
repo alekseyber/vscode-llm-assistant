@@ -21,6 +21,7 @@ since: 0.9.0
 | `description` | `string` | Краткое описание назначения |
 | `defaultTask` | `string` | Задача по умолчанию (если аргумент пуст) |
 | `promptTemplate` | `string` | Директивный system-промпт |
+| `writes` | `boolean` | Команда записывает изменения в файл в агентном режиме (`/doc`, `/test` = true) |
 
 ### `interface SlashParseResult`
 
@@ -85,6 +86,7 @@ since: 0.9.0
 - SL-5: `promptTemplate` содержит заголовок «Слэш-команда /<имя>»
 - SL-5: `promptTemplate` НЕ содержит `⚠️` (не удаляется очисткой инжекта AgentWorker)
 - READ_CODE_ONLY: `promptTemplate` каждой команды содержит «читай ТОЛЬКО файл с кодом» и `.llma/skills/`
+- `writes`: `/doc` и `/test` имеют `writes: true`, остальные — `false`
 
 ## Связи
 
@@ -97,3 +99,4 @@ since: 0.9.0
 |--------|------|-----------|
 | 0.9.0 | 2026-08-18 | Первичная реализация: 6 слэш-команд (/explain, /explain_stepbystep, /doc, /test, /review, /improve), парсер, инжект в ChatViewProvider |
 | 0.9.0 | 2026-08-19 | Директива READ_CODE_ONLY: код-действия читают только файл кода, не скилы/роли |
+| 0.10.0 | 2026-08-19 | Поле `writes`: /doc и /test помечены как записывающие (инжект ⚠️-директивы в agent-режиме) |

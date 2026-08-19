@@ -83,6 +83,7 @@ since: 0.1.0
 - **debugChannel:** `vscode.window.createOutputChannel('LLM Assistant')`
 - **Инжект ask_user:** перед agent-режимом, если текст содержит триггер-слова (`спроси`, `уточни`, ...), в `messages` на позицию 1 вставляется system-сообщение с `⚠️`, принуждающее модель вызвать инструмент. AgentWorker удаляет этот инжект после выполнения `ask_user` (см. AgentWorker#Очистка инжекта). При следующем `handleSendMessage` инжект создаётся заново.
 - **Слэш-команды:** `parseSlashCommand()` разбирает префикс `/<имя> [аргумент]`. Сначала `loadSkillMd()` (обратная совместимость `/skill`), затем `getSlashCommand()`. Промпт слэш-команды НЕ содержит `⚠️` — иначе AgentWorker удалит его при очистке инжекта (MA-1.11). Инжект на позицию 1, `text` = аргумент или `defaultTask`.
+- **Принудительная запись (`writes: true`):** для `/doc` и `/test` в agent-режиме к промпту добавляется `⚠️`-директива «вызови write_file/replace_in_file СЕЙЧАС» — иначе DeepSeek отвечает текстом вместо function calling. Директива удаляется очисткой AgentWorker после первого вызова тула (штатно).
 - **Автокомплит команд:** при `ready` (инициализация WebView) отправляет `{ type: 'slashCommands', items: [{name, description, kind, prefix}] }` — встроенные слэш-команды (`SLASH_COMMANDS`, `prefix: '/'`), скилы (`getSkillCatalog()`, `prefix: '/'`) и `@orchestrate` (`prefix: '@'`). WebView показывает попап автокомплита при вводе `/` или `@`.
 
 

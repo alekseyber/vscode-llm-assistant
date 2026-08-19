@@ -130,6 +130,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     // --- /skill и слэш-команды код-действий (Агент и Чат, кроме Plan Mode) ---
     let skillContent: string | null = null;
     let slashPrompt: string | null = null;
+    let slashWrites = false;
     const slashMatch = parseSlashCommand(text);
     if (slashMatch && !planMode) {
       // 1) Скил по имени (.llma/skills/{name}.md) — обратная совместимость /skill
@@ -142,6 +143,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         const command = getSlashCommand(slashMatch.name);
         if (command) {
           slashPrompt = command.promptTemplate;
+          slashWrites = command.writes;
           text = slashMatch.argument || command.defaultTask;
         }
       }
@@ -202,7 +204,13 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       // ── Инжект слэш-команды: /explain, /doc, /test, /review, /improve ──
       // Промпт НЕ содержит ⚠️, чтобы AgentWorker не удалил его при очистке инжекта (MA-1.11).
       if (slashPrompt) {
-        messages.splice(1, 0, { role: 'system', content: slashPrompt });
+        let prompt = slashPrompt;
+        // Команды записи (/doc, /test) в агентном режиме: принуждаем вызвать write_file,
+        // а не выводить текст (DeepSeek склонен отвечать текстом вместо function calling).
+        if (isAgentMode && slashWrites) {
+          prompt += '\n\n⚠️ ВАЖНО: ты в агентном режиме. НЕ выводи результат текстом — вызови write_file/replace_in_file СЕЙЧАС и запиши изменения в файл.';
+        }
+        messages.splice(1, 0, { role: 'system', content: prompt });
         this.debugChannel.appendLine(`[DEBUG] Инжект слэш-команды: ${slashPrompt.slice(0, 80)}...`);
       }
 

@@ -94,4 +94,16 @@ suite('SlashCommands', () => {
       );
     }
   });
+
+  test('SL-6: флаг writes — /doc и /test записывают файл, остальные нет', () => {
+    const writing = SLASH_COMMANDS.filter((c) => c.writes).map((c) => c.name);
+    assert.deepStrictEqual(writing, ['doc', 'test']);
+    for (const cmd of SLASH_COMMANDS) {
+      if (cmd.name === 'doc' || cmd.name === 'test') {
+        assert.strictEqual(cmd.writes, true, `/${cmd.name} должен иметь writes=true`);
+      } else {
+        assert.strictEqual(cmd.writes, false, `/${cmd.name} должен иметь writes=false`);
+      }
+    }
+  });
 });

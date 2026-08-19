@@ -13,6 +13,8 @@ export interface SlashCommand {
   defaultTask: string;
   /** Директивный system-промпт, инжектируется в messages на позицию 1 */
   promptTemplate: string;
+  /** Команда записывает изменения в файл в агентном режиме (для /doc, /test) */
+  writes: boolean;
 }
 
 /** Результат парсинга префикса слэш-команды */
@@ -32,6 +34,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
   {
     name: 'explain',
     description: 'Объяснить выделенный код простыми словами',
+    writes: false,
     defaultTask: 'Объясни выделенный код простыми словами',
     promptTemplate: [
       '## Слэш-команда /explain (обязательно к выполнению)',
@@ -47,6 +50,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
   {
     name: 'explain_stepbystep',
     description: 'Пошаговый разбор логики выделенного кода',
+    writes: false,
     defaultTask: 'Разбери выделенный код пошагово',
     promptTemplate: [
       '## Слэш-команда /explain_stepbystep (обязательно к выполнению)',
@@ -62,6 +66,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
   {
     name: 'doc',
     description: 'Сгенерировать JSDoc/TSDoc-документацию для выделенного кода',
+    writes: true,
     defaultTask: 'Сгенерируй JSDoc/TSDoc-документацию для выделенного кода',
     promptTemplate: [
       '## Слэш-команда /doc (обязательно к выполнению)',
@@ -77,6 +82,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
   {
     name: 'test',
     description: 'Написать юнит-тесты для выделенной функции/кода',
+    writes: true,
     defaultTask: 'Напиши юнит-тесты для выделенного кода',
     promptTemplate: [
       '## Слэш-команда /test (обязательно к выполнению)',
@@ -92,6 +98,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
   {
     name: 'review',
     description: 'Код-ревью: стиль, уязвимости, оптимизация',
+    writes: false,
     defaultTask: 'Проведи код-ревью выделенного кода',
     promptTemplate: [
       '## Слэш-команда /review (обязательно к выполнению)',
@@ -108,6 +115,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
   {
     name: 'improve',
     description: 'Предложить улучшения/рефакторинг',
+    writes: false,
     defaultTask: 'Предложи улучшения и рефакторинг выделенного кода',
     promptTemplate: [
       '## Слэш-команда /improve (обязательно к выполнению)',
