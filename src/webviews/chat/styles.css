@@ -346,6 +346,14 @@ body {
   tab-size: 2;
 }
 
+/* Синтаксическая подсветка кода (спаны генерирует highlightCode в main.js) */
+.message-content pre code .hljs-keyword { color: #569cd6; }
+.message-content pre code .hljs-string  { color: #ce9178; }
+.message-content pre code .hljs-number  { color: #b5cea8; }
+.message-content pre code .hljs-comment { color: #6a9955; font-style: italic; }
+.message-content pre code .hljs-type    { color: #4ec9b0; }
+.message-content pre code .hljs-attr    { color: #9cdcfe; }
+
 .message-content pre::-webkit-scrollbar {
   height: 6px;
 }
