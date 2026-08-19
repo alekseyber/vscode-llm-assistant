@@ -7,7 +7,7 @@ import { ProviderManager } from '../../providers/manager';
 import { ConversationManager } from './ConversationManager';
 import { ChatMessage, calculateCost } from '../../providers/types';
 import { loadAgentsMd } from '../../shared/AgentsMdLoader';
-import { loadRoleAgentsMd, loadOrchestratorRoles, loadAllAgentRoles, getSkillTemplate, loadSkillMd } from '../../shared/RoleAgentsMdLoader';
+import { loadRoleAgentsMd, loadOrchestratorRoles, loadAllAgentRoles, getSkillTemplate, loadSkillMd, getSkillCatalog } from '../../shared/RoleAgentsMdLoader';
 import { loadToolAllowListConfig, isConfirmationRequired } from '../apply/ToolAllowList';
 import { McpClient, loadMcpConfig } from '../apply/McpClient';
 import { AgentWorker, AgentRole } from '../apply/AgentWorker';
@@ -17,7 +17,7 @@ import { HistoryViewProvider } from '../history/HistoryViewProvider';
 import { OrchestratorViewProvider, OrchestratorTaskInfo, WorkerInfo } from '../orchestrator/OrchestratorViewProvider';
 import { setDelegateHandler } from './ChatAgentTools';
 import { PlanModeManager } from './PlanModeManager';
-import { parseSlashCommand, getSlashCommand } from './SlashCommands';
+import { parseSlashCommand, getSlashCommand, SLASH_COMMANDS } from './SlashCommands';
 
 export class ChatViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = 'llmAssistant.chat';
@@ -75,7 +75,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         break;
       case 'cancelRequest': this.handleCancelRequest(); break;
       case 'clearHistory': this.conversationManager.clearHistory(); this.sendSessionListToWebview(); break;
-      case 'ready': this.sendHistoryToWebview(); this.sendSessionListToWebview(); this.sendProviderListToWebview(); break;
+      case 'ready': this.sendHistoryToWebview(); this.sendSessionListToWebview(); this.sendProviderListToWebview(); this.sendSlashCommandsToWebview(); break;
       case 'newSession': this.conversationManager.session.createSession(); this.sendHistoryToWebview(); this.sendSessionListToWebview(); break;
       case 'switchSession':
         if (message.sessionId) { this.conversationManager.session.switchTo(message.sessionId); this.sendHistoryToWebview(); this.sendSessionListToWebview(); }
@@ -743,6 +743,16 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     const providers: Record<string, { models: string[] }> = {};
     for (const [name, cfg] of Object.entries(providersConfig)) providers[name] = { models: cfg.models ?? [] };
     this.postMessage({ type: 'providerList', providers, defaultProvider: config.get<string>('defaultProvider') ?? '' });
+  }
+  /** Отправить в WebView список слэш-команд для автокомплита (встроенные + скилы) */
+  private sendSlashCommandsToWebview(): void {
+    if (!this.view) return;
+    const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    const builtin = SLASH_COMMANDS.map((c) => ({ name: c.name, description: c.description, kind: 'builtin' as const }));
+    const skills = workspacePath
+      ? getSkillCatalog(workspacePath).map((s) => ({ name: s.name, description: s.description, kind: 'skill' as const }))
+      : [];
+    this.postMessage({ type: 'slashCommands', items: [...builtin, ...skills] });
   }
   private postMessage(m: any): void { if (this.view) this.view.webview.postMessage(m); }
 

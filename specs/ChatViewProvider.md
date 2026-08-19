@@ -83,6 +83,7 @@ since: 0.1.0
 - **debugChannel:** `vscode.window.createOutputChannel('LLM Assistant')`
 - **Инжект ask_user:** перед agent-режимом, если текст содержит триггер-слова (`спроси`, `уточни`, ...), в `messages` на позицию 1 вставляется system-сообщение с `⚠️`, принуждающее модель вызвать инструмент. AgentWorker удаляет этот инжект после выполнения `ask_user` (см. AgentWorker#Очистка инжекта). При следующем `handleSendMessage` инжект создаётся заново.
 - **Слэш-команды:** `parseSlashCommand()` разбирает префикс `/<имя> [аргумент]`. Сначала `loadSkillMd()` (обратная совместимость `/skill`), затем `getSlashCommand()`. Промпт слэш-команды НЕ содержит `⚠️` — иначе AgentWorker удалит его при очистке инжекта (MA-1.11). Инжект на позицию 1, `text` = аргумент или `defaultTask`.
+- **Автокомплит слэш-команд:** при `ready` (инициализация WebView) отправляет `{ type: 'slashCommands', items: [{name, description, kind}] }` — встроенные (`SLASH_COMMANDS`, `kind: 'builtin'`) + скилы (`getSkillCatalog()`, `kind: 'skill'`). WebView показывает попап автокомплита при вводе `/`.
 
 
 ## Тесты
@@ -97,6 +98,7 @@ since: 0.1.0
 | Версия | Дата | Изменения |
 |--------|------|-----------|
 | 0.9.0 | 2026-08-18 | Слэш-команды код-действий: /explain, /explain_stepbystep, /doc, /test, /review, /improve (интеграция SlashCommands) |
+| 0.10.0 | 2026-08-19 | Автокомплит слэш-команд: sendSlashCommandsToWebview (встроенные + скилы из getSkillCatalog) |
 | 0.9.0 | 2026-08-11 | Фикс: каталог скилов (getSkillTemplate) в getSystemPrompt() для agent-режима |
 | 0.9.0 | 2026-08-11 | Фикс: Plan Mode сохраняет сообщение пользователя в историю |
 | 0.9.0 | 2026-08-09 | SkillsLoader: инжект скилов в getSystemPrompt() |

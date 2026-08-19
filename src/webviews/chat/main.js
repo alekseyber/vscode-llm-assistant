@@ -529,6 +529,10 @@
         updateProviderList(message.providers, message.defaultProvider);
         break;
 
+      case 'slashCommands':
+        slashItems = message.items || [];
+        break;
+
       case 'confirmAction':
         showConfirmDialog(message);
         break;
@@ -805,8 +809,115 @@
     });
   }
 
-  // Отправка сообщения по Enter (Shift+Enter — новая строка)
+  // ---------- Slash Command Autocomplete ----------
+
+  /** Список доступных слэш-команд (встроенные + скилы), приходит из extension */
+  let slashItems = [];
+
+  /** Отфильтрованный список для текущего ввода */
+  let slashFiltered = [];
+
+  /** Индекс активного элемента */
+  let slashActiveIndex = 0;
+
+  const slashPopup = document.getElementById('slash-autocomplete');
+
+  /** Обработать ввод: показать/скрыть попап автокомплита при наборе /команды */
+  function handleSlashAutocomplete() {
+    const text = messageInput.value;
+    // Показываем только если строка целиком — /имя без пробелов (ввод имени команды)
+    if (!/^\/[^\s]*$/.test(text)) {
+      hideSlashPopup();
+      return;
+    }
+    const query = text.slice(1).toLowerCase();
+    slashFiltered = slashItems.filter((item) => item.name.toLowerCase().startsWith(query));
+    if (slashFiltered.length > 0) {
+      slashActiveIndex = 0;
+      renderSlashPopup();
+    } else {
+      hideSlashPopup();
+    }
+  }
+
+  /** Отрисовать попап автокомплита */
+  function renderSlashPopup() {
+    if (!slashPopup) return;
+    slashPopup.innerHTML = '';
+    slashFiltered.forEach((item, i) => {
+      const el = document.createElement('div');
+      el.className = 'slash-item' + (i === slashActiveIndex ? ' active' : '');
+      const name = document.createElement('span');
+      name.className = 'slash-name';
+      name.textContent = '/' + item.name;
+      const desc = document.createElement('span');
+      desc.className = 'slash-desc';
+      desc.textContent = item.description || '';
+      el.appendChild(name);
+      el.appendChild(desc);
+      if (item.kind === 'skill') {
+        const kind = document.createElement('span');
+        kind.className = 'slash-kind';
+        kind.textContent = 'скил';
+        el.appendChild(kind);
+      }
+      el.addEventListener('mousedown', (e) => { e.preventDefault(); selectSlashItem(item); });
+      el.addEventListener('mousemove', () => { if (slashActiveIndex !== i) { slashActiveIndex = i; renderSlashPopup(); } });
+      slashPopup.appendChild(el);
+    });
+    // Позиционируем попап над textarea (учитываем динамическую высоту поля ввода)
+    const inputContainer = document.getElementById('input-container');
+    if (inputContainer) {
+      const textRect = messageInput.getBoundingClientRect();
+      const containerRect = inputContainer.getBoundingClientRect();
+      slashPopup.style.bottom = (containerRect.bottom - textRect.top + 4) + 'px';
+    }
+    slashPopup.classList.remove('hidden');
+  }
+
+  /** Выбрать команду — подставить в поле ввода */
+  function selectSlashItem(item) {
+    messageInput.value = '/' + item.name + ' ';
+    hideSlashPopup();
+    messageInput.focus();
+  }
+
+  /** Скрыть попап автокомплита */
+  function hideSlashPopup() {
+    if (slashPopup) slashPopup.classList.add('hidden');
+    slashFiltered = [];
+    slashActiveIndex = 0;
+  }
+
+  messageInput.addEventListener('input', handleSlashAutocomplete);
+
+  // Отправка сообщения по Enter (Shift+Enter — новая строка).
+  // При открытом автокомплите: Enter/Tab выбирает, ↑/↓ — навигация, Esc — закрыть.
   messageInput.addEventListener('keydown', (e) => {
+    if (slashPopup && !slashPopup.classList.contains('hidden')) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        slashActiveIndex = (slashActiveIndex + 1) % slashFiltered.length;
+        renderSlashPopup();
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        slashActiveIndex = (slashActiveIndex - 1 + slashFiltered.length) % slashFiltered.length;
+        renderSlashPopup();
+        return;
+      }
+      if ((e.key === 'Enter' && !e.shiftKey) || e.key === 'Tab') {
+        e.preventDefault();
+        if (slashFiltered[slashActiveIndex]) selectSlashItem(slashFiltered[slashActiveIndex]);
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        hideSlashPopup();
+        return;
+      }
+    }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       sendUserMessage();
