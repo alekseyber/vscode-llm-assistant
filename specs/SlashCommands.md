@@ -7,7 +7,9 @@ since: 0.9.0
 
 ## Назначение
 
-Встроенные слэш-команды код-действий в чате (`/explain`, `/explain_stepbystep`, `/doc`, `/test`, `/review`, `/improve`). Каждая команда инжектирует директивный system-промпт в контекст, задающий модель поведения. Работает в режимах chat + agent, НЕ в Plan Mode.
+Встроенные слэш-команды код-действий в чате (`/explain`, `/explain_stepbystep`, `/doc`, `/test`, `/review`, `/improve`). Каждая команда инжектирует директивный system-промпт в контекст, задающий модель поведение. Работает в режимах chat + agent, НЕ в Plan Mode.
+
+Все команды включают общую директиву `READ_CODE_ONLY` — читать только файл с кодом (авто-контекст/workspace), НЕ скилы (`.llma/skills/`) и роли (`.llma/agents/`). Директива не содержит `⚠️`, поэтому не удаляется очисткой инжекта AgentWorker (MA-1.11).
 
 ## Интерфейс
 
@@ -30,6 +32,10 @@ since: 0.9.0
 ### `const SLASH_COMMANDS: SlashCommand[]`
 
 Массив из 6 встроенных команд.
+
+### `const READ_CODE_ONLY: string` (внутренняя)
+
+Общая директива, добавляемая в `promptTemplate` каждой команды. Запрещает агенту читать скилы/роли при код-действиях.
 
 ### `parseSlashCommand(text: string) → SlashParseResult | null`
 
@@ -66,7 +72,7 @@ since: 0.9.0
 | SL-8 | `@orchestrate` не затронут изменениями | ✅ |
 | SL-9 | Все юнит-тесты зелёные, tsc тестов без ошибок, lint 0 ошибок | ✅ |
 
-## Тесты (slashCommands.test.ts, 10 тестов)
+## Тесты (slashCommands.test.ts, 11 тестов)
 
 - SL-2.1: `parseSlashCommand('/explain')` → `{name:'explain', argument:''}`
 - SL-2.2: `parseSlashCommand('/doc функция main')` → `{name:'doc', argument:'функция main'}`
@@ -78,6 +84,7 @@ since: 0.9.0
 - SL-4: все 6 имён резолвятся через `getSlashCommand()`
 - SL-5: `promptTemplate` содержит заголовок «Слэш-команда /<имя>»
 - SL-5: `promptTemplate` НЕ содержит `⚠️` (не удаляется очисткой инжекта AgentWorker)
+- READ_CODE_ONLY: `promptTemplate` каждой команды содержит «читай ТОЛЬКО файл с кодом» и `.llma/skills/`
 
 ## Связи
 
@@ -89,3 +96,4 @@ since: 0.9.0
 | Версия | Дата | Изменения |
 |--------|------|-----------|
 | 0.9.0 | 2026-08-18 | Первичная реализация: 6 слэш-команд (/explain, /explain_stepbystep, /doc, /test, /review, /improve), парсер, инжект в ChatViewProvider |
+| 0.9.0 | 2026-08-19 | Директива READ_CODE_ONLY: код-действия читают только файл кода, не скилы/роли |

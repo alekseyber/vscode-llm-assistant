@@ -81,4 +81,17 @@ suite('SlashCommands', () => {
       );
     }
   });
+
+  test('Директива READ_CODE_ONLY: читай только файл кода, не скилы', () => {
+    for (const cmd of SLASH_COMMANDS) {
+      assert.ok(
+        cmd.promptTemplate.includes('читай ТОЛЬКО файл с кодом'),
+        `директива «читай только файл кода» у /${cmd.name}`,
+      );
+      assert.ok(
+        cmd.promptTemplate.includes('.llma/skills/'),
+        `упоминание .llma/skills/ у /${cmd.name}`,
+      );
+    }
+  });
 });
