@@ -74,6 +74,20 @@ suite('RunHistoryStore', () => {
     assert.strictEqual(runs[0].task, entry.task);
   });
 
+  test('recordRun() сохраняет sessionId (для перехода к сессии по двойному клику)', () => {
+    store.recordRun(makeEntry({ sessionId: 'session_abc123' }));
+
+    const runs = store.getRuns();
+    assert.strictEqual(runs[0].sessionId, 'session_abc123');
+  });
+
+  test('recordRun() без sessionId — поле отсутствует', () => {
+    store.recordRun(makeEntry());
+
+    const runs = store.getRuns();
+    assert.strictEqual(runs[0].sessionId, undefined);
+  });
+
   test('новые записи добавляются в начало (сортировка от новых к старым)', () => {
     store.recordRun(makeEntry({ id: 'run-1', timestamp: 1000 }));
     store.recordRun(makeEntry({ id: 'run-2', timestamp: 2000 }));

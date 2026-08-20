@@ -16,6 +16,9 @@ export class HistoryViewProvider implements vscode.WebviewViewProvider {
   private view?: vscode.WebviewView;
   private readonly store: RunHistoryStore;
 
+  /** Колбэк перехода к сессии чата (двойной клик по строке истории) */
+  onOpenSession?: (sessionId: string) => void;
+
   constructor(store: RunHistoryStore) {
     this.store = store;
   }
@@ -69,6 +72,13 @@ export class HistoryViewProvider implements vscode.WebviewViewProvider {
           if (entry) {
             this.postMessage({ type: 'runDetails', entry });
           }
+        }
+        break;
+
+      case 'openSession':
+        // Двойной клик по строке — переходим в чат этой сессии
+        if (message.sessionId) {
+          this.onOpenSession?.(message.sessionId);
         }
         break;
     }
@@ -323,6 +333,9 @@ export class HistoryViewProvider implements vscode.WebviewViewProvider {
           filtered.forEach(function(run) {
             var tr = document.createElement('tr');
             tr.addEventListener('click', function() { showDetails(run.id); });
+            tr.addEventListener('dblclick', function() {
+              if (run.sessionId) post({ type: 'openSession', sessionId: run.sessionId });
+            });
 
             var date = new Date(run.timestamp).toLocaleString('ru-RU', {
               month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'

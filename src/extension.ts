@@ -72,6 +72,12 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.window.registerWebviewViewProvider(ChatViewProvider.viewType, chatViewProvider)
     );
 
+    // Двойной клик по строке «Истории» → переключиться в соответствующую сессию чата
+    historyViewProvider.onOpenSession = (sessionId: string) => {
+        chatViewProvider.switchToSession(sessionId);
+        vscode.commands.executeCommand('llmAssistant.chat.focus');
+    };
+
     // ── 3. Команды ──
     registerCommands({ context, providerManager, conversationManager, editController, autocompleteController, runHistoryStore, historyViewProvider });
 

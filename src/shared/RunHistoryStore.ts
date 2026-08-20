@@ -34,6 +34,8 @@ export interface RunEntry {
   status: 'success' | 'error' | 'cancelled' | 'limit_exceeded';
   /** Сообщение об ошибке (только если status === 'error') */
   error?: string;
+  /** ID чат-сессии, к которой относится запуск (для перехода по двойному клику) */
+  sessionId?: string;
 }
 
 // --- Константы ---

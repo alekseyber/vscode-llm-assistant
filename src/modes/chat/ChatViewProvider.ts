@@ -27,7 +27,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   private readonly providerManager: ProviderManager;
   private readonly conversationManager: ConversationManager;
   private readonly runHistoryStore: RunHistoryStore;
-  private abortController: AbortController | null = null;
+  /** Контроллеры отмены по сессии — поддержка параллельных процессов */
+  private abortControllers = new Map<string, AbortController>();
   private pendingImage: { fileName: string; base64: string; mimeType: string } | null = null;
   private readonly historyViewProvider?: HistoryViewProvider;
   private readonly orchestratorViewProvider?: OrchestratorViewProvider;
@@ -69,12 +70,12 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   private async handleWebviewMessage(message: any): Promise<void> {
     switch (message.type) {
       case 'sendMessage':
-        await this.handleSendMessage(message.text, message.mode, message.provider, message.model, message.planMode);
+        await this.handleSendMessage(message.text, message.mode, message.provider, message.model, message.planMode, message.sessionId);
         break;
       case 'implementPlan':
-        await this.handleImplementPlan(message.planPath, message.provider, message.model);
+        await this.handleImplementPlan(message.planPath, message.provider, message.model, message.sessionId);
         break;
-      case 'cancelRequest': this.handleCancelRequest(); break;
+      case 'cancelRequest': this.handleCancelRequest(message.sessionId); break;
       case 'clearHistory': this.conversationManager.clearHistory(); this.sendSessionListToWebview(); break;
       case 'ready': this.sendHistoryToWebview(); this.sendSessionListToWebview(); this.sendProviderListToWebview(); this.sendSlashCommandsToWebview(); break;
       case 'newSession': this.conversationManager.session.createSession(); this.sendHistoryToWebview(); this.sendSessionListToWebview(); break;
@@ -109,7 +110,14 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     }
   }
 
-  private async handleSendMessage(text: string, mode = 'chat', providerName?: string, modelName?: string, planMode?: boolean): Promise<void> {
+  /** Переключить активную сессию чата (вызывается из вкладки «История» по двойному клику) */
+  public switchToSession(sessionId: string): void {
+    this.conversationManager.session.switchTo(sessionId);
+    this.sendHistoryToWebview();
+    this.sendSessionListToWebview();
+  }
+
+  private async handleSendMessage(text: string, mode = 'chat', providerName?: string, modelName?: string, planMode?: boolean, sessionId?: string): Promise<void> {
     const config = vscode.workspace.getConfiguration('llmAssistant');
     const isVision = !!this.pendingImage;
     const isAgentMode = mode === 'agent';
@@ -168,9 +176,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       this.conversationManager.addMessage({ role: 'user', content: text });
     }
 
-    this.postMessage({ type: 'userMessage', text });
+    this.postMessage({ type: 'userMessage', text }, sessionId);
 
-    this.abortController = new AbortController();
+    const sid = sessionId || 'default';
+    const abortController = new AbortController();
+    this.abortControllers.set(sid, abortController);
 
     // Колбэк для уведомления WebView о ретраях
     const onRetry = (attempt: number, maxRetries: number, delayMs: number, _errorMsg: string) => {
@@ -180,7 +190,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         maxRetries,
         delayMs,
         text: `Повторная попытка ${attempt}/${maxRetries}...`,
-      });
+      }, sessionId);
     };
 
     let inTokens = 0;
@@ -254,15 +264,15 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         messages.push(userMsg);
         this.pendingImage = null;
 
-        const stream = openaiProvider.chatWithVision(messages, { model, stream: true }, this.abortController.signal, onRetry);
+        const stream = openaiProvider.chatWithVision(messages, { model, stream: true }, abortController.signal, onRetry);
         let full = '';
-        for await (const chunk of stream) { full += chunk; this.postMessage({ type: 'streamChunk', text: chunk }); }
-        this.postMessage({ type: 'done' });
+        for await (const chunk of stream) { full += chunk; this.postMessage({ type: 'streamChunk', text: chunk }, sessionId); }
+        this.postMessage({ type: 'done' }, sessionId);
         // Сохраняем в историю после успешного ответа
         this.conversationManager.addMessage({ role: 'user', content: text });
         this.conversationManager.addMessage({ role: 'assistant', content: full });
         outTokens = Math.ceil(full.length / 4);
-        this.recordChatRun(runId, startTime, text, providerDisplayName, model, 'chat', inTokens, outTokens, 1, 'success');
+        this.recordChatRun(runId, startTime, text, providerDisplayName, model, 'chat', inTokens, outTokens, 1, 'success', sessionId);
         return;
       }
 
@@ -270,7 +280,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
       // ── Plan Mode: ветвление для агента с планом ──
       if (isAgentMode && planMode) {
-        await this.handlePlanMode(text, provider, model);
+        await this.handlePlanMode(text, provider, model, sid);
         return;
       }
 
@@ -278,34 +288,34 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         // Проверяем, поддерживает ли провайдер function calling
         const agentProvider = provider as any;
         if (!agentProvider.createWithTools) {
-          this.postMessage({ type: 'error', text: `⚠️ Провайдер «${providerDisplayName}» не поддерживает режим Агента. Переключите провайдера на SiliconFlow или DeepSeek.` });
+          this.postMessage({ type: 'error', text: `⚠️ Провайдер «${providerDisplayName}» не поддерживает режим Агента. Переключите провайдера на SiliconFlow или DeepSeek.` }, sessionId);
           this.conversationManager.addMessage({ role: 'assistant', content: `⚠️ Провайдер «${providerDisplayName}» не поддерживает режим Агента.` });
-          this.recordChatRun(runId, startTime, text, providerDisplayName, model, 'agent', inTokens, 0, 0, 'error', 'Нет createWithTools');
+          this.recordChatRun(runId, startTime, text, providerDisplayName, model, 'agent', inTokens, 0, 0, 'error', 'Нет createWithTools', sessionId);
           return;
         }
-        await this.runAgentLoop(provider, model, messages, onRetry);
-        this.recordChatRun(runId, startTime, text, providerDisplayName, model, 'agent', inTokens, 0, 1, 'success');
+        await this.runAgentLoop(provider, model, messages, onRetry, sid);
+        this.recordChatRun(runId, startTime, text, providerDisplayName, model, 'agent', inTokens, 0, 1, 'success', sessionId);
       } else {
-        const stream = provider.chat(messages, { model, stream: true }, this.abortController.signal, onRetry);
+        const stream = provider.chat(messages, { model, stream: true }, abortController.signal, onRetry);
         let full = '';
-        for await (const chunk of stream) { full += chunk; this.postMessage({ type: 'streamChunk', text: chunk }); }
-        this.postMessage({ type: 'done' });
+        for await (const chunk of stream) { full += chunk; this.postMessage({ type: 'streamChunk', text: chunk }, sessionId); }
+        this.postMessage({ type: 'done' }, sessionId);
         this.conversationManager.addMessage({ role: 'assistant', content: full });
         this.postTokens(messages, full, model);
         outTokens = Math.ceil(full.length / 4);
-        this.recordChatRun(runId, startTime, text, providerDisplayName, model, 'chat', inTokens, outTokens, 1, 'success');
+        this.recordChatRun(runId, startTime, text, providerDisplayName, model, 'chat', inTokens, outTokens, 1, 'success', sessionId);
       }
     } catch (error: any) {
       const duration = Date.now() - startTime;
       if (error.name === 'AbortError') {
-        this.postMessage({ type: 'cancelled' });
-        this.recordChatRun(runId, startTime, text, providerDisplayName, model, isAgentMode ? 'agent' : 'chat', inTokens, 0, 0, 'cancelled');
+        this.postMessage({ type: 'cancelled' }, sessionId);
+        this.recordChatRun(runId, startTime, text, providerDisplayName, model, isAgentMode ? 'agent' : 'chat', inTokens, 0, 0, 'cancelled', sessionId);
       } else {
-        this.postMessage({ type: 'error', text: `Ошибка: ${error.message}` });
+        this.postMessage({ type: 'error', text: `Ошибка: ${error.message}` }, sessionId);
         console.error('[ChatViewProvider]', error);
-        this.recordChatRun(runId, startTime, text, providerDisplayName, model, isAgentMode ? 'agent' : 'chat', inTokens, 0, 0, 'error', error.message);
+        this.recordChatRun(runId, startTime, text, providerDisplayName, model, isAgentMode ? 'agent' : 'chat', inTokens, 0, 0, 'error', error.message, sessionId);
       }
-    } finally { this.abortController = null; }
+    } finally { this.abortControllers.delete(sid); }
   }
 
   /** Записать запуск чата/агента в историю (слой 07 Product Shell) */
@@ -321,6 +331,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     steps: number,
     status: RunEntry['status'],
     error?: string,
+    sessionId?: string,
   ): void {
     const duration = Date.now() - startTime;
     const cost = calculateCost(model, tokensIn, tokensOut, this.providerManager.pricingMap);
@@ -339,6 +350,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       duration,
       status,
       ...(error ? { error } : {}),
+      ...(sessionId ? { sessionId } : {}),
     };
 
     this.runHistoryStore.recordRun(entry);
@@ -347,7 +359,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
   /** ReAct-цикл с инструментами (только для агентного режима).
    *  Делегирует выполнение AgentWorker — общему движку для чат-агента и оркестратора. */
-  private async runAgentLoop(provider: any, model: string, messages: any[], onRetry?: (attempt: number, maxRetries: number, delayMs: number, errorMsg: string) => void): Promise<void> {
+  private async runAgentLoop(provider: any, model: string, messages: any[], onRetry?: (attempt: number, maxRetries: number, delayMs: number, errorMsg: string) => void, sessionId?: string): Promise<void> {
     const MAX_ITER = 5;
     const allowListConfig = loadToolAllowListConfig();
 
@@ -398,7 +410,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         onConfirm: async (toolName, args) => {
           this.debugChannel.appendLine(`[DEBUG] onConfirm: toolName=${toolName}, requires=${isConfirmationRequired(toolName, allowListConfig)}`);
           if (isConfirmationRequired(toolName, allowListConfig)) {
-            this.postMessage({ type: 'toolActivity', activity: { kind: 'note', text: `⚠️ ${toolName} требует подтверждения` } });
+            this.postMessage({ type: 'toolActivity', activity: { kind: 'note', text: `⚠️ ${toolName} требует подтверждения` } }, sessionId);
             const approved = await this.requestConfirmation(toolName, args);
             this.debugChannel.appendLine(`[DEBUG] onConfirm: toolName=${toolName}, approved=${approved}`);
             return approved;
@@ -408,10 +420,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         onStep: (step) => {
           switch (step.type) {
             case 'tool_call':
-              this.postMessage({ type: 'toolActivity', activity: { kind: 'start', toolName: step.toolName } });
+              this.postMessage({ type: 'toolActivity', activity: { kind: 'start', toolName: step.toolName } }, sessionId);
               break;
             case 'tool_result':
-              this.postMessage({ type: 'toolActivity', activity: { kind: 'result', toolName: step.toolName, text: step.toolResult || step.message } });
+              this.postMessage({ type: 'toolActivity', activity: { kind: 'result', toolName: step.toolName, text: step.toolResult || step.message } }, sessionId);
               break;
           }
         },
@@ -422,42 +434,42 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     const result = await worker.run('', messages);
 
     // Финальный ответ
-    this.postMessage({ type: 'streamChunk', text: result.answer });
-    this.postMessage({ type: 'done' });
+    this.postMessage({ type: 'streamChunk', text: result.answer }, sessionId);
+    this.postMessage({ type: 'done' }, sessionId);
     this.conversationManager.addMessage({ role: 'assistant', content: result.answer });
     this.postTokens(messages, result.answer, model);
   }
 
   /** Plan Mode: генерация плана (Этап 1) */
-  private async handlePlanMode(text: string, provider: any, model: string): Promise<void> {
+  private async handlePlanMode(text: string, provider: any, model: string, sessionId?: string): Promise<void> {
     const workspaceFolders = vscode.workspace.workspaceFolders;
     if (!workspaceFolders || workspaceFolders.length === 0) {
-      this.postMessage({ type: 'error', text: 'Plan Mode требует открытый workspace.' });
+      this.postMessage({ type: 'error', text: 'Plan Mode требует открытый workspace.' }, sessionId);
       return;
     }
     const workspacePath = workspaceFolders[0].uri.fsPath;
 
-    this.postMessage({ type: 'streamChunk', text: '📋 **Генерирую план...**\n' });
+    this.postMessage({ type: 'streamChunk', text: '📋 **Генерирую план...**\n' }, sessionId);
 
     try {
       const planManager = new PlanModeManager(workspacePath);
-      const planResult = await planManager.generatePlan(text, provider, model, this.abortController?.signal);
+      const planResult = await planManager.generatePlan(text, provider, model, this.abortControllers.get(sessionId || 'default')?.signal);
 
       // Отправляем план в WebView
       this.postMessage({
         type: 'planGenerated',
         planContent: planResult.content,
         planPath: planResult.planPath,
-      });
+      }, sessionId);
 
-      this.postMessage({ type: 'done' });
+      this.postMessage({ type: 'done' }, sessionId);
     } catch (err: any) {
-      this.postMessage({ type: 'error', text: `Ошибка планирования: ${err.message}` });
+      this.postMessage({ type: 'error', text: `Ошибка планирования: ${err.message}` }, sessionId);
     }
   }
 
   /** Plan Mode: имплементация плана (Этап 2-3) */
-  private async handleImplementPlan(planPath: string, providerName?: string, modelName?: string): Promise<void> {
+  private async handleImplementPlan(planPath: string, providerName?: string, modelName?: string, sessionId?: string): Promise<void> {
     const config = vscode.workspace.getConfiguration('llmAssistant');
     const provider = this.providerManager.getProvider(providerName || config.get<string>('defaultProvider') || 'deepseek');
     const model = (typeof modelName === 'object' && modelName !== null
@@ -465,19 +477,21 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       || config.get<string>('defaultModel') || 'deepseek-v4-pro';
 
     if (!provider) {
-      this.postMessage({ type: 'error', text: 'Провайдер не найден.' });
+      this.postMessage({ type: 'error', text: 'Провайдер не найден.' }, sessionId);
       return;
     }
 
     const workspaceFolders = vscode.workspace.workspaceFolders;
     const workspacePath = workspaceFolders?.[0]?.uri.fsPath || '/tmp';
 
-    // Создаём AbortController для возможности отмены
-    this.abortController = new AbortController();
-    const signal = this.abortController.signal;
+    // Создаём AbortController для возможности отмены (привязан к сессии)
+    const sid = sessionId || 'default';
+    const ac = new AbortController();
+    this.abortControllers.set(sid, ac);
+    const signal = ac.signal;
 
-    this.postMessage({ type: 'implementStarted' });
-    this.postMessage({ type: 'streamChunk', text: '🚀 **Имплементирую план...**\n' });
+    this.postMessage({ type: 'implementStarted' }, sessionId);
+    this.postMessage({ type: 'streamChunk', text: '🚀 **Имплементирую план...**\n' }, sessionId);
 
     const planManager = new PlanModeManager(workspacePath);
 
@@ -490,10 +504,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       this.postMessage({
         type: 'streamChunk',
         text: `\n✅ Имплементация завершена (воркеров: ${implResult.orchestratorResult.workers.length})\n`,
-      });
+      }, sessionId);
 
       // Этап 3: Рефлексия
-      this.postMessage({ type: 'streamChunk', text: '🔍 **Рефлексия...**\n' });
+      this.postMessage({ type: 'streamChunk', text: '🔍 **Рефлексия...**\n' }, sessionId);
 
       const reflectResult = await planManager.reflect(planPath, provider, model, 2, (cycle, report) => {
         this.debugChannel.appendLine(`[PlanMode] Рефлексия цикл ${cycle}: ${report.slice(0, 200)}`);
@@ -501,9 +515,9 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         const hasFailures = /(?:AC-\d+\s*❌|❌\s*AC-)/.test(report);
         const isFallback = /исчерпан лимит итераций/.test(report);
         if (hasFailures && cycle < 2) {
-          this.postMessage({ type: 'streamChunk', text: `\n🔄 **Цикл ${cycle}:** найдены замечания, запускаю исправление...\n` });
+          this.postMessage({ type: 'streamChunk', text: `\n🔄 **Цикл ${cycle}:** найдены замечания, запускаю исправление...\n` }, sessionId);
         } else if (isFallback) {
-          this.postMessage({ type: 'streamChunk', text: `\n⚠️ **Цикл ${cycle}:** ревьюер не справился, пробую ещё раз...\n` });
+          this.postMessage({ type: 'streamChunk', text: `\n⚠️ **Цикл ${cycle}:** ревьюер не справился, пробую ещё раз...\n` }, sessionId);
         }
       }, signal);
 
@@ -511,19 +525,19 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         type: 'reflectReport',
         report: reflectResult.report,
         allPassed: reflectResult.allPassed,
-      });
+      }, sessionId);
 
-      this.postMessage({ type: 'done' });
+      this.postMessage({ type: 'done' }, sessionId);
     } catch (err: any) {
-      this.postMessage({ type: 'error', text: `Ошибка имплементации: ${err.message}` });
+      this.postMessage({ type: 'error', text: `Ошибка имплементации: ${err.message}` }, sessionId);
     }
   }
 
   /** Запустить multi-agent оркестрацию по команде @orchestrate */
-  private async handleOrchestrate(taskText: string, provider: any, model: string): Promise<void> {
+  private async handleOrchestrate(taskText: string, provider: any, model: string, sessionId?: string): Promise<void> {
     const orchestratorView = this.orchestratorViewProvider;
     if (!orchestratorView) {
-      this.postMessage({ type: 'error', text: 'Оркестратор не доступен' });
+      this.postMessage({ type: 'error', text: 'Оркестратор не доступен' }, sessionId);
       return;
     }
 
@@ -554,7 +568,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       progress: 0,
     });
 
-    this.postMessage({ type: 'streamChunk', text: `🎭 **Оркестратор запущен** (${roles.length} воркеров: ${roles.map(r => r.name).join(' → ')})\n\n` });
+    this.postMessage({ type: 'streamChunk', text: `🎭 **Оркестратор запущен** (${roles.length} воркеров: ${roles.map(r => r.name).join(' → ')})\n\n` }, sessionId);
 
     // --- Загрузка MCP-инструментов для оркестратора ---
     const mcpTools: any[] = [];
@@ -584,7 +598,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       (msg) => { this.debugChannel.appendLine(`[Orchestrator] ${msg}`); },
       // onWorkerStart — стримим в чат: «🔄 architect работает...»
       (roleName) => {
-        this.postMessage({ type: 'streamChunk', text: `\n🔄 **${roleName}** работает...\n` });
+        this.postMessage({ type: 'streamChunk', text: `\n🔄 **${roleName}** работает...\n` }, sessionId);
         orchestratorView.updateWorker(roleName, { status: 'running' });
       },
       // onWorkerDone — стримим: «✅ architect» или «❌ architect»
@@ -592,7 +606,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         const status = error ? 'error' : 'done';
         orchestratorView.updateWorker(roleName, { status });
         if (error) {
-          this.postMessage({ type: 'streamChunk', text: `❌ **${roleName}**: ${error}\n` });
+          this.postMessage({ type: 'streamChunk', text: `❌ **${roleName}**: ${error}\n` }, sessionId);
         }
       },
     );
@@ -618,14 +632,14 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       this.postMessage({
         type: 'streamChunk',
         text: `\n### ${wt.roleName}${wt.error ? ' ❌' : ' ✅'}\n${wt.error ? `Ошибка: ${wt.error}` : wt.result.answer}\n`,
-      });
+      }, sessionId);
     }
 
-    this.postMessage({ type: 'streamChunk', text: `\n---\n🎭 **Оркестрация завершена.** Токенов: ${result.totalInputTokens}+${result.totalOutputTokens} | Стоимость: $${result.totalCost.toFixed(6)}\n` });
-    this.postMessage({ type: 'done' });
+    this.postMessage({ type: 'streamChunk', text: `\n---\n🎭 **Оркестрация завершена.** Токенов: ${result.totalInputTokens}+${result.totalOutputTokens} | Стоимость: $${result.totalCost.toFixed(6)}\n` }, sessionId);
+    this.postMessage({ type: 'done' }, sessionId);
 
     // Токены оркестратора в индикатор
-    this.postMessage({ type: 'tokens', inputTokens: result.totalInputTokens, outputTokens: result.totalOutputTokens, model });
+    this.postMessage({ type: 'tokens', inputTokens: result.totalInputTokens, outputTokens: result.totalOutputTokens, model }, sessionId);
 
     // Сохраняем ответ в историю
     this.conversationManager.addMessage({ role: 'user', content: `@orchestrate ${taskText}` });
@@ -644,6 +658,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       result.totalOutputTokens,
       result.workers.reduce((s, w) => s + w.result.iterations, 0),
       result.success ? 'success' : 'error',
+      sessionId,
     );
   }
 
@@ -749,7 +764,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     return prompt;
   }
 
-  private handleCancelRequest(): void { if (this.abortController) { this.abortController.abort(); this.abortController = null; } }
+  private handleCancelRequest(sessionId?: string): void {
+    const sid = sessionId || 'default';
+    const ac = this.abortControllers.get(sid);
+    if (ac) { ac.abort(); this.abortControllers.delete(sid); }
+  }
   private sendHistoryToWebview(): void { if (this.view) this.postMessage({ type: 'history', messages: this.conversationManager.getMessages() }); }
   private sendSessionListToWebview(): void {
     if (!this.view) return;
@@ -774,7 +793,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     const orchestrate = [{ name: 'orchestrate', description: 'Оркестратор — цепочка воркеров', kind: 'builtin' as const, prefix: '@' as const }];
     this.postMessage({ type: 'slashCommands', items: [...builtin, ...skills, ...orchestrate] });
   }
-  private postMessage(m: any): void { if (this.view) this.view.webview.postMessage(m); }
+  private postMessage(m: any, sessionId?: string): void {
+    if (sessionId) m.sessionId = sessionId;
+    if (this.view) this.view.webview.postMessage(m);
+  }
 
   private getHtmlForWebview(): string {
     try {

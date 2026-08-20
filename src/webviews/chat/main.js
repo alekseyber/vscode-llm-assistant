@@ -66,6 +66,7 @@
   }
   /** Флаг — идёт ли сейчас стриминг ответа */
   let isStreaming = false;
+  let currentSessionId = '';
 
   /** Контейнер для сообщений */
   const messagesContainer = document.getElementById('messages-container');
@@ -555,7 +556,7 @@
     // Plan Mode: добавляем флаг в сообщение
     const planMode = document.getElementById('plan-mode-checkbox')?.checked || false;
 
-    postMessage({ type: 'sendMessage', text, mode, provider, model, planMode });
+    postMessage({ type: 'sendMessage', text, mode, provider, model, planMode, sessionId: sessionSelect?.value || '' });
 
     streamingIndicator.classList.remove('hidden');
     sendButton.textContent = '⏹️';
@@ -571,6 +572,13 @@
    */
   function handleMessage(event) {
     const message = event.data;
+
+    // Маршрутизация по сессии: сообщения от другой сессии (streamChunk, done, planGenerated и т.п.)
+    // игнорируем — они относятся к чату, который сейчас не активен. Результат уже сохранён в истории
+    // и появится при переключении на нужную сессию.
+    if (message.sessionId && currentSessionId && message.sessionId !== currentSessionId) {
+      return;
+    }
 
     switch (message.type) {
       case 'userMessage':
@@ -713,6 +721,7 @@
 
   function updateSessionList(sessions, activeId) {
     if (!sessionSelect || !sessions) return;
+    currentSessionId = activeId || '';
     updatingSessionList = true;
     sessionSelect.innerHTML = '';
     for (const s of sessions) {
@@ -1074,7 +1083,7 @@
   // Отправка / отмена по кнопке: ➤ отправляет, ⏹️ отменяет
   sendButton.addEventListener('click', () => {
     if (isStreaming) {
-      postMessage({ type: 'cancelRequest' });
+      postMessage({ type: 'cancelRequest', sessionId: sessionSelect?.value || '' });
     } else {
       sendUserMessage();
     }
@@ -1094,7 +1103,7 @@
 
   // Отмена запроса
   cancelButton.addEventListener('click', () => {
-    postMessage({ type: 'cancelRequest' });
+    postMessage({ type: 'cancelRequest', sessionId: sessionSelect?.value || '' });
   });
 
   // Поделиться с Hermes

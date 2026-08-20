@@ -41,6 +41,7 @@ since: 0.7.0
 | duration | number (ms) |
 | status | 'success' \| 'error' \| 'cancelled' \| 'limit_exceeded' |
 | error? | string |
+| sessionId? | string (ID чат-сессии, для перехода по двойному клику) |
 
 ## Контракты
 
@@ -64,7 +65,7 @@ since: 0.7.0
 - **cost:** `Math.round(cost * 1e6) / 1e6`
 
 
-## Тесты (runHistoryStore.test.ts, 15 тестов)
+## Тесты (runHistoryStore.test.ts, 17 тестов)
 
 - getRuns() возвращает пустой массив при отсутствии истории
 - recordRun() добавляет запись в начало
@@ -75,9 +76,12 @@ since: 0.7.0
 - generateRunId() генерирует уникальные ID, начинается с run_
 - Данные сохраняются между экземплярами (persistent)
 - Записи всех трёх режимов (chat, agent, edit) сохраняются
+- recordRun() сохраняет sessionId (для перехода к сессии по двойному клику)
+- recordRun() без sessionId — поле отсутствует
 
 ## История изменений
 
 | Версия | Дата | Изменения |
 |--------|------|-----------|
 | 0.7.0 | 2026-08-05 | Базовая реализация |
+| 0.10.0 | 2026-08-20 | Поле `sessionId` в RunEntry — связь записи с чат-сессией |
