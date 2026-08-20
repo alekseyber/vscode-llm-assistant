@@ -8,6 +8,8 @@ import * as assert from 'assert';
 import { ChatViewProvider } from '../../src/modes/chat/ChatViewProvider';
 import { ConversationManager } from '../../src/modes/chat/ConversationManager';
 import { RunHistoryStore } from '../../src/shared/RunHistoryStore';
+import { PlanModeManager } from '../../src/modes/chat/PlanModeManager';
+import { AgentOrchestrator } from '../../src/modes/apply/AgentOrchestrator';
 
 /** Асинхронный генератор чанков — имитация стриминга LLM */
 async function* chunks(...parts: string[]): AsyncIterable<string> {
@@ -22,6 +24,7 @@ suite('ChatViewProvider.handleSendMessage', () => {
   let history: RunHistoryStore;
   let provider: ChatViewProvider;
   let mockLLM: any;
+  let wsFolders: any = undefined;
 
   setup(() => {
     sandbox = sinon.createSandbox();
@@ -44,7 +47,8 @@ suite('ChatViewProvider.handleSendMessage', () => {
       update: sandbox.fake(() => Promise.resolve()),
     };
     sandbox.stub(vscode.workspace, 'getConfiguration').returns(config as any);
-    sandbox.stub(vscode.workspace, 'workspaceFolders').value(undefined);
+    wsFolders = undefined;
+    sandbox.stub(vscode.workspace, 'workspaceFolders').get(() => wsFolders);
     sandbox.stub(vscode.workspace, 'onDidChangeConfiguration').returns({ dispose: () => {} } as any);
     sandbox.stub(vscode.workspace, 'onDidChangeTextDocument').returns({ dispose: () => {} } as any);
     sandbox.stub(vscode.workspace, 'onDidCreateFiles').returns({ dispose: () => {} } as any);
@@ -99,7 +103,13 @@ suite('ChatViewProvider.handleSendMessage', () => {
       asAbsolutePath: (p: string) => p,
     };
 
-    provider = new ChatViewProvider(ctx, pm, cm, history);
+    // ── Mock OrchestratorViewProvider ──
+    const orchestratorView: any = {
+      showTask: sandbox.stub(),
+      updateWorker: sandbox.stub(),
+    };
+
+    provider = new ChatViewProvider(ctx, pm, cm, history, undefined, orchestratorView);
   });
 
   teardown(() => sandbox.restore());
@@ -186,5 +196,53 @@ suite('ChatViewProvider.handleSendMessage', () => {
     assert.strictEqual(capturedMessages.length > 0, true);
     assert.strictEqual(capturedMessages[0].role, 'system');
     assert.ok(capturedMessages.some((m: any) => m.role === 'user' && m.content.includes('тест контекста')));
+  });
+
+  test('Plan Mode с workspace: одна запись success (без двойной записи)', async () => {
+    sandbox.stub(PlanModeManager.prototype, 'generatePlan').resolves({ planPath: '/tmp/plan.md', content: '# План', planId: 'abc' });
+    wsFolders = [{ uri: { fsPath: '/tmp' } }];
+
+    const id1 = cm.session.getActive()!.meta.id;
+    await send('составь план', 'agent', true, id1);
+
+    // Одна запись — только из handlePlanMode (handleSendMessage пропускает для planMode)
+    const runs = history.getRuns();
+    assert.strictEqual(runs.length, 1, 'должна быть ровно одна запись (без клона от handleSendMessage)');
+    assert.strictEqual(runs[0].status, 'success');
+    assert.strictEqual(runs[0].provider, 'plan-mode');
+    assert.strictEqual(runs[0].sessionId, id1);
+    assert.strictEqual(runs[0].mode, 'agent');
+  });
+
+  test('@orchestrate: одна запись success с provider orchestrator + сообщения в сессии', async () => {
+    sandbox.stub(AgentOrchestrator.prototype, 'execute').resolves({
+      taskId: 'orch_1',
+      strategy: 'sequential',
+      workers: [
+        { roleName: 'architect', result: { answer: 'архитектура', steps: [], iterations: 1, inputTokens: 50, outputTokens: 25, cost: 0.0001 } },
+      ],
+      totalInputTokens: 100,
+      totalOutputTokens: 50,
+      totalCost: 0.0001,
+      costPerWorker: { architect: 0.0001 },
+      success: true,
+      summary: 'архитектура',
+    });
+
+    const id1 = cm.session.getActive()!.meta.id;
+    await send('@orchestrate сделай модуль', 'agent', false, id1);
+
+    // Одна запись success, provider 'orchestrator', сессия id1
+    const runs = history.getRuns();
+    assert.strictEqual(runs.length, 1);
+    assert.strictEqual(runs[0].status, 'success');
+    assert.strictEqual(runs[0].provider, 'orchestrator');
+    assert.strictEqual(runs[0].sessionId, id1);
+
+    // Сообщения: user (@orchestrate ...) + assistant (summary)
+    const msgs = cm.getMessages();
+    assert.strictEqual(msgs.length, 2);
+    assert.strictEqual(msgs[0].content, '@orchestrate сделай модуль');
+    assert.strictEqual(msgs[1].content, 'архитектура');
   });
 });

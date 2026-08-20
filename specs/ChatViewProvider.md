@@ -94,7 +94,7 @@ since: 0.1.0
 
 ## Тесты
 
-- `chatViewProvider.test.ts` — полный мок vscode/ProviderManager/LLM: `handleSendMessage` напрямую (chat/agent/planMode), сессионная маршрутизация, история со старта (`running` → `success`), отсутствие двойной записи в Plan Mode, ошибка агента без `createWithTools`.
+- `chatViewProvider.test.ts` — полный мок vscode/ProviderManager/LLM/AgentOrchestrator/PlanModeManager: `handleSendMessage` напрямую (chat/agent/planMode/orchestrate), сессионная маршрутизация, история со старта (`running` → `success`), отсутствие двойной записи в Plan Mode, ошибка агента без `createWithTools`.
 - AgentWorker тесты (runAgentLoop)
 - ConversationManager тесты (история)
 - Ручное тестирование (20-пунктовый чек-лист)
