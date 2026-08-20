@@ -72,7 +72,7 @@ since: 0.7.0
 - **cost:** `Math.round(cost * 1e6) / 1e6`
 
 
-## Тесты (runHistoryStore.test.ts, 20 тестов)
+## Тесты (runHistoryStore.test.ts, 22 теста)
 
 - getRuns() возвращает пустой массив при отсутствии истории
 - recordRun() добавляет запись в начало
@@ -89,6 +89,8 @@ since: 0.7.0
 - updateRun() игнорирует несуществующий id
 - getRun() возвращает запись по id или undefined
 - статус running сохраняется и сменяется на success
+- жизненный цикл: recordRun(running) + updateRun(success) = одна запись (без «сирот»)
+- recordRun/updateRun разных id — две разные записи (генерация и имплементация плана)
 
 ## История изменений
 

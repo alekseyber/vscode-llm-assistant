@@ -119,6 +119,33 @@ suite('RunHistoryStore', () => {
     assert.strictEqual(store.getRun('run-missing'), undefined);
   });
 
+  test('жизненный цикл: recordRun(running) + updateRun(success) = одна запись (без «сирот»)', () => {
+    // Один запуск = одна запись: recordRun создаёт 'running', updateRun переводит в финал.
+    // Регрессия: двойной recordRunStart (Plan Mode) создавал 2 записи — одну осиротевшую 'running'.
+    store.recordRun(makeEntry({ id: 'run-1', status: 'running', task: 'план' }));
+    store.updateRun('run-1', { status: 'success', duration: 500, steps: 3 });
+
+    const runs = store.getRuns();
+    assert.strictEqual(runs.length, 1, 'не должно быть второй (осиротевшей) записи');
+    assert.strictEqual(runs[0].id, 'run-1');
+    assert.strictEqual(runs[0].status, 'success');
+    assert.strictEqual(runs[0].duration, 500);
+  });
+
+  test('recordRun() + updateRun() разных id — это две разные записи (как генерация и имплементация плана)', () => {
+    // Генерация плана и имплементация — это два ОТДЕЛЬНЫХ запуска с разными id.
+    store.recordRun(makeEntry({ id: 'run-gen', status: 'running', task: 'Генерация плана' }));
+    store.updateRun('run-gen', { status: 'success' });
+    store.recordRun(makeEntry({ id: 'run-impl', status: 'running', task: 'Имплементация плана' }));
+
+    const runs = store.getRuns();
+    assert.strictEqual(runs.length, 2);
+    assert.strictEqual(runs[0].id, 'run-impl'); // новые сверху
+    assert.strictEqual(runs[1].id, 'run-gen');
+    assert.strictEqual(runs[0].status, 'running');
+    assert.strictEqual(runs[1].status, 'success');
+  });
+
   test('новые записи добавляются в начало (сортировка от новых к старым)', () => {
     store.recordRun(makeEntry({ id: 'run-1', timestamp: 1000 }));
     store.recordRun(makeEntry({ id: 'run-2', timestamp: 2000 }));

@@ -23,6 +23,10 @@ since: 0.1.0
 
 Добавляет сообщение, применяет pendingContext, авто-имя сессии.
 
+### `addMessageTo(sessionId, message)`
+
+Записывает в конкретную сессию (не обязательно активную). `sessionId = undefined` → активная (обратная совместимость).
+
 ### `clearHistory()` / `attachCodeContext(context)`
 
 ### `estimateTokens(text) → number` — chars/4
@@ -36,6 +40,7 @@ since: 0.1.0
 | summaryEnabled = false | Без сжатия |
 | pendingContext задан | Прикрепляется к следующему user-сообщению |
 | MAX_MESSAGES (100) | Старые вытесняются в SessionManager |
+| `addMessageTo(неактивная сессия)` | Пишет в указанную сессию, активная не меняется |
 
 ## Связи
 
@@ -61,9 +66,11 @@ since: 0.1.0
 {agentsMd}
 ```
 
-## Тесты (conversation.test.ts, 12 тестов)
+## Тесты (conversation.test.ts, 14 тестов)
 
 - addMessage() добавляет сообщение, вызывает save()
+- addMessageTo() пишет в конкретную сессию, а не в активную
+- addMessageTo(undefined) падает на активную сессию
 - getMessages() возвращает копию массива
 - clearHistory() очищает, вызывает save()
 - attachCodeContext() добавляет контекст к следующему user-сообщению (не к assistant)

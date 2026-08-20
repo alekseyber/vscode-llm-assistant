@@ -82,6 +82,31 @@ suite('ConversationManager', () => {
     assert.strictEqual(messages[0].content, 'Привет, как дела?');
   });
 
+  test('addMessageTo() пишет сообщение в конкретную сессию, а не в активную', () => {
+    const id1 = manager.session.createSession('Первая');
+    const id2 = manager.session.createSession('Вторая'); // активная — id2
+
+    // Пишем в НЕактивную сессию id1, пока активна id2
+    manager.addMessageTo(id1, createMessage('user', 'в первую сессию'));
+
+    // Активная (id2) не должна получить сообщение
+    assert.strictEqual(manager.getMessages().length, 0);
+
+    // Переключаемся на id1 — сообщение там
+    manager.session.switchTo(id1);
+    assert.strictEqual(manager.getMessages().length, 1);
+    assert.strictEqual(manager.getMessages()[0].content, 'в первую сессию');
+  });
+
+  test('addMessageTo(undefined) падает на активную сессию (обратная совместимость)', () => {
+    manager.session.createSession('Первая');
+    manager.addMessageTo(undefined, createMessage('user', 'fallback на активную'));
+
+    const messages = manager.getMessages();
+    assert.strictEqual(messages.length, 1);
+    assert.strictEqual(messages[0].content, 'fallback на активную');
+  });
+
   test('addMessage() вызывает save() (Memento.update)', () => {
     // Сбрасываем счётчик вызовов после конструктора
     (storage.update as sinon.SinonStub).resetHistory();
