@@ -438,19 +438,26 @@ export async function reviewActiveFile(
 
   const reviewer = new CodeReviewer();
 
-  const result = await vscode.window.withProgress(
-    {
-      location: vscode.ProgressLocation.Notification,
-      title: 'LLM Assistant: код-ревью...',
-      cancellable: false,
-    },
-    async () => {
-      if (selectedText && !selection.isEmpty) {
-        return reviewer.reviewCode(selectedText, language, filePath, provider, model);
-      }
-      return reviewer.reviewFile(filePath, provider, model);
-    },
-  );
+  try {
+    const result = await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Notification,
+        title: 'LLM Assistant: код-ревью...',
+        cancellable: false,
+      },
+      async () => {
+        if (selectedText && !selection.isEmpty) {
+          return reviewer.reviewCode(selectedText, language, filePath, provider, model);
+        }
+        return reviewer.reviewFile(filePath, provider, model);
+      },
+    );
 
-  reviewViewProvider.showReview(filePath, result.report, result.cost);
+    reviewViewProvider.showReview(filePath, result.report, result.cost);
+    const fileName = filePath.split('/').pop() || filePath;
+    vscode.window.showInformationMessage(`🔍 Ревью завершено: ${fileName} (вкладка «Ревью»)`);
+  } catch (error: any) {
+    const errorMessage = error?.message || 'Неизвестная ошибка';
+    vscode.window.showErrorMessage(`Ошибка ревью: ${errorMessage}`);
+  }
 }

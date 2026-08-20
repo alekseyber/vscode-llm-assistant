@@ -38,10 +38,10 @@ export class ReviewViewProvider implements vscode.WebviewViewProvider {
     this.currentReport = report;
     this.currentCost = cost;
 
-    vscode.commands.executeCommand('llmAssistant.review.focus').then(
-      () => this.postMessage({ type: 'reviewSummary', filePath, cost }),
-      () => this.postMessage({ type: 'reviewSummary', filePath, cost }),
-    );
+    // Постить напрямую, если view уже разрешён; иначе ready-обработчик подхватит.
+    this.postMessage({ type: 'reviewSummary', filePath, cost });
+    // Reveal вкладку (best-effort — не критично для отображения).
+    vscode.commands.executeCommand('llmAssistant.review.focus').then(undefined, () => {});
   }
 
   private handleMessage(message: any): void {
