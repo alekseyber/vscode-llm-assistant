@@ -48,7 +48,8 @@ extension.ts (вход)
 │   │
 │   ├── 🔍 Ревью (0.11.0)
 │   │   ├── CodeReviewer          [spec ✅] — standalone AI-ревью (reviewFile/reviewCode через ReviewerAgent)
-│   │   └── ReviewViewProvider    [spec ✅] — вкладка «Ревью» (markdown-отчёт)
+│   │   ├── ReviewViewProvider    [spec ✅] — вкладка «Ревью» (компактная сводка)
+│   │   └── ReviewPanel           [spec ✅] — широкое окно полного отчёта
 │   │
 │   └── 👻 Автокомплит
 │       └── AutocompleteController [spec ✅] — ghost text (ContextBuilder + GhostTextManager)
@@ -81,9 +82,9 @@ extension.ts (вход)
 
 | Статус | Компоненты |
 |--------|-----------|
-|| ✅ Есть spec | **33 компонента** |
+|| ✅ Есть spec | **34 компонента** |
 
-**Покрытие: 33/33 (100%)**
+**Покрытие: 34/34 (100%)**
 
 ## Потоки данных
 

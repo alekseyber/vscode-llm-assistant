@@ -6,7 +6,7 @@ status: beta
 
 ## Назначение
 
-WebviewViewProvider для вкладки «Ревью» в Activity Bar (рядом с «Чат», «История», «Оркестратор»). Показывает markdown-отчёт standalone код-ревью (рендер через `marked.min.js`, общий с чатом). Заполняется командой `llmAssistant.review.file`.
+WebviewViewProvider для вкладки «Ревью» в Activity Bar. Показывает **компактную строку-сводку** код-ревью (файл + стоимость); по клику открывает широкое окно `ReviewPanel` с полным markdown-отчётом.
 
 ## Интерфейс
 
@@ -14,9 +14,10 @@ WebviewViewProvider для вкладки «Ревью» в Activity Bar (ряд
 const REVIEW_VIEW_TYPE = 'llmAssistant.review';
 
 class ReviewViewProvider implements vscode.WebviewViewProvider {
-  constructor(extensionUri: vscode.Uri);
+  constructor();
   resolveWebviewView(view, context, token): void;
   showReview(filePath: string, report: string, cost: number): void;
+  onOpen?: (filePath: string, report: string, cost: number) => void;  // задаётся в extension.ts
 }
 ```
 
@@ -24,31 +25,28 @@ class ReviewViewProvider implements vscode.WebviewViewProvider {
 
 | Ситуация | Поведение |
 |----------|-----------|
-| `showReview(filePath, report, cost)` | Reveal-панель (`llmAssistant.review.focus`) и отправляет `showReview` в WebView |
-| Панель не открыта (`view` undefined) | `postMessage` — no-op, отчёт сохранится в `currentReport`, покажется при открытии (`ready`) |
-| `ready` от WebView при открытии | Если есть сохранённый отчёт — отправляет `showReview` заново |
-| `marked.min.js` недоступен | Fallback-рендер: `parse` возвращает `<pre>` (без markdown) |
-| Стоимость = 0 | Строка стоимости не показывается |
+| `showReview(filePath, report, cost)` | Сохраняет полный отчёт, Reveal-панель (`llmAssistant.review.focus`) и шлёт `reviewSummary` (файл + стоимость) |
+| Клик по строке сводки в WebView | WebView шлёт `openReview` → вызывается `onOpen` с сохранённым полным отчётом |
+| `ready` при открытии | Если есть сохранённая сводка — шлёт `reviewSummary` заново |
+| `onOpen` не задан | Клик игнорируется (no-op) |
 
 ## Детали реализации
 
-- HTML инлайнится (как `HistoryViewProvider`), CSP `default-src 'none'; script-src 'unsafe-inline'`.
-- `marked.min.js` читается из `src/webviews/chat/marked.min.js` через `extensionUri` (общий файл с чатом).
-- Отчёт рендерится через `marked.parse(text, { breaks: true, gfm: false })`.
-- Палитра Dark+ (те же цвета, что в чате/истории).
-- `showReview` вызывает `vscode.commands.executeCommand('llmAssistant.review.focus')` для reveal.
+- HTML инлайнится, CSP `default-src 'none'; script-src 'unsafe-inline'`.
+- Компактная кликабельная строка: «🔍 файл — стоимость» с иконкой ↗.
+- Полный отчёт **не** рендерится в сайдбаре — только сводка; полный отчёт — в `ReviewPanel` (широкое окно).
 
 ## Связи
 
-- **Использует:** `marked.min.js` (webview-ресурс), `vscode.WebviewView`.
-- **Используется:** `registerCommands.ts` (команда `review.file` → `showReview`), `extension.ts` (регистрация провайдера).
+- **Используется:** `registerCommands.ts` (команда `review.file` → `showReview`), `extension.ts` (регистрация + `onOpen`).
+- **Открывает:** `ReviewPanel` (широкое окно полного отчёта).
 
 ## Тесты
 
-- `reviewViewProvider.test.ts` — `showReview` → postMessage, `ready` → повторная отправка сохранённого отчёта, jsdom-рендер markdown-отчёта (3 теста).
+- `reviewViewProvider.test.ts` — `showReview` → `reviewSummary`, `openReview` → `onOpen`, jsdom-рендер сводки + клик → `openReview` (3 теста).
 
 ## История изменений
 
 | Версия | Дата | Изменения |
 |--------|------|-----------|
-| 0.11.0 | 2026-08-20 | Первая версия: панель «Ревью» для отчётов код-ревью |
+| 0.11.0 | 2026-08-20 | Первая версия: компактная сводка + открытие полного отчёта в широком окне |

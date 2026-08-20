@@ -14,6 +14,7 @@ import { RunHistoryStore } from './shared/RunHistoryStore';
 import { HistoryViewProvider, HISTORY_VIEW_TYPE } from './modes/history/HistoryViewProvider';
 import { OrchestratorViewProvider, ORCHESTRATOR_VIEW_TYPE } from './modes/orchestrator/OrchestratorViewProvider';
 import { ReviewViewProvider, REVIEW_VIEW_TYPE } from './modes/review/ReviewViewProvider';
+import { ReviewPanel } from './modes/review/ReviewPanel';
 
 /** Глобальный экземпляр менеджера провайдеров */
 let providerManager: ProviderManager;
@@ -67,11 +68,15 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.window.registerWebviewViewProvider(ORCHESTRATOR_VIEW_TYPE, orchestratorViewProvider)
     );
 
-    // Регистрация провайдера вкладки «Ревью» (Activity Bar)
-    const reviewViewProvider = new ReviewViewProvider(context.extensionUri);
+    // Регистрация провайдера вкладки «Ревью» (Activity Bar) — компактная сводка
+    const reviewViewProvider = new ReviewViewProvider();
     context.subscriptions.push(
         vscode.window.registerWebviewViewProvider(REVIEW_VIEW_TYPE, reviewViewProvider)
     );
+    // Клик по строке сводки → открыть широкое окно с полным отчётом
+    reviewViewProvider.onOpen = (filePath, report, cost) => {
+        ReviewPanel.createOrShow(context, filePath, report, cost);
+    };
 
     // ── 2. Регистрация WebView Provider ──
     const chatViewProvider = new ChatViewProvider(context, providerManager, conversationManager, runHistoryStore, historyViewProvider, orchestratorViewProvider);

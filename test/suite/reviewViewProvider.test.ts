@@ -1,10 +1,9 @@
-// Тесты ReviewViewProvider — панель «Ревью» (showReview + jsdom-рендер отчёта)
+// Тесты ReviewViewProvider — компактная сводка ревью + клик → открытие полного окна
 
 import 'mocha';
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 import { JSDOM } from 'jsdom';
-import * as vscode from 'vscode';
 import { ReviewViewProvider } from '../../src/modes/review/ReviewViewProvider';
 
 suite('ReviewViewProvider', () => {
@@ -13,7 +12,7 @@ suite('ReviewViewProvider', () => {
 
   setup(() => {
     sandbox = sinon.createSandbox();
-    provider = new ReviewViewProvider(vscode.Uri.file('/tmp'));
+    provider = new ReviewViewProvider();
   });
 
   teardown(() => sandbox.restore());
@@ -29,64 +28,63 @@ suite('ReviewViewProvider', () => {
     };
   }
 
-  test('showReview отправляет postMessage с отчётом', async () => {
+  test('showReview отправляет компактную сводку (reviewSummary)', async () => {
     const post = sandbox.stub();
     provider.resolveWebviewView(makeView(post), {} as any, {} as any);
 
-    provider.showReview('/tmp/a.ts', '# Отчёт', 0.0001);
+    provider.showReview('/tmp/a.ts', '# Полный отчёт', 0.0001);
     await new Promise((r) => setTimeout(r, 0)); // flush executeCommand().then
 
     assert.ok(post.calledOnce, 'postMessage вызван');
     const msg = post.firstCall.args[0];
-    assert.strictEqual(msg.type, 'showReview');
+    assert.strictEqual(msg.type, 'reviewSummary');
     assert.strictEqual(msg.filePath, '/tmp/a.ts');
-    assert.strictEqual(msg.report, '# Отчёт');
     assert.strictEqual(msg.cost, 0.0001);
   });
 
-  test('ready при открытии — повторно шлёт сохранённый отчёт', () => {
-    const post = sandbox.stub();
-    const view = makeView(post);
+  test('openReview → onOpen с сохранённым полным отчётом', () => {
+    const view = makeView(sandbox.stub());
     let onMsg: (m: any) => void = () => {};
     view.webview.onDidReceiveMessage = (cb: any) => { onMsg = cb; };
-
     provider.resolveWebviewView(view, {} as any, {} as any);
-    // Имитируем сохранённый отчёт (панель была закрыта, отчёт остался)
-    (provider as any).currentReport = '# Отчёт';
-    (provider as any).currentFile = '/tmp/a.ts';
 
-    onMsg({ type: 'ready' });
+    provider.showReview('/tmp/a.ts', '# Полный отчёт', 0.0002); // сохранит currentFile/Report/Cost
 
-    const msg = post.firstCall.args[0];
-    assert.strictEqual(msg.type, 'showReview');
-    assert.strictEqual(msg.report, '# Отчёт');
-    assert.strictEqual(msg.filePath, '/tmp/a.ts');
+    const onOpen = sandbox.stub();
+    provider.onOpen = onOpen;
+    onMsg({ type: 'openReview' });
+
+    assert.ok(onOpen.calledOnce, 'onOpen вызван');
+    assert.strictEqual(onOpen.firstCall.args[0], '/tmp/a.ts');
+    assert.strictEqual(onOpen.firstCall.args[1], '# Полный отчёт');
+    assert.strictEqual(onOpen.firstCall.args[2], 0.0002);
   });
 
-  test('HTML рендерит отчёт через marked (jsdom)', () => {
+  test('jsdom: сводка рендерится, клик шлёт openReview', () => {
     const view = makeView(sandbox.stub());
     provider.resolveWebviewView(view, {} as any, {} as any);
     const html = view.webview.html;
 
     const dom = new JSDOM(html, { runScripts: 'outside-only', url: 'http://localhost/' });
     const window = dom.window as any;
+    const posted: any[] = [];
+    window.acquireVsCodeApi = () => ({ postMessage: (m: any) => posted.push(m) });
 
-    // Мокаем acquireVsCodeApi + marked
-    window.acquireVsCodeApi = () => ({ postMessage: () => {} });
-    window.marked = { parse: (t: string) => '<p>' + t + '</p>' };
-
-    // Выполняем главный скрипт (последний <script> в HTML)
+    // Выполняем скрипт (один)
     const scripts = Array.from(dom.window.document.querySelectorAll('script')).map((s: any) => s.textContent || '');
-    window.eval(scripts[scripts.length - 1]);
+    window.eval(scripts[0]);
 
-    // extension → WebView: showReview
+    // extension → WebView: компактная сводка
     window.dispatchEvent(new window.MessageEvent('message', {
-      data: { type: 'showReview', filePath: '/tmp/a.ts', report: '# Отчёт', cost: 0.0001 },
+      data: { type: 'reviewSummary', filePath: '/tmp/a.ts', cost: 0.0001 },
     }));
 
-    const reportEl = dom.window.document.getElementById('report');
-    assert.ok(reportEl!.textContent!.includes('# Отчёт'), 'отчёт отрисован в DOM');
-    const header = dom.window.document.getElementById('header');
-    assert.strictEqual(header!.style.display, '', 'заголовок показан');
+    const fileEl = dom.window.document.getElementById('file-path');
+    assert.strictEqual(fileEl!.textContent, '/tmp/a.ts', 'путь файла отрисован');
+    assert.ok(dom.window.document.getElementById('summary')!.style.display === '', 'сводка показана');
+
+    // Клик по строке → openReview в extension
+    dom.window.document.getElementById('summary-row')!.click();
+    assert.ok(posted.some((m) => m.type === 'openReview'), 'openReview отправлен');
   });
 });
