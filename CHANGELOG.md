@@ -4,12 +4,15 @@
 
 ### Новые возможности
 
-- **Standalone AI-ревью:** команда «LLM Assistant: Review File» + вкладка «Ревью» — отдельный ReviewerAgent (ReAct с `read_file`/`search_files`/`list_files`) ревьюит активный файл или выделение и выдаёт структурированный markdown-отчёт (стиль / безопасность / корректность / оптимизация)
+- **Standalone AI-ревью:** команда «LLM Assistant: Review File» — отдельный ReviewerAgent (ReAct с `read_file`/`search_files`/`list_files`) ревьюит активный файл или выделение и выдаёт структурированный markdown-отчёт (стиль / безопасность / корректность / оптимизация)
+- **Компактная сводка + широкое окно:** в сайдбаре — строка-сводка (файл + стоимость), по клику — широкое окно `ReviewPanel` с полным отчётом
+- **Правила ревью из `.llma/agents/reviewer.md`** — подхватываются автоматически (как у агентов `@orchestrate`)
 
-### Рефактор
+### Новые компоненты
 
-- `CodeReviewer` (`src/modes/review/`) — ревьюер вынесен из Plan Mode `reflect()` в standalone-модуль
-- `ReviewViewProvider` (`src/modes/review/`) — панель «Ревью» в Activity Bar
+- `CodeReviewer` (`src/modes/review/`) — standalone ревьюер, вынесен из Plan Mode `reflect()`
+- `ReviewViewProvider` (`src/modes/review/`) — компактная сводка в Activity Bar
+- `ReviewPanel` (`src/modes/review/`) — широкое окно полного отчёта
 
 ## 0.10.0 (2026-08-20)
 
