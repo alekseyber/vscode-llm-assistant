@@ -121,7 +121,7 @@ export class ReviewViewProvider implements vscode.WebviewViewProvider {
       window.addEventListener('message', function(event) {
         const msg = event.data;
         if (msg.type === 'reviewSummary') {
-          summaryEl.style.display = '';
+          summaryEl.style.display = 'block';
           emptyEl.style.display = 'none';
           fileEl.textContent = msg.filePath || '(без файла)';
           costEl.textContent = msg.cost > 0 ? 'Стоимость: $' + msg.cost.toFixed(6) : '';
