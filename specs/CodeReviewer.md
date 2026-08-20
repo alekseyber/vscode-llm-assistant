@@ -39,7 +39,7 @@ class CodeReviewer {
 
 ## Детали реализации
 
-- Роль агента: `name: 'code-reviewer'`, `allowedTools: ['read_file', 'search_files', 'list_files']`, `model` — как в `reflect()`.
+- Роль агента: `name: 'reviewer'`, `allowedTools: ['read_file', 'search_files', 'list_files']`, `model` — как в `reflect()`. Имя `reviewer` → `AgentWorker` через `loadRoleAgentsMd` сам подхватывает **пользовательские правила из `.llma/agents/reviewer.md`** и дописывает их к `CODE_REVIEW_SYSTEM_PROMPT`.
 - `AgentWorker` с `maxIterations: 8`, `skipGlobalAllowList: true` (ревьюеру нужен read_file независимо от пользовательского allow-list).
 - `CODE_REVIEW_SYSTEM_PROMPT` — директивный промпт ревьюера (секции: стиль, безопасность, корректность, оптимизация; формат — список по приоритету критично/важно/мелко, markdown, по-русски). Адаптирован из `/review` слэш-команды, но для агентного режима (реально читает файлы, а не полагается на прикреплённый контекст).
 

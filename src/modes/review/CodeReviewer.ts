@@ -77,7 +77,9 @@ export class CodeReviewer {
     signal?: AbortSignal,
   ): Promise<CodeReviewResult> {
     const role: AgentRole = {
-      name: 'code-reviewer',
+      // Имя 'reviewer' — AgentWorker сам подхватит правила из .llma/agents/reviewer.md
+      // (loadRoleAgentsMd) и допишет их к CODE_REVIEW_SYSTEM_PROMPT
+      name: 'reviewer',
       systemPrompt: CODE_REVIEW_SYSTEM_PROMPT,
       allowedTools: ['read_file', 'search_files', 'list_files'],
       model,
