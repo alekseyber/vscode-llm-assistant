@@ -11,8 +11,8 @@ const originalResolve = Module._resolveFilename;
 // Перехватываем запросы модуля 'vscode'
 Module._resolveFilename = function (request, parent, isMain, options) {
   if (request === 'vscode') {
-    // Возвращаем путь к нашему mock-модулю
-    return path.resolve(__dirname, '../node_modules/vscode/index.js');
+    // Возвращаем путь к нашему mock-модулю (git-трекается, не в node_modules)
+    return path.resolve(__dirname, 'mocks/vscode/index.js');
   }
   return originalResolve.call(this, request, parent, isMain, options);
 };
@@ -59,6 +59,7 @@ const testFiles = [
   '../out/test/suite/cleanLlmResponse.test.js',
   '../out/test/suite/registerCommands.test.js',
   '../out/test/suite/lineDiff.test.js',
+  '../out/test/suite/chatWebview.test.js',
 ];
 
 for (const file of testFiles) {

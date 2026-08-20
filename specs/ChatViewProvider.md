@@ -95,6 +95,7 @@ since: 0.1.0
 ## Тесты
 
 - `chatViewProvider.test.ts` — полный мок vscode/ProviderManager/LLM/AgentOrchestrator/PlanModeManager: `handleSendMessage` напрямую (chat/agent/planMode/orchestrate), сессионная маршрутизация, история со старта (`running` → `success`), отсутствие двойной записи в Plan Mode, ошибка агента без `createWithTools`.
+- `chatWebview.test.ts` (jsdom) — DOM-харнесс WebView: маршрутизация по sessionId, git-diff диалог подтверждения (рендер + кнопка «Подтвердить»), автокомплит `/`, индикатор «в работе».
 - AgentWorker тесты (runAgentLoop)
 - ConversationManager тесты (история)
 - Ручное тестирование (20-пунктовый чек-лист)

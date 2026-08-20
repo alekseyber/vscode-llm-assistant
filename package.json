@@ -272,6 +272,7 @@
   },
   "devDependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",
+    "@types/jsdom": "^30.0.0",
     "@types/mocha": "^10.x",
     "@types/node": "^20.x",
     "@types/sinon": "^17.x",
@@ -281,6 +282,7 @@
     "@vscode/test-electron": "^2.x",
     "@vscode/vsce": "^2.x",
     "eslint": "^8.56.0",
+    "jsdom": "^30.0.1",
     "mocha": "^10.x",
     "nyc": "^17.x",
     "sinon": "^18.x",
