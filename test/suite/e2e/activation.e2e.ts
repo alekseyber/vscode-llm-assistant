@@ -14,7 +14,7 @@ suite('E2E: активация и команды', () => {
     assert.strictEqual(ext!.isActive, true, 'расширение активно после activate()');
   });
 
-  test('все 7 команд зарегистрированы', async () => {
+  test('все 8 команд зарегистрированы', async () => {
     const ext = vscode.extensions.getExtension(EXTENSION_ID)!;
     await ext.activate();
 
@@ -27,6 +27,7 @@ suite('E2E: активация и команды', () => {
       'llmAssistant.apply.start',
       'llmAssistant.selectProvider',
       'llmAssistant.openHistory',
+      'llmAssistant.review.file',
     ];
     for (const cmd of expected) {
       assert.ok(commands.includes(cmd), `команда ${cmd} зарегистрирована`);

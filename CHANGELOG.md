@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.11.0 (2026-08-20)
+
+### Новые возможности
+
+- **Standalone AI-ревью:** команда «LLM Assistant: Review File» + вкладка «Ревью» — отдельный ReviewerAgent (ReAct с `read_file`/`search_files`/`list_files`) ревьюит активный файл или выделение и выдаёт структурированный markdown-отчёт (стиль / безопасность / корректность / оптимизация)
+
+### Рефактор
+
+- `CodeReviewer` (`src/modes/review/`) — ревьюер вынесен из Plan Mode `reflect()` в standalone-модуль
+- `ReviewViewProvider` (`src/modes/review/`) — панель «Ревью» в Activity Bar
+
 ## 0.10.0 (2026-08-20)
 
 ### Новые возможности
