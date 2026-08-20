@@ -103,8 +103,9 @@ since: 0.1.0
 
 | Версия | Дата | Изменения |
 |--------|------|-----------|
-| 0.9.0 | 2026-08-18 | Слэш-команды код-действий: /explain, /explain_stepbystep, /doc, /test, /review, /improve (интеграция SlashCommands) |
+| 0.10.0 | 2026-08-20 | `computeLineDiff` (git-diff диалога) вынесен в `lineDiff.js` (инлайнится в index.html через `{{LINEDIFF}}`) |
 | 0.10.0 | 2026-08-19 | Автокомплит команд: sendSlashCommandsToWebview (встроенные + скилы + @orchestrate, поле prefix) |
+| 0.9.0 | 2026-08-18 | Слэш-команды код-действий: /explain, /explain_stepbystep, /doc, /test, /review, /improve (интеграция SlashCommands) |
 | 0.9.0 | 2026-08-11 | Фикс: каталог скилов (getSkillTemplate) в getSystemPrompt() для agent-режима |
 | 0.9.0 | 2026-08-11 | Фикс: Plan Mode сохраняет сообщение пользователя в историю |
 | 0.9.0 | 2026-08-09 | SkillsLoader: инжект скилов в getSystemPrompt() |

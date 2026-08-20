@@ -5,6 +5,7 @@ import * as vscode from 'vscode';
 import { ProviderManager } from '../../providers/manager';
 import { ContextBuilder, AutocompleteContext } from './ContextBuilder';
 import { GhostTextManager } from './GhostTextManager';
+import { cleanLlmResponse } from '../../shared/cleanLlmResponse';
 
 /**
  * AutocompleteController — контроллер автокомплита (ghost text).
@@ -237,7 +238,7 @@ ${context.suffix}
       }
 
       // Очищаем ответ от лишних обрамлений
-      return this.cleanLlmResponse(fullResponse);
+      return cleanLlmResponse(fullResponse);
     } catch (error: any) {
       if (error.name === 'AbortError') {
         return null;
@@ -245,30 +246,6 @@ ${context.suffix}
       console.error('[AutocompleteController] Ошибка LLM запроса:', error);
       return null;
     }
-  }
-
-  /**
-   * Очистить ответ LLM от лишних обрамлений и лишнего текста.
-   *
-   * @param response - сырой ответ от LLM
-   * @returns очищенный текст
-   */
-  private cleanLlmResponse(response: string): string {
-    let cleaned = response.trim();
-
-    // Убираем обрамление ```code``` если есть
-    const codeBlockRegex = /^```(?:[\w+-]+)?\s*\n?([\s\S]*?)\n?```$/;
-    const match = cleaned.match(codeBlockRegex);
-    if (match) {
-      cleaned = match[1].trim();
-    }
-
-    // Убираем одинарные обрамления ```
-    if (cleaned.startsWith('```') && cleaned.endsWith('```')) {
-      cleaned = cleaned.slice(3, -3).trim();
-    }
-
-    return cleaned;
   }
 
   /**

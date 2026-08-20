@@ -52,6 +52,13 @@ const testFiles = [
   '../out/test/suite/roleAgentsMd.test.js',
   '../out/test/suite/slashCommands.test.js',
   '../out/test/suite/chatViewProvider.test.js',
+  '../out/test/suite/diff.test.js',
+  '../out/test/suite/contextBuilder.test.js',
+  '../out/test/suite/historyViewProvider.test.js',
+  '../out/test/suite/planModeManager.test.js',
+  '../out/test/suite/cleanLlmResponse.test.js',
+  '../out/test/suite/registerCommands.test.js',
+  '../out/test/suite/lineDiff.test.js',
 ];
 
 for (const file of testFiles) {

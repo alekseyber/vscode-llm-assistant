@@ -44,11 +44,11 @@ WebView-вкладка «📊 История» в Activity Bar. Отобража
 
 ## Тесты
 
-Прямых тестов нет. Покрывается через RunHistoryStore тесты.
-Refresh вызывается после recordRun() — таблица обновляется.
+- `historyViewProvider.test.ts` — openSession → onOpenSession (двойной клик), getDetails → runDetails, clearHistory (подтверждение «Да» / отказ)
 
 ## История изменений
 
 | Версия | Дата | Изменения |
 |--------|------|-----------|
+| 0.10.0 | 2026-08-20 | Прямые юнит-тесты (мок WebviewView + RunHistoryStore) |
 | 0.7.0 | 2026-08-05 | Базовая реализация |

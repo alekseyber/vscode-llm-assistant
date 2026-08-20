@@ -51,7 +51,7 @@ export function computeDiff(oldText: string, newText: string): DiffResult {
   const newLines = newText.split('\n');
 
   // Если оба текста пусты — diff пустой
-  if (oldLines.length === 0 && newLines.length === 0) {
+  if (oldText === '' && newText === '') {
     return {
       changes: [],
       identical: true,

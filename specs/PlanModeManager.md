@@ -181,6 +181,7 @@ AgentWorker с промтом ревьюера. Сравнивает резул�
 
 | Версия | Дата | Изменения |
 |--------|------|-----------|
+| 0.10.0 | 2026-08-20 | Прямые юнит-тесты: generatePlan/implementPlan/reflect (мок AgentWorker/AgentOrchestrator) |
 | 0.9.0 | 2026-08-11 | Фикс: model передаётся в AgentWorker (generatePlan, implementPlan, reflect) |
 | 0.9.0 | 2026-08-11 | Фикс: убран неиспользуемый loadAllAgentRoles() в implementPlan |
 | 0.1.0 | 2026-08-08 | Спецификация создана |

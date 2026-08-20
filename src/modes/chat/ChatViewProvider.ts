@@ -855,6 +855,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       let html = fs.readFileSync(htmlPath.fsPath, 'utf-8');
       html = html.replace('{{STYLES}}', fs.readFileSync(vscode.Uri.joinPath(base, 'src', 'webviews', 'chat', 'styles.css').fsPath, 'utf-8'));
       html = html.replace('{{MARKED_LIB}}', fs.readFileSync(vscode.Uri.joinPath(base, 'src', 'webviews', 'chat', 'marked.min.js').fsPath, 'utf-8'));
+      html = html.replace('{{LINEDIFF}}', fs.readFileSync(vscode.Uri.joinPath(base, 'src', 'webviews', 'chat', 'lineDiff.js').fsPath, 'utf-8'));
       html = html.replace('{{SCRIPT}}', fs.readFileSync(vscode.Uri.joinPath(base, 'src', 'webviews', 'chat', 'main.js').fsPath, 'utf-8'));
       return html;
     } catch { return '<html><body><h1>Ошибка загрузки чата</h1></body></html>'; }

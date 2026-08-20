@@ -834,32 +834,10 @@
 
   /** LCS-диф строк: возвращает список операций {type: context|remove|add, line} */
   function computeLineDiff(oldLines, newLines) {
-    const m = oldLines.length, n = newLines.length;
-    const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
-    for (let i = m - 1; i >= 0; i--) {
-      for (let j = n - 1; j >= 0; j--) {
-        dp[i][j] = oldLines[i] === newLines[j]
-          ? dp[i + 1][j + 1] + 1
-          : Math.max(dp[i + 1][j], dp[i][j + 1]);
-      }
-    }
-    const ops = [];
-    let i = 0, j = 0;
-    while (i < m && j < n) {
-      if (oldLines[i] === newLines[j]) {
-        ops.push({ type: 'context', line: oldLines[i] });
-        i++; j++;
-      } else if (dp[i + 1][j] >= dp[i][j + 1]) {
-        ops.push({ type: 'remove', line: oldLines[i] });
-        i++;
-      } else {
-        ops.push({ type: 'add', line: newLines[j] });
-        j++;
-      }
-    }
-    while (i < m) { ops.push({ type: 'remove', line: oldLines[i] }); i++; }
-    while (j < n) { ops.push({ type: 'add', line: newLines[j] }); j++; }
-    return ops;
+    // Вынесено в lineDiff.js (глобальный window.computeLineDiff) — здесь оставлен alias для совместимости.
+    return (typeof window !== 'undefined' && window.computeLineDiff)
+      ? window.computeLineDiff(oldLines, newLines)
+      : [];
   }
 
   function showConfirmDialog(msg) {

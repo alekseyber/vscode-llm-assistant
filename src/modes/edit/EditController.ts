@@ -4,6 +4,7 @@
 import * as vscode from 'vscode';
 import { ProviderManager } from '../../providers/manager';
 import { computeDiff, applyDiffDecorations, clearDiffDecorations, acceptChanges } from './diff';
+import { cleanLlmResponse } from '../../shared/cleanLlmResponse';
 
 /**
  * EditController — хендлер для редактирования выделенного кода через LLM.
@@ -178,7 +179,7 @@ export class EditController {
       );
 
       // Очищаем ответ от лишних обрамлений (```code```)
-      return this.cleanLlmResponse(result);
+      return cleanLlmResponse(result);
     } catch (error: any) {
       if (error.name === 'AbortError') {
         vscode.window.showInformationMessage('Редактирование отменено');
@@ -190,31 +191,6 @@ export class EditController {
       console.error('[EditController] Ошибка:', error);
       return null;
     }
-  }
-
-  /**
-   * Очистить ответ LLM от markdown-обрамления и лишнего текста.
-   * LLM может вернуть код в ```блоках``` — извлекаем только код.
-   *
-   * @param response - сырой ответ от LLM
-   * @returns очищенный код
-   */
-  private cleanLlmResponse(response: string): string {
-    let cleaned = response.trim();
-
-    // Убираем обрамление ```code``` если есть
-    const codeBlockRegex = /^```(?:\w+)?\s*\n?([\s\S]*?)\n?```$/;
-    const match = cleaned.match(codeBlockRegex);
-    if (match) {
-      cleaned = match[1].trim();
-    }
-
-    // Убираем одинарные обрамления ```
-    if (cleaned.startsWith('```') && cleaned.endsWith('```')) {
-      cleaned = cleaned.slice(3, -3).trim();
-    }
-
-    return cleaned;
   }
 
   /**
