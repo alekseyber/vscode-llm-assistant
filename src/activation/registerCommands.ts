@@ -21,6 +21,8 @@ import { createTools } from '../modes/apply/ToolDefinitions';
 import { getAllowedTools, loadToolAllowListConfig } from '../modes/apply/ToolAllowList';
 import { RunHistoryStore, generateRunId } from '../shared/RunHistoryStore';
 import { HistoryViewProvider } from '../modes/history/HistoryViewProvider';
+import { ReviewViewProvider } from '../modes/review/ReviewViewProvider';
+import { CodeReviewer } from '../modes/review/CodeReviewer';
 
 /**
  * Зависимости, необходимые для регистрации команд.
@@ -41,6 +43,8 @@ export interface CommandDependencies {
   runHistoryStore: RunHistoryStore;
   /** Провайдер вкладки «История» (для обновления таблицы) */
   historyViewProvider: HistoryViewProvider;
+  /** Провайдер вкладки «Ревью» (для показа отчёта код-ревью) */
+  reviewViewProvider: ReviewViewProvider;
 }
 
 /**
@@ -51,7 +55,7 @@ export interface CommandDependencies {
  * @param deps - зависимости (контекст, менеджеры, контроллеры режимов)
  */
 export function registerCommands(deps: CommandDependencies): void {
-  const { context, providerManager, conversationManager, editController, autocompleteController, runHistoryStore, historyViewProvider } = deps;
+  const { context, providerManager, conversationManager, editController, autocompleteController, runHistoryStore, historyViewProvider, reviewViewProvider } = deps;
 
   // ── 1. llmAssistant.chat.focus (Ctrl+Shift+L) — открыть/сфокусировать чат ──
   context.subscriptions.push(
@@ -107,7 +111,14 @@ export function registerCommands(deps: CommandDependencies): void {
     })
   );
 
-  console.log('[registerCommands] Зарегистрировано 7 команд: chat.focus, chat.addSelection, edit.selection, autocomplete.toggle, apply.start, selectProvider, openHistory');
+  // ── 8. llmAssistant.review.file — код-ревью активного файла/выделения ──
+  context.subscriptions.push(
+    vscode.commands.registerCommand('llmAssistant.review.file', () => {
+      reviewFile(providerManager, reviewViewProvider);
+    })
+  );
+
+  console.log('[registerCommands] Зарегистрировано 8 команд: chat.focus, chat.addSelection, edit.selection, autocomplete.toggle, apply.start, selectProvider, openHistory, review.file');
 }
 
 /**
@@ -383,4 +394,63 @@ async function startApplyMode(
     });
     historyViewProvider.refresh();
   }
+}
+
+/**
+ * Запустить standalone код-ревью активного файла (или выделения).
+ *
+ * Flow:
+ * 1. Читаем активный редактор (файл или выделение)
+ * 2. Запускаем CodeReviewer (ReviewerAgent через ReAct)
+ * 3. Показываем markdown-отчёт во вкладке «Ревью»
+ *
+ * @param providerManager - менеджер провайдеров
+ * @param reviewViewProvider - провайдер вкладки «Ревью»
+ */
+async function reviewFile(
+  providerManager: ProviderManager,
+  reviewViewProvider: ReviewViewProvider,
+): Promise<void> {
+  const editor = vscode.window.activeTextEditor;
+  if (!editor) {
+    vscode.window.showWarningMessage('Нет активного редактора');
+    return;
+  }
+
+  const provider = providerManager.getDefault();
+  if (!provider) {
+    vscode.window.showErrorMessage('Провайдер не настроен. Проверьте llmAssistant.providers.');
+    return;
+  }
+  if (!(provider as any).createWithTools) {
+    vscode.window.showErrorMessage('Провайдер не поддерживает агентный режим (нет function calling).');
+    return;
+  }
+
+  const config = vscode.workspace.getConfiguration('llmAssistant');
+  const model = config.get<string>('defaultModel') ?? 'gpt-4o';
+
+  const document = editor.document;
+  const filePath = document.uri.fsPath;
+  const language = document.languageId;
+  const selection = editor.selection;
+  const selectedText = document.getText(selection);
+
+  const reviewer = new CodeReviewer();
+
+  const result = await vscode.window.withProgress(
+    {
+      location: vscode.ProgressLocation.Notification,
+      title: 'LLM Assistant: код-ревью...',
+      cancellable: false,
+    },
+    async () => {
+      if (selectedText && !selection.isEmpty) {
+        return reviewer.reviewCode(selectedText, language, filePath, provider, model);
+      }
+      return reviewer.reviewFile(filePath, provider, model);
+    },
+  );
+
+  reviewViewProvider.showReview(filePath, result.report, result.cost);
 }

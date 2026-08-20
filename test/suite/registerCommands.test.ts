@@ -32,10 +32,11 @@ suite('registerCommands', () => {
       autocompleteController: { toggleAutocomplete: sandbox.stub() },
       runHistoryStore: { recordRun: sandbox.stub() },
       historyViewProvider: { refresh: sandbox.stub() },
+      reviewViewProvider: { showReview: sandbox.stub() },
     };
   }
 
-  test('регистрирует все 7 команд', () => {
+  test('регистрирует все 8 команд', () => {
     registerCommands(makeDeps());
 
     const names = registerSpy.getCalls().map((c) => c.args[0]);
@@ -46,16 +47,17 @@ suite('registerCommands', () => {
       'llmAssistant.chat.focus',
       'llmAssistant.edit.selection',
       'llmAssistant.openHistory',
+      'llmAssistant.review.file',
       'llmAssistant.selectProvider',
     ].sort());
-    assert.strictEqual(registerSpy.callCount, 7);
+    assert.strictEqual(registerSpy.callCount, 8);
   });
 
   test('все команды добавляются в context.subscriptions', () => {
     const deps = makeDeps();
     registerCommands(deps);
 
-    // 7 команд + ничего больше (команды регистрируются через context.subscriptions.push)
-    assert.strictEqual(deps.context.subscriptions.push.callCount, 7);
+    // 8 команд регистрируются через context.subscriptions.push
+    assert.strictEqual(deps.context.subscriptions.push.callCount, 8);
   });
 });

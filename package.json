@@ -48,6 +48,10 @@
       {
         "command": "llmAssistant.openHistory",
         "title": "LLM Assistant: Открыть историю запусков"
+      },
+      {
+        "command": "llmAssistant.review.file",
+        "title": "LLM Assistant: Review File"
       }
     ],
     "keybindings": [
@@ -89,6 +93,11 @@
           "type": "webview",
           "id": "llmAssistant.orchestrator",
           "name": "Оркестратор"
+        },
+        {
+          "type": "webview",
+          "id": "llmAssistant.review",
+          "name": "Ревью"
         }
       ]
     },

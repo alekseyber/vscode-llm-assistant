@@ -13,6 +13,7 @@ import { debugLog } from './shared/logger';
 import { RunHistoryStore } from './shared/RunHistoryStore';
 import { HistoryViewProvider, HISTORY_VIEW_TYPE } from './modes/history/HistoryViewProvider';
 import { OrchestratorViewProvider, ORCHESTRATOR_VIEW_TYPE } from './modes/orchestrator/OrchestratorViewProvider';
+import { ReviewViewProvider, REVIEW_VIEW_TYPE } from './modes/review/ReviewViewProvider';
 
 /** Глобальный экземпляр менеджера провайдеров */
 let providerManager: ProviderManager;
@@ -66,6 +67,12 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.window.registerWebviewViewProvider(ORCHESTRATOR_VIEW_TYPE, orchestratorViewProvider)
     );
 
+    // Регистрация провайдера вкладки «Ревью» (Activity Bar)
+    const reviewViewProvider = new ReviewViewProvider(context.extensionUri);
+    context.subscriptions.push(
+        vscode.window.registerWebviewViewProvider(REVIEW_VIEW_TYPE, reviewViewProvider)
+    );
+
     // ── 2. Регистрация WebView Provider ──
     const chatViewProvider = new ChatViewProvider(context, providerManager, conversationManager, runHistoryStore, historyViewProvider, orchestratorViewProvider);
     context.subscriptions.push(
@@ -78,7 +85,7 @@ export function activate(context: vscode.ExtensionContext) {
     };
 
     // ── 3. Команды ──
-    registerCommands({ context, providerManager, conversationManager, editController, autocompleteController, runHistoryStore, historyViewProvider });
+    registerCommands({ context, providerManager, conversationManager, editController, autocompleteController, runHistoryStore, historyViewProvider, reviewViewProvider });
 
     // ── 4. Конфигурация ──
     context.subscriptions.push(

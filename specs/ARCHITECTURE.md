@@ -46,6 +46,9 @@ extension.ts (вход)
 │   ├── 💡 Code Actions (0.9.0)
 │   │   └── CodeActionsProvider   [spec ✅] — лампочка: «Объясни», «Почини», «Спроси»
 │   │
+│   ├── 🔍 Ревью (0.11.0)
+│   │   ├── CodeReviewer          [spec ✅] — standalone AI-ревью (reviewFile/reviewCode через ReviewerAgent)
+│   │   └── ReviewViewProvider    [spec ✅] — вкладка «Ревью» (markdown-отчёт)
 │   │
 │   └── 👻 Автокомплит
 │       └── AutocompleteController [spec ✅] — ghost text (ContextBuilder + GhostTextManager)
@@ -78,9 +81,9 @@ extension.ts (вход)
 
 | Статус | Компоненты |
 |--------|-----------|
-|| ✅ Есть spec | **31 компонент** |
+|| ✅ Есть spec | **33 компонента** |
 
-**Покрытие: 31/31 (100%)**
+**Покрытие: 33/33 (100%)**
 
 ## Потоки данных
 
