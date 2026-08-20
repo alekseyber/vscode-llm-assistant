@@ -43,6 +43,10 @@ class ReviewViewProvider implements vscode.WebviewViewProvider {
 - **Использует:** `marked.min.js` (webview-ресурс), `vscode.WebviewView`.
 - **Используется:** `registerCommands.ts` (команда `review.file` → `showReview`), `extension.ts` (регистрация провайдера).
 
+## Тесты
+
+- `reviewViewProvider.test.ts` — `showReview` → postMessage, `ready` → повторная отправка сохранённого отчёта, jsdom-рендер markdown-отчёта (3 теста).
+
 ## История изменений
 
 | Версия | Дата | Изменения |

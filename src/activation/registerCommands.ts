@@ -114,7 +114,7 @@ export function registerCommands(deps: CommandDependencies): void {
   // ── 8. llmAssistant.review.file — код-ревью активного файла/выделения ──
   context.subscriptions.push(
     vscode.commands.registerCommand('llmAssistant.review.file', () => {
-      reviewFile(providerManager, reviewViewProvider);
+      reviewActiveFile(providerManager, reviewViewProvider);
     })
   );
 
@@ -407,7 +407,7 @@ async function startApplyMode(
  * @param providerManager - менеджер провайдеров
  * @param reviewViewProvider - провайдер вкладки «Ревью»
  */
-async function reviewFile(
+export async function reviewActiveFile(
   providerManager: ProviderManager,
   reviewViewProvider: ReviewViewProvider,
 ): Promise<void> {

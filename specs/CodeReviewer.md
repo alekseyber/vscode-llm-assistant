@@ -79,8 +79,9 @@ class CodeReviewer {
 
 ## Тесты
 
-- `codeReviewer.test.ts` — мок AgentWorker/LLM: reviewFile передаёт путь в задачу, reviewCode передаёт код, пустой вход → ранняя ошибка, отмена.
-- E2E `review.e2e.ts` — команда ревью с мок-провайдером, отчёт попадает в сессию.
+- `codeReviewer.test.ts` — мок AgentWorker: `reviewFile` передаёт путь в задачу, `reviewCode` передаёт код, пустой код/путь → ранняя ошибка без вызова LLM (4 теста).
+- `reviewCommand.test.ts` — обработчик `reviewActiveFile`: нет редактора/провайдера → warning/error, выделение → `reviewCode`, весь файл → `reviewFile`, результат → `showReview` (4 теста).
+- E2E `review.e2e.ts` — CodeReviewer с мок `createWithTools` (2 теста).
 
 ## История изменений
 

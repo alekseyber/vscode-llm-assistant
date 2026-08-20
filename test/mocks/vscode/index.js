@@ -111,6 +111,7 @@ const workspace = {
 
 // --- Window ---
 const window = {
+  activeTextEditor: undefined,
   showInformationMessage(msg) { return Promise.resolve(); },
   showErrorMessage(msg) { return Promise.resolve(); },
   showWarningMessage(msg) { return Promise.resolve(); },
@@ -122,6 +123,11 @@ const window = {
       show() {},
       dispose() {},
     };
+  },
+  withProgress(options, task) {
+    const progress = { report: () => {} };
+    const token = { isCancellationRequested: false, onCancellationRequested: () => {} };
+    return task(progress, token);
   },
 };
 
@@ -160,4 +166,5 @@ module.exports = {
   commands,
   // Часто используемые enum'ы
   ConfigurationTarget: { Global: 1, Workspace: 2, WorkspaceFolder: 3 },
+  ProgressLocation: { Notification: 15, Window: 15 },
 };
