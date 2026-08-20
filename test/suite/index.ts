@@ -14,6 +14,8 @@ const Mocha = require('mocha');
 const testModules: string[] = [
   './e2e/activation.e2e',
   './e2e/applyMode.e2e',
+  './e2e/askUser.e2e',
+  './e2e/allowList.e2e',
 ];
 
 /**

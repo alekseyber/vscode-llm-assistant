@@ -86,4 +86,87 @@ suite('E2E: ReAct-цикл apply-режима', () => {
     assert.strictEqual(result.iterations, 1);
     assert.strictEqual(result.limitExceeded, false);
   });
+
+  test('read_file читает файл, observation содержит содержимое (2 шага)', async () => {
+    const notePath = path.join(tmpDir, 'note.txt');
+    fs.writeFileSync(notePath, 'секретное содержимое', 'utf-8');
+
+    const toolSystem = new ToolSystem();
+    toolSystem.registerAll(createTools());
+    const agent = new AgentController(toolSystem);
+
+    let call = 0;
+    const provider: any = {
+      chat: async function* () {
+        call++;
+        if (call === 1) yield JSON.stringify({ tool: 'read_file', arguments: { path: notePath } });
+        else yield 'Файл прочитан.';
+      },
+    };
+
+    const result = await agent.run({ provider, model: 'test-model', task: 'прочитай note.txt', maxIterations: 5 });
+
+    assert.strictEqual(result.answer, 'Файл прочитан.');
+    assert.strictEqual(result.iterations, 2);
+    assert.ok(result.steps.some((s) => s.type === 'tool_call' && s.tool === 'read_file'), 'был вызов read_file');
+    const toolResult = result.steps.find((s) => s.type === 'tool_result' && s.tool === 'read_file');
+    assert.ok((toolResult!.result as string).includes('секретное содержимое'), 'observation содержит содержимое файла');
+  });
+
+  test('лимит итераций → limitExceeded', async () => {
+    const toolSystem = new ToolSystem();
+    toolSystem.registerAll(createTools());
+    const agent = new AgentController(toolSystem);
+
+    // Провайдер всегда возвращает tool_call и никогда финальный ответ
+    const provider: any = {
+      chat: async function* () {
+        yield JSON.stringify({ tool: 'read_file', arguments: { path: path.join(tmpDir, 'missing.txt') } });
+      },
+    };
+
+    const result = await agent.run({ provider, model: 'test-model', task: 'бесконечная задача', maxIterations: 3 });
+
+    assert.strictEqual(result.limitExceeded, true);
+    assert.strictEqual(result.iterations, 3);
+  });
+
+  test('ошибка инструмента возвращается как observation, агент продолжает', async () => {
+    const toolSystem = new ToolSystem();
+    toolSystem.registerAll(createTools());
+    const agent = new AgentController(toolSystem);
+
+    let call = 0;
+    const provider: any = {
+      chat: async function* () {
+        call++;
+        if (call === 1) yield JSON.stringify({ tool: 'read_file', arguments: { path: path.join(tmpDir, 'missing.txt') } });
+        else yield 'Не нашёл файл, завершаю.';
+      },
+    };
+
+    const result = await agent.run({ provider, model: 'test-model', task: 'прочитай missing.txt', maxIterations: 5 });
+
+    assert.strictEqual(result.iterations, 2, 'агент продолжил после ошибки');
+    const toolResult = result.steps.find((s) => s.type === 'tool_result');
+    assert.ok((toolResult!.result as string).includes('Ошибка'), 'observation содержит ошибку');
+  });
+
+  test('отмена через signal → cancelled', async () => {
+    const toolSystem = new ToolSystem();
+    toolSystem.registerAll(createTools());
+    const agent = new AgentController(toolSystem);
+
+    const controller = new AbortController();
+    const provider: any = {
+      chat: async function* () {
+        controller.abort(); // отменяем во время первого вызова
+        yield JSON.stringify({ tool: 'read_file', arguments: { path: 'x' } });
+      },
+    };
+
+    const result = await agent.run({ provider, model: 'test-model', task: 'задача', maxIterations: 5, signal: controller.signal });
+
+    assert.strictEqual(result.cancelled, true);
+  });
 });
