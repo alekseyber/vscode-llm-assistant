@@ -162,8 +162,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
     const providerDisplayName = providerName || config.get<string>('defaultProvider') || 'unknown';
 
-    // Записываем запуск в историю со статусом 'running' (появится сразу, обновится по завершении)
-    this.recordRunStart(runId, startTime, text, providerDisplayName, model, isAgentMode ? 'agent' : 'chat', sessionId);
+    // Записываем запуск в историю со статусом 'running' (появится сразу, обновится по завершении).
+    // Plan Mode записывает свой запуск в handlePlanMode/handleImplementPlan — иначе двойная запись.
+    if (!(isAgentMode && planMode)) {
+      this.recordRunStart(runId, startTime, text, providerDisplayName, model, isAgentMode ? 'agent' : 'chat', sessionId);
+    }
 
     // Авто-контекст — должен быть ПЕРЕД addMessage, чтобы прикрепиться к ТЕКУЩЕМУ сообщению
     if (isAgentMode || config.get<boolean>('chat.includeOpenFile', true)) {
@@ -285,7 +288,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
       // ── Plan Mode: ветвление для агента с планом ──
       if (isAgentMode && planMode) {
-        await this.handlePlanMode(text, provider, model, sid);
+        await this.handlePlanMode(text, provider, model, sid, abortController.signal);
         return;
       }
 
@@ -466,7 +469,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   }
 
   /** Plan Mode: генерация плана (Этап 1) */
-  private async handlePlanMode(text: string, provider: any, model: string, sessionId?: string): Promise<void> {
+  private async handlePlanMode(text: string, provider: any, model: string, sessionId?: string, signal?: AbortSignal): Promise<void> {
     const workspaceFolders = vscode.workspace.workspaceFolders;
     if (!workspaceFolders || workspaceFolders.length === 0) {
       this.postMessage({ type: 'error', text: 'Plan Mode требует открытый workspace.' }, sessionId);
@@ -483,7 +486,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
     try {
       const planManager = new PlanModeManager(workspacePath);
-      const planResult = await planManager.generatePlan(text, provider, model, this.abortControllers.get(sessionId || 'default')?.signal);
+      const planResult = await planManager.generatePlan(text, provider, model, signal);
 
       // Отправляем план в WebView
       this.postMessage({

@@ -1302,7 +1302,7 @@
       const container = document.getElementById('plan-container');
       const planPath = container?.dataset.planPath;
       if (planPath) {
-        postMessage({ type: 'implementPlan', planPath });
+        postMessage({ type: 'implementPlan', planPath, sessionId: sessionSelect?.value || '' });
       }
     });
   }
