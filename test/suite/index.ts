@@ -16,6 +16,7 @@ const testModules: string[] = [
   './e2e/applyMode.e2e',
   './e2e/askUser.e2e',
   './e2e/allowList.e2e',
+  './e2e/planModeSession.e2e',
 ];
 
 /**
