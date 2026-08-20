@@ -38,8 +38,8 @@ suite('E2E: Plan Mode — сессионная привязка', () => {
       appendLine: () => {}, append: () => {}, show: () => {}, hide: () => {}, clear: () => {}, dispose: () => {},
     } as any);
 
-    // In-memory хранилища
-    const storage = { get: () => undefined, update: () => Promise.resolve(), keys: () => [], setKeysForSync: () => {} };
+    // In-memory хранилища (get возвращает дефолт — иначе SessionManager.load падает на Object.entries(undefined))
+    const storage = { get: (_k: string, def: unknown) => def, update: () => Promise.resolve(), keys: () => [], setKeysForSync: () => {} };
     const globalState = (() => {
       let runs: any[] = [];
       return {
