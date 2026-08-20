@@ -447,6 +447,21 @@
     scrollToBottom();
   }
 
+  /** Сбросить состояние стрима (флаги, указатели, индикатор, поле ввода) */
+  function resetStreamingState() {
+    isStreaming = false;
+    lastAssistantMessageEl = null;
+    lastAssistantContentEl = null;
+    streamingRawText = '';
+    streamingActivityEl = null;
+    streamingAnswerEl = null;
+    currentActivityStep = null;
+    streamingIndicator.classList.add('hidden');
+    sendButton.disabled = false;
+    sendButton.textContent = '➤';
+    messageInput.disabled = false;
+  }
+
   /**
    * Завершить стриминг — рендерить ТОЛЬКО финальный ответ (без хода выполнения).
    */
@@ -461,18 +476,7 @@
       lastAssistantMessageEl.classList.remove('streaming');
     }
 
-    isStreaming = false;
-    lastAssistantMessageEl = null;
-    lastAssistantContentEl = null;
-    streamingRawText = '';
-    streamingActivityEl = null;
-    streamingAnswerEl = null;
-    currentActivityStep = null;
-
-    streamingIndicator.classList.add('hidden');
-    sendButton.disabled = false;
-    sendButton.textContent = '➤';
-    messageInput.disabled = false;
+    resetStreamingState();
     messageInput.focus();
   }
 
@@ -661,6 +665,10 @@
    * @param {Array<{role: string, content: string}>} messages - сообщения из истории
    */
   function restoreHistory(messages) {
+    // Сброс стрим-состояния: при переключении/восстановлении сессии во время активного
+    // стрима иначе остаётся «зависший» блок с курсором и заблокированное поле ввода.
+    resetStreamingState();
+
     // Всегда очищаем контейнер
     const welcome = document.getElementById('welcome-message');
     messagesContainer.innerHTML = '';
