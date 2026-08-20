@@ -115,6 +115,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     this.conversationManager.session.switchTo(sessionId);
     this.sendHistoryToWebview();
     this.sendSessionListToWebview();
+    // Фокусируем вкладку чата (reveal) — иначе переключение сессии не видно
+    this.view?.show(true);
   }
 
   private async handleSendMessage(text: string, mode = 'chat', providerName?: string, modelName?: string, planMode?: boolean, sessionId?: string): Promise<void> {
