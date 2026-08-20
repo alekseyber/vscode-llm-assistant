@@ -170,15 +170,22 @@ export class ConversationManager {
   }
 
   addMessage(message: ContextMessage): void {
+    this.addMessageTo(this.sessionManager.getActive()?.meta.id, message);
+  }
+
+  /** Добавить сообщение в конкретную сессию (по id) — для сессионной маршрутизации */
+  addMessageTo(sessionId: string | undefined, message: ContextMessage): void {
+    const targetId = sessionId || this.sessionManager.getActive()?.meta.id;
+    if (!targetId) return;
     // Добавляем pending-контекст к пользовательским сообщениям
     if (message.role === 'user' && this.pendingContext) {
       message.context = this.pendingContext;
       this.pendingContext = null;
     }
-    this.sessionManager.addMessage(message);
+    this.sessionManager.addMessageTo(targetId, message);
     // Авто-имя сессии из первого сообщения
     if (message.role === 'user') {
-      this.sessionManager.autoNameSession(this.sessionManager.getActive()?.meta.id || '');
+      this.sessionManager.autoNameSession(targetId);
     }
     // Инвалидируем кеш summary при добавлении новых сообщений
     this.summarizer.invalidateCache();
@@ -187,7 +194,7 @@ export class ConversationManager {
     const debug = vscode.workspace.getConfiguration('llmAssistant').get<boolean>('debug', false);
     if (debug) {
       const allMsgs = this.sessionManager.getMessages();
-      console.warn(`[LLM Assistant] addMessage: role=${message.role}, totalMessages=${allMsgs.length}, activeSession=${this.sessionManager.getActive()?.meta.id?.slice(0,16) ?? 'none'}`);
+      console.warn(`[LLM Assistant] addMessageTo: role=${message.role}, totalMessages=${allMsgs.length}, session=${targetId?.slice(0, 16) ?? 'none'}`);
     }
   }
 

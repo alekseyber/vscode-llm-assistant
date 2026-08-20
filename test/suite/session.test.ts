@@ -50,6 +50,23 @@ suite('SessionManager', () => {
     assert.strictEqual(active!.meta.id, id2);
   });
 
+  test('addMessageTo() пишет сообщение в конкретную сессию, а не в активную', () => {
+    const sm = new SessionManager(storage);
+    const id1 = sm.getActive()!.meta.id;
+    const id2 = sm.createSession('Вторая'); // активная теперь id2
+
+    // Пишем в НЕактивную сессию id1, пока активна id2
+    sm.addMessageTo(id1, { role: 'user', content: 'сообщение в первую' });
+
+    // Активная сессия (id2) не должна получить это сообщение
+    assert.strictEqual(sm.getMessages().length, 0);
+
+    // Переключаемся на id1 — сообщение там
+    sm.switchTo(id1);
+    assert.strictEqual(sm.getMessages().length, 1);
+    assert.strictEqual(sm.getMessages()[0].content, 'сообщение в первую');
+  });
+
   test('deleteSession() удаляет сессию', () => {
     const sm = new SessionManager(storage);
     const id2 = sm.createSession('Удаляемая');

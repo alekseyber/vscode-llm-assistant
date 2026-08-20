@@ -56,7 +56,12 @@ export class SessionManager {
 
   /** Добавить сообщение в активную сессию */
   addMessage(message: ChatMessage): void {
-    const session = this.getActive();
+    if (this.activeId) this.addMessageTo(this.activeId, message);
+  }
+
+  /** Добавить сообщение в конкретную сессию (по id) — для сессионной маршрутизации */
+  addMessageTo(sessionId: string, message: ChatMessage): void {
+    const session = this.sessions.get(sessionId);
     if (!session) return;
     session.messages.push(message);
     session.meta.messageCount = session.messages.length;

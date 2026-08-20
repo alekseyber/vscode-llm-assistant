@@ -178,7 +178,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
     // Не добавляем в историю сразу если будет vision (изображение добавится вместе с текстом)
     if (!isVision) {
-      this.conversationManager.addMessage({ role: 'user', content: text });
+      this.conversationManager.addMessageTo(sessionId, { role: 'user', content: text });
     }
 
     this.postMessage({ type: 'userMessage', text }, sessionId);
@@ -274,8 +274,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         for await (const chunk of stream) { full += chunk; this.postMessage({ type: 'streamChunk', text: chunk }, sessionId); }
         this.postMessage({ type: 'done' }, sessionId);
         // Сохраняем в историю после успешного ответа
-        this.conversationManager.addMessage({ role: 'user', content: text });
-        this.conversationManager.addMessage({ role: 'assistant', content: full });
+        this.conversationManager.addMessageTo(sessionId, { role: 'user', content: text });
+        this.conversationManager.addMessageTo(sessionId, { role: 'assistant', content: full });
         outTokens = Math.ceil(full.length / 4);
         this.finalizeRun(runId, startTime, model, providerDisplayName, inTokens, outTokens, 1, 'success');
         return;
@@ -294,7 +294,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         const agentProvider = provider as any;
         if (!agentProvider.createWithTools) {
           this.postMessage({ type: 'error', text: `⚠️ Провайдер «${providerDisplayName}» не поддерживает режим Агента. Переключите провайдера на SiliconFlow или DeepSeek.` }, sessionId);
-          this.conversationManager.addMessage({ role: 'assistant', content: `⚠️ Провайдер «${providerDisplayName}» не поддерживает режим Агента.` });
+          this.conversationManager.addMessageTo(sessionId, { role: 'assistant', content: `⚠️ Провайдер «${providerDisplayName}» не поддерживает режим Агента.` });
           this.finalizeRun(runId, startTime, model, providerDisplayName, inTokens, 0, 0, 'error', 'Нет createWithTools');
           return;
         }
@@ -305,7 +305,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         let full = '';
         for await (const chunk of stream) { full += chunk; this.postMessage({ type: 'streamChunk', text: chunk }, sessionId); }
         this.postMessage({ type: 'done' }, sessionId);
-        this.conversationManager.addMessage({ role: 'assistant', content: full });
+        this.conversationManager.addMessageTo(sessionId, { role: 'assistant', content: full });
         this.postTokens(messages, full, model);
         outTokens = Math.ceil(full.length / 4);
         this.finalizeRun(runId, startTime, model, providerDisplayName, inTokens, outTokens, 1, 'success');
@@ -461,7 +461,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     // Финальный ответ
     this.postMessage({ type: 'streamChunk', text: result.answer }, sessionId);
     this.postMessage({ type: 'done' }, sessionId);
-    this.conversationManager.addMessage({ role: 'assistant', content: result.answer });
+    this.conversationManager.addMessageTo(sessionId, { role: 'assistant', content: result.answer });
     this.postTokens(messages, result.answer, model);
   }
 
@@ -686,8 +686,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     this.postMessage({ type: 'tokens', inputTokens: result.totalInputTokens, outputTokens: result.totalOutputTokens, model }, sessionId);
 
     // Сохраняем ответ в историю
-    this.conversationManager.addMessage({ role: 'user', content: `@orchestrate ${taskText}` });
-    this.conversationManager.addMessage({ role: 'assistant', content: result.summary });
+    this.conversationManager.addMessageTo(sessionId, { role: 'user', content: `@orchestrate ${taskText}` });
+    this.conversationManager.addMessageTo(sessionId, { role: 'assistant', content: result.summary });
 
     // Обновляем запись в истории запусков финальным статусом
     this.finalizeRun(
