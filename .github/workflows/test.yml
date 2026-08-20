@@ -26,7 +26,8 @@ jobs:
       - run: npm ci
       - run: npm run lint
 
-  test:
+  # Юнит-тесты с мок-vscode (npm run test:mocked) — быстрые, без реального VS Code
+  test-unit:
     runs-on: ubuntu-latest
     needs: lint
     steps:
@@ -34,8 +35,20 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 20 }
       - run: npm ci
+      - run: npx tsc -p tsconfig.test.json
+      - run: npm run test:mocked
+
+  # E2E в реальном VS Code (npm test → @vscode/test-electron) — нужны GTK-библиотеки Electron + xvfb
+  test-e2e:
+    runs-on: ubuntu-latest
+    needs: test-unit
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: npm ci
       - run: npm run compile
       - run: npx tsc -p tsconfig.test.json
-      - run: sudo apt-get install -y xvfb
-      - name: Run tests
+      - run: sudo apt-get update && sudo apt-get install -y xvfb libgtk-3-0 libnss3 libasound2 libgbm1 libxss1
+      - name: Run E2E tests
         run: xvfb-run --auto-servernum npm test

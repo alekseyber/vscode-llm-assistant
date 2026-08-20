@@ -1,5 +1,6 @@
-// Точка входа для mocha — загружает все тестовые наборы
-// Настраивает mocha с TDD-интерфейсом и импортирует все test suite'ы
+// Точка входа для mocha — загружает E2E-тестовые наборы (реальный VS Code Extension Host)
+// Юнит-тесты (мок vscode) запускаются отдельно через test/run-mocked.js (npm run test:mocked).
+// Здесь — только интеграционные тесты, которым нужен настоящий VS Code API.
 
 import * as path from 'path';
 
@@ -8,36 +9,11 @@ import * as path from 'path';
 const Mocha = require('mocha');
 
 /**
- * Этот файл — точка входа для mocha-тестов, запускаемых внутри VS Code Extension Host.
- * VS Code загружает этот файл через --extensionTestsPath и вызывает экспортированную функцию run().
- * 
- * Все тесты должны быть импортированы здесь, чтобы mocha их зарегистрировала.
- * Мы явно создаём инстанс Mocha с ui: 'tdd', потому что VS Code Extension Host
- * по умолчанию использует BDD (describe/it), а тесты написаны в TDD (suite/test).
+ * Список E2E-тестовых модулей (запускаются внутри реального VS Code).
  */
-
-// Список тестовых модулей
 const testModules: string[] = [
-  './askUserTool.test',
-  './providers.test',
-  './streaming.test',
-  './tools.test',
-  './context.test',
-  './conversation.test',
-  './session.test',
-  './agentsMd.test',
-  './agentsMdIntegration.test',
-  './contextSummarizer.test',
-  './summaryIntegration.test',
-  './retryHandler.test',
-  './toolAllowList.test',
-  './mcpClient.test',
-  './runHistoryStore.test',
-  './agentWorker.test',
-  './agentOrchestrator.test',
-  './agentCommunication.test',
-  './orchestratorView.test',
-  './roleAgentsMd.test',
+  './e2e/activation.e2e',
+  './e2e/applyMode.e2e',
 ];
 
 /**
@@ -47,30 +23,26 @@ const testModules: string[] = [
 export function run(): Promise<void> {
   return new Promise<void>((resolve, reject) => {
     try {
-      // Создаём инстанс mocha с TDD-интерфейсом (suite/test/setup/teardown)
       const mocha = new Mocha({
         ui: 'tdd',
-        timeout: 10000,
+        timeout: 20000,
         color: true,
         reporter: 'spec',
       });
 
-      // Загружаем тестовые модули
       for (const mod of testModules) {
         const modulePath = path.resolve(__dirname, mod);
-        // Добавляем файл в mocha (он загрузит и зарегистрирует suite/test)
         mocha.addFile(modulePath);
       }
 
-      console.log(`[Тесты] Загружено ${testModules.length} тестовых наборов`);
+      console.log(`[Тесты] Загружено ${testModules.length} E2E-наборов`);
       console.log(`[Тесты] Наборы: ${testModules.join(', ')}`);
 
-      // Запускаем mocha
       mocha.run((failures: number) => {
         if (failures > 0) {
           reject(new Error(`Тесты завершились с ${failures} ошибками`));
         } else {
-          console.log('[Тесты] Все тесты пройдены успешно');
+          console.log('[Тесты] Все E2E-тесты пройдены успешно');
           resolve();
         }
       });
