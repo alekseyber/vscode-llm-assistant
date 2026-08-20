@@ -495,6 +495,9 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         planPath: planResult.planPath,
       }, sessionId);
 
+      // Сохраняем план в историю сессии — иначе теряется при переключении чата/восстановлении
+      this.conversationManager.addMessageTo(sessionId, { role: 'assistant', content: `📋 **План:**\n\n${planResult.content}` });
+
       this.postMessage({ type: 'done' }, sessionId);
       this.finalizeRun(planRunId, planStartTime, model, 'plan-mode', 0, 0, 1, 'success');
     } catch (err: any) {
@@ -546,6 +549,9 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         text: `\n✅ Имплементация завершена (воркеров: ${implResult.orchestratorResult.workers.length})\n`,
       }, sessionId);
 
+      // Сохраняем результат имплементации в историю сессии
+      this.conversationManager.addMessageTo(sessionId, { role: 'assistant', content: `✅ Имплементация завершена (воркеров: ${implResult.orchestratorResult.workers.length})` });
+
       // Этап 3: Рефлексия
       this.postMessage({ type: 'streamChunk', text: '🔍 **Рефлексия...**\n' }, sessionId);
 
@@ -566,6 +572,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         report: reflectResult.report,
         allPassed: reflectResult.allPassed,
       }, sessionId);
+
+      // Сохраняем отчёт рефлексии в историю сессии
+      const reportPrefix = reflectResult.allPassed ? '🎉 **Рефлексия пройдена:**' : '⚠️ **Рефлексия — есть замечания:**';
+      this.conversationManager.addMessageTo(sessionId, { role: 'assistant', content: `${reportPrefix}\n\n${reflectResult.report}` });
 
       this.postMessage({ type: 'done' }, sessionId);
       this.finalizeRun(implRunId, implStartTime, model, 'plan-mode', 0, 0, 1, 'success');

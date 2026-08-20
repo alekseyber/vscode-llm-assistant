@@ -143,4 +143,27 @@ suite('ChatWebview (jsdom)', () => {
     assert.ok(popup.textContent!.includes('explain'), 'отфильтрован explain');
     assert.ok(!popup.textContent!.includes('doc'), 'doc отфильтрован');
   });
+
+  test('planGenerated сохраняет исходную сессию, implementPlan шлёт её (не текущую)', () => {
+    const { dispatch, document, postedMessages } = loadWebview();
+
+    // План сгенерирован в сессии A
+    dispatch({ type: 'sessionList', sessions: [{ id: 'A', name: 'Первая' }], activeId: 'A' });
+    dispatch({ type: 'planGenerated', planContent: '# План', planPath: '/tmp/plan.md', sessionId: 'A' });
+
+    const container = document.getElementById('plan-container')!;
+    assert.strictEqual(container.dataset.sessionId, 'A', 'исходная сессия сохранена');
+    assert.strictEqual(container.dataset.planPath, '/tmp/plan.md');
+
+    // Переключаемся на сессию B
+    dispatch({ type: 'sessionList', sessions: [{ id: 'A', name: 'Первая' }, { id: 'B', name: 'Вторая' }], activeId: 'B' });
+
+    // Клик «Имплементировать» — должен нести исходную сессию A, а не текущую B
+    const btn = document.getElementById('btn-implement-plan') as HTMLElement;
+    btn.click();
+
+    const implMsg = postedMessages.find((m) => m.type === 'implementPlan');
+    assert.ok(implMsg, 'implementPlan отправлен');
+    assert.strictEqual(implMsg.sessionId, 'A', 'сессия — исходная A, а не текущая B');
+  });
 });

@@ -212,6 +212,39 @@ suite('ChatViewProvider.handleSendMessage', () => {
     assert.strictEqual(runs[0].provider, 'plan-mode');
     assert.strictEqual(runs[0].sessionId, id1);
     assert.strictEqual(runs[0].mode, 'agent');
+
+    // План персистится в сессию (фикс потери результата при переключении чата)
+    const msgs = cm.getMessages();
+    assert.strictEqual(msgs.length, 2, 'user + assistant(план)');
+    assert.ok(msgs[1].content.includes('# План'), 'план сохранён в сессию');
+  });
+
+  test('handleImplementPlan: персистит имплементацию и рефлексию в исходную сессию', async () => {
+    sandbox.stub(PlanModeManager.prototype, 'implementPlan').resolves({
+      orchestratorResult: { workers: [{ roleName: 'coder' }] },
+    } as any);
+    sandbox.stub(PlanModeManager.prototype, 'reflect').resolves({
+      report: 'AC-1 ✅ пройден',
+      allPassed: true,
+      cycles: 1,
+      summary: 'всё готово',
+    } as any);
+
+    const id1 = cm.session.getActive()!.meta.id;
+    await (provider as any).handleImplementPlan('/tmp/plan.md', undefined, undefined, id1);
+
+    // Одна запись success в исходной сессии
+    const runs = history.getRuns();
+    assert.strictEqual(runs.length, 1);
+    assert.strictEqual(runs[0].status, 'success');
+    assert.strictEqual(runs[0].sessionId, id1);
+
+    // Персистились: имплементация + рефлексия (не потеряются при переключении чата)
+    const msgs = cm.getMessages();
+    assert.strictEqual(msgs.length, 2, 'имплементация + рефлексия');
+    assert.ok(msgs[0].content.includes('Имплементация завершена'));
+    assert.ok(msgs[1].content.includes('Рефлексия пройдена'));
+    assert.ok(msgs[1].content.includes('AC-1 ✅'));
   });
 
   test('@orchestrate: одна запись success с provider orchestrator + сообщения в сессии', async () => {

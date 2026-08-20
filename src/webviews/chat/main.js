@@ -668,8 +668,8 @@
         break;
 
       case 'planGenerated':
-        // Plan Mode: план сгенерирован — показать с кнопками
-        showPlan(message.planContent, message.planPath);
+        // Plan Mode: план сгенерирован — показать с кнопками (с исходной сессией)
+        showPlan(message.planContent, message.planPath, message.sessionId);
         break;
 
       case 'implementStarted':
@@ -1238,7 +1238,7 @@
    * @param {string} content — markdown плана
    * @param {string} planPath — путь к файлу плана
    */
-  function showPlan(content, planPath) {
+  function showPlan(content, planPath, sessionId) {
     const container = document.getElementById('plan-container');
     const planContent = document.getElementById('plan-content');
     if (!container || !planContent) return;
@@ -1247,8 +1247,9 @@
     planContent.innerHTML = marked.parse(content, { breaks: true, gfm: false });
     addCodeToggles(planContent);
 
-    // Сохраняем путь для кнопок
+    // Сохраняем путь и ИСХОДНУЮ сессию для кнопок (результат имплементации должен уйти в ту же сессию)
     container.dataset.planPath = planPath;
+    container.dataset.sessionId = sessionId || '';
     container.classList.remove('hidden');
     scrollToBottom();
   }
@@ -1280,7 +1281,7 @@
       const container = document.getElementById('plan-container');
       const planPath = container?.dataset.planPath;
       if (planPath) {
-        postMessage({ type: 'implementPlan', planPath, sessionId: sessionSelect?.value || '' });
+        postMessage({ type: 'implementPlan', planPath, sessionId: container?.dataset.sessionId || sessionSelect?.value || '' });
       }
     });
   }

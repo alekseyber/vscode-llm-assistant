@@ -89,13 +89,14 @@ since: 0.1.0
 - **Сессионная маршрутизация + параллельные процессы:** `sendMessage`/`cancelRequest`/`implementPlan` передают `sessionId`. `postMessage(m, sessionId)` тегирует сообщение; WebView игнорирует сообщения с `sessionId !== currentSessionId` — результат остаётся в истории нужной сессии и появляется при переключении. `abortControllers: Map<sessionId, AbortController>` — каждый процесс отменяется независимо (`cancelRequest` с `sessionId`), что позволяет параллельные запуски в разных сессиях. `switchToSession(sessionId)` — публичный метод переключения активной сессии (вызывается из вкладки «История» по двойному клику).
 - **История со старта + индикатор «в работе»:** запуск записывается в историю сразу (`recordRunStart`, статус `running`), по завершении обновляется (`finalizeRun` → `success`/`error`/`cancelled`). Охвачены все режимы: чат/агент (`handleSendMessage`), Plan Mode (`handlePlanMode`/`handleImplementPlan`), оркестратор (`handleOrchestrate`). В Plan Mode `handleSendMessage` НЕ записывает запуск (иначе двойная запись — `handlePlanMode` пишет свой). `broadcastRunState` шлёт WebView `runStarted`/`runEnded` (без тега `sessionId`, поле `runSessionId` — чтобы WebView получил независимо от активной сессии); WebView показывает индикатор ⏹️ «в работе» при возврате в сессию с активным процессом.
 - **Сигнал отмены Plan Mode:** `handlePlanMode` получает `signal` напрямую параметром (`abortController.signal` из `handleSendMessage`), а не через `abortControllers.get(sessionId)` — исключает гонку, когда в одной сессии несколько параллельных запусков перезаписывают контроллер в Map (приводило к «Request was aborted»). `implementPlan` передаёт `sessionId` (кнопка «Имплементировать»).
+- **Персистентность результата Plan Mode:** план (`handlePlanMode`), имплементация и рефлексия (`handleImplementPlan`) сохраняются в историю сессии через `addMessageTo` — иначе при переключении чата/восстановлении (`restoreHistory`) результат терялся. `planGenerated` несёт исходную `sessionId`; WebView хранит её в `plan-container.dataset.sessionId`, а кнопка «Имплементировать» шлёт эту исходную сессию (а не `sessionSelect.value`) — результат уходит в сессию, где был запущен план, даже после переключения чатов.
 - **Автокомплит команд:** при `ready` (инициализация WebView) отправляет `{ type: 'slashCommands', items: [{name, description, kind, prefix}] }` — встроенные слэш-команды (`SLASH_COMMANDS`, `prefix: '/'`), скилы (`getSkillCatalog()`, `prefix: '/'`) и `@orchestrate` (`prefix: '@'`). WebView показывает попап автокомплита при вводе `/` или `@`.
 
 
 ## Тесты
 
-- `chatViewProvider.test.ts` — полный мок vscode/ProviderManager/LLM/AgentOrchestrator/PlanModeManager: `handleSendMessage` напрямую (chat/agent/planMode/orchestrate), сессионная маршрутизация, история со старта (`running` → `success`), отсутствие двойной записи в Plan Mode, ошибка агента без `createWithTools`.
-- `chatWebview.test.ts` (jsdom) — DOM-харнесс WebView: маршрутизация по sessionId, git-diff диалог подтверждения (рендер + кнопка «Подтвердить»), автокомплит `/`, индикатор «в работе».
+- `chatViewProvider.test.ts` — полный мок vscode/ProviderManager/LLM/AgentOrchestrator/PlanModeManager: `handleSendMessage` напрямую (chat/agent/planMode/orchestrate), сессионная маршрутизация, история со старта (`running` → `success`), отсутствие двойной записи в Plan Mode, ошибка агента без `createWithTools`, персистентность плана/имплементации/рефлексии (`handlePlanMode`/`handleImplementPlan` → `addMessageTo`).
+- `chatWebview.test.ts` (jsdom) — DOM-харнесс WebView: маршрутизация по sessionId, git-diff диалог подтверждения (рендер + кнопка «Подтвердить»), автокомплит `/`, индикатор «в работе», треджинг исходной сессии `planGenerated` → кнопка «Имплементировать».
 - AgentWorker тесты (runAgentLoop)
 - ConversationManager тесты (история)
 - Ручное тестирование (20-пунктовый чек-лист)
@@ -104,6 +105,7 @@ since: 0.1.0
 
 | Версия | Дата | Изменения |
 |--------|------|-----------|
+| 0.10.0 | 2026-08-20 | Фикс: результат Plan Mode персистится в сессию + кнопка «Имплементировать» шлёт исходную sessionId (не текущую) — результат не теряется при переключении чатов |
 | 0.10.0 | 2026-08-20 | `computeLineDiff` (git-diff диалога) вынесен в `lineDiff.js` (инлайнится в index.html через `{{LINEDIFF}}`) |
 | 0.10.0 | 2026-08-19 | Автокомплит команд: sendSlashCommandsToWebview (встроенные + скилы + @orchestrate, поле prefix) |
 | 0.9.0 | 2026-08-18 | Слэш-команды код-действий: /explain, /explain_stepbystep, /doc, /test, /review, /improve (интеграция SlashCommands) |
