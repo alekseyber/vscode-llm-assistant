@@ -132,7 +132,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     // --- @orchestrate: запуск multi-agent оркестратора ---
     const orchestrateMatch = text.match(/^@orchestrate\s+(.+)/);
     if (orchestrateMatch && isAgentMode) {
-      await this.handleOrchestrate(orchestrateMatch[1], provider, model);
+      await this.handleOrchestrate(orchestrateMatch[1], provider, model, sessionId);
       return;
     }
 
@@ -159,6 +159,9 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     }
 
     const providerDisplayName = providerName || config.get<string>('defaultProvider') || 'unknown';
+
+    // Записываем запуск в историю со статусом 'running' (появится сразу, обновится по завершении)
+    this.recordRunStart(runId, startTime, text, providerDisplayName, model, isAgentMode ? 'agent' : 'chat', sessionId);
 
     // Авто-контекст — должен быть ПЕРЕД addMessage, чтобы прикрепиться к ТЕКУЩЕМУ сообщению
     if (isAgentMode || config.get<boolean>('chat.includeOpenFile', true)) {
@@ -272,7 +275,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         this.conversationManager.addMessage({ role: 'user', content: text });
         this.conversationManager.addMessage({ role: 'assistant', content: full });
         outTokens = Math.ceil(full.length / 4);
-        this.recordChatRun(runId, startTime, text, providerDisplayName, model, 'chat', inTokens, outTokens, 1, 'success', sessionId);
+        this.finalizeRun(runId, startTime, model, providerDisplayName, inTokens, outTokens, 1, 'success');
         return;
       }
 
@@ -290,11 +293,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         if (!agentProvider.createWithTools) {
           this.postMessage({ type: 'error', text: `⚠️ Провайдер «${providerDisplayName}» не поддерживает режим Агента. Переключите провайдера на SiliconFlow или DeepSeek.` }, sessionId);
           this.conversationManager.addMessage({ role: 'assistant', content: `⚠️ Провайдер «${providerDisplayName}» не поддерживает режим Агента.` });
-          this.recordChatRun(runId, startTime, text, providerDisplayName, model, 'agent', inTokens, 0, 0, 'error', 'Нет createWithTools', sessionId);
+          this.finalizeRun(runId, startTime, model, providerDisplayName, inTokens, 0, 0, 'error', 'Нет createWithTools');
           return;
         }
         await this.runAgentLoop(provider, model, messages, onRetry, sid);
-        this.recordChatRun(runId, startTime, text, providerDisplayName, model, 'agent', inTokens, 0, 1, 'success', sessionId);
+        this.finalizeRun(runId, startTime, model, providerDisplayName, inTokens, 0, 1, 'success');
       } else {
         const stream = provider.chat(messages, { model, stream: true }, abortController.signal, onRetry);
         let full = '';
@@ -303,39 +306,31 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         this.conversationManager.addMessage({ role: 'assistant', content: full });
         this.postTokens(messages, full, model);
         outTokens = Math.ceil(full.length / 4);
-        this.recordChatRun(runId, startTime, text, providerDisplayName, model, 'chat', inTokens, outTokens, 1, 'success', sessionId);
+        this.finalizeRun(runId, startTime, model, providerDisplayName, inTokens, outTokens, 1, 'success');
       }
     } catch (error: any) {
       const duration = Date.now() - startTime;
       if (error.name === 'AbortError') {
         this.postMessage({ type: 'cancelled' }, sessionId);
-        this.recordChatRun(runId, startTime, text, providerDisplayName, model, isAgentMode ? 'agent' : 'chat', inTokens, 0, 0, 'cancelled', sessionId);
+        this.finalizeRun(runId, startTime, model, providerDisplayName, inTokens, 0, 0, 'cancelled');
       } else {
         this.postMessage({ type: 'error', text: `Ошибка: ${error.message}` }, sessionId);
         console.error('[ChatViewProvider]', error);
-        this.recordChatRun(runId, startTime, text, providerDisplayName, model, isAgentMode ? 'agent' : 'chat', inTokens, 0, 0, 'error', error.message, sessionId);
+        this.finalizeRun(runId, startTime, model, providerDisplayName, inTokens, 0, 0, 'error', error.message);
       }
     } finally { this.abortControllers.delete(sid); }
   }
 
-  /** Записать запуск чата/агента в историю (слой 07 Product Shell) */
-  private recordChatRun(
+  /** Записать запуск в историю со статусом 'running' (в начале выполнения) */
+  private recordRunStart(
     runId: string,
     startTime: number,
     task: string,
     provider: string,
     model: string,
     mode: RunEntry['mode'],
-    tokensIn: number,
-    tokensOut: number,
-    steps: number,
-    status: RunEntry['status'],
-    error?: string,
     sessionId?: string,
   ): void {
-    const duration = Date.now() - startTime;
-    const cost = calculateCost(model, tokensIn, tokensOut, this.providerManager.pricingMap);
-
     const entry: RunEntry = {
       id: runId,
       timestamp: startTime,
@@ -343,18 +338,46 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       task: task.slice(0, 100),
       provider,
       model,
-      steps,
-      tokensIn,
-      tokensOut,
-      cost: Math.round(cost * 1e6) / 1e6,
-      duration,
-      status,
-      ...(error ? { error } : {}),
+      steps: 0,
+      tokensIn: 0,
+      tokensOut: 0,
+      cost: 0,
+      duration: 0,
+      status: 'running',
       ...(sessionId ? { sessionId } : {}),
     };
 
     this.runHistoryStore.recordRun(entry);
     this.historyViewProvider?.refresh();
+    this.broadcastRunState(sessionId, true);
+  }
+
+  /** Обновить запуск в истории финальными значениями (по завершении) */
+  private finalizeRun(
+    runId: string,
+    startTime: number,
+    model: string,
+    provider: string,
+    tokensIn: number,
+    tokensOut: number,
+    steps: number,
+    status: RunEntry['status'],
+    error?: string,
+  ): void {
+    const duration = Date.now() - startTime;
+    const cost = calculateCost(model, tokensIn, tokensOut, this.providerManager.pricingMap);
+
+    this.runHistoryStore.updateRun(runId, {
+      tokensIn,
+      tokensOut,
+      steps,
+      duration,
+      cost: Math.round(cost * 1e6) / 1e6,
+      status,
+      ...(error ? { error } : {}),
+    });
+    this.historyViewProvider?.refresh();
+    this.broadcastRunState(this.runHistoryStore.getRun(runId)?.sessionId, false);
   }
 
   /** ReAct-цикл с инструментами (только для агентного режима).
@@ -449,6 +472,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     }
     const workspacePath = workspaceFolders[0].uri.fsPath;
 
+    // Записываем запуск в историю со статусом 'running'
+    const planRunId = generateRunId();
+    const planStartTime = Date.now();
+    this.recordRunStart(planRunId, planStartTime, text, 'plan-mode', model, 'agent', sessionId);
+
     this.postMessage({ type: 'streamChunk', text: '📋 **Генерирую план...**\n' }, sessionId);
 
     try {
@@ -463,8 +491,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       }, sessionId);
 
       this.postMessage({ type: 'done' }, sessionId);
+      this.finalizeRun(planRunId, planStartTime, model, 'plan-mode', 0, 0, 1, 'success');
     } catch (err: any) {
       this.postMessage({ type: 'error', text: `Ошибка планирования: ${err.message}` }, sessionId);
+      this.finalizeRun(planRunId, planStartTime, model, 'plan-mode', 0, 0, 0, 'error', err.message);
     }
   }
 
@@ -489,6 +519,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     const ac = new AbortController();
     this.abortControllers.set(sid, ac);
     const signal = ac.signal;
+
+    // Записываем запуск в историю со статусом 'running'
+    const implRunId = generateRunId();
+    const implStartTime = Date.now();
+    this.recordRunStart(implRunId, implStartTime, 'Имплементация плана', 'plan-mode', model, 'agent', sessionId);
 
     this.postMessage({ type: 'implementStarted' }, sessionId);
     this.postMessage({ type: 'streamChunk', text: '🚀 **Имплементирую план...**\n' }, sessionId);
@@ -528,8 +563,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       }, sessionId);
 
       this.postMessage({ type: 'done' }, sessionId);
+      this.finalizeRun(implRunId, implStartTime, model, 'plan-mode', 0, 0, 1, 'success');
     } catch (err: any) {
       this.postMessage({ type: 'error', text: `Ошибка имплементации: ${err.message}` }, sessionId);
+      this.finalizeRun(implRunId, implStartTime, model, 'plan-mode', 0, 0, 0, 'error', err.message);
     }
   }
 
@@ -541,11 +578,16 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       return;
     }
 
+    // Записываем запуск в историю со статусом 'running'
+    const orchRunId = `orch_${Date.now()}`;
+    const orchStartTime = Date.now();
+    this.recordRunStart(orchRunId, orchStartTime, taskText, 'orchestrator', model, 'agent', sessionId);
+
     // Загружаем роли из .llma/agents/*.md (динамически) или fallback
     const roles = loadOrchestratorRoles();
 
     const task: MultiAgentTask = {
-      id: `orch_${Date.now()}`,
+      id: orchRunId,
       goal: taskText,
       roles,
       strategy: 'sequential',
@@ -645,20 +687,16 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     this.conversationManager.addMessage({ role: 'user', content: `@orchestrate ${taskText}` });
     this.conversationManager.addMessage({ role: 'assistant', content: result.summary });
 
-    // Записываем в историю запусков
-    const orchStartTime = Date.now();
-    this.recordChatRun(
-      `orch_${orchStartTime}`,
+    // Обновляем запись в истории запусков финальным статусом
+    this.finalizeRun(
+      orchRunId,
       orchStartTime,
-      taskText,
-      'orchestrator',
       model,
-      'agent',
+      'orchestrator',
       result.totalInputTokens,
       result.totalOutputTokens,
       result.workers.reduce((s, w) => s + w.result.iterations, 0),
       result.success ? 'success' : 'error',
-      sessionId,
     );
   }
 
@@ -796,6 +834,13 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   private postMessage(m: any, sessionId?: string): void {
     if (sessionId) m.sessionId = sessionId;
     if (this.view) this.view.webview.postMessage(m);
+  }
+
+  /** Уведомить WebView о старте/завершении процесса в сессии (для индикатора «в работе») */
+  private broadcastRunState(sessionId: string | undefined, running: boolean): void {
+    if (!sessionId) return;
+    // Не тегируем sessionId (маршрутизация): используем runSessionId, чтобы WebView получил всегда
+    this.postMessage({ type: running ? 'runStarted' : 'runEnded', runSessionId: sessionId });
   }
 
   private getHtmlForWebview(): string {

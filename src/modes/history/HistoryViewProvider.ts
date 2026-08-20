@@ -205,6 +205,7 @@ export class HistoryViewProvider implements vscode.WebviewViewProvider {
       background: var(--bg-hover);
     }
     .status-success { color: var(--success); }
+    .status-running { color: var(--warning); }
     .status-error { color: var(--error); }
     .status-cancelled { color: var(--cancelled); }
     .status-limit { color: var(--warning); }
@@ -344,7 +345,8 @@ export class HistoryViewProvider implements vscode.WebviewViewProvider {
             var modeLabel = run.mode === 'agent' ? 'Агент' : run.mode === 'edit' ? 'Edit' : 'Чат';
             var modeClass = 'mode-' + run.mode;
 
-            var statusText = run.status === 'success' ? '✓ Успех'
+            var statusText = run.status === 'running' ? '⏳ В работе'
+              : run.status === 'success' ? '✓ Успех'
               : run.status === 'error' ? '✗ Ошибка'
               : run.status === 'cancelled' ? 'Отменён'
               : 'Лимит';
@@ -379,7 +381,8 @@ export class HistoryViewProvider implements vscode.WebviewViewProvider {
         var modeLabel = entry.mode === 'agent' ? '🤖 Агент'
           : entry.mode === 'edit' ? '✏️ Edit'
           : '💬 Чат';
-        var statusLabel = entry.status === 'success' ? '✓ Успех'
+        var statusLabel = entry.status === 'running' ? '⏳ В работе'
+          : entry.status === 'success' ? '✓ Успех'
           : entry.status === 'error' ? '✗ Ошибка'
           : entry.status === 'cancelled' ? 'Отменён'
           : 'Превышен лимит';

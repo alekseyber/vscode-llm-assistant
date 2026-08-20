@@ -31,7 +31,7 @@ export interface RunEntry {
   /** Длительность выполнения (мс) */
   duration: number;
   /** Статус завершения */
-  status: 'success' | 'error' | 'cancelled' | 'limit_exceeded';
+  status: 'running' | 'success' | 'error' | 'cancelled' | 'limit_exceeded';
   /** Сообщение об ошибке (только если status === 'error') */
   error?: string;
   /** ID чат-сессии, к которой относится запуск (для перехода по двойному клику) */
@@ -79,6 +79,31 @@ export class RunHistoryStore {
     }
 
     this.globalState.update(STORAGE_KEY, runs);
+  }
+
+  /**
+   * Обновить существующую запись (по id).
+   * Используется для смены статуса запуска: 'running' → 'success'/'error'/'cancelled'.
+   *
+   * @param runId - id запуска
+   * @param patch - частичное обновление полей
+   */
+  updateRun(runId: string, patch: Partial<RunEntry>): void {
+    const runs = this.getRuns();
+    const idx = runs.findIndex((r) => r.id === runId);
+    if (idx < 0) return;
+    runs[idx] = { ...runs[idx], ...patch };
+    this.globalState.update(STORAGE_KEY, runs);
+  }
+
+  /**
+   * Найти запись по id.
+   *
+   * @param runId - id запуска
+   * @returns запись или undefined
+   */
+  getRun(runId: string): RunEntry | undefined {
+    return this.getRuns().find((r) => r.id === runId);
   }
 
   /**

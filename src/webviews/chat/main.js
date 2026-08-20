@@ -67,6 +67,7 @@
   /** Флаг — идёт ли сейчас стриминг ответа */
   let isStreaming = false;
   let currentSessionId = '';
+  const runningSessions = new Set();
 
   /** Контейнер для сообщений */
   const messagesContainer = document.getElementById('messages-container');
@@ -463,6 +464,21 @@
     messageInput.disabled = false;
   }
 
+  /** Показать индикатор «в работе» для сессии с активным процессом */
+  function showRunningIndicator() {
+    isStreaming = true;
+    streamingIndicator.classList.remove('hidden');
+    sendButton.disabled = false;
+    sendButton.textContent = '⏹️';
+  }
+
+  /** Скрыть индикатор «в работе» */
+  function hideRunningIndicator() {
+    isStreaming = false;
+    streamingIndicator.classList.add('hidden');
+    sendButton.textContent = '➤';
+  }
+
   /**
    * Завершить стриминг — рендерить ТОЛЬКО финальный ответ (без хода выполнения).
    */
@@ -581,6 +597,14 @@
     }
 
     switch (message.type) {
+      case 'runStarted':
+        runningSessions.add(message.runSessionId);
+        if (message.runSessionId === currentSessionId) showRunningIndicator();
+        break;
+      case 'runEnded':
+        runningSessions.delete(message.runSessionId);
+        if (message.runSessionId === currentSessionId) hideRunningIndicator();
+        break;
       case 'userMessage':
         // Сообщение уже добавлено локально в sendUserMessage(), не дублируем
         break;
@@ -722,6 +746,9 @@
   function updateSessionList(sessions, activeId) {
     if (!sessionSelect || !sessions) return;
     currentSessionId = activeId || '';
+    // Синхронизируем индикатор «в работе» с текущей сессией
+    if (runningSessions.has(currentSessionId)) showRunningIndicator();
+    else hideRunningIndicator();
     updatingSessionList = true;
     sessionSelect.innerHTML = '';
     for (const s of sessions) {

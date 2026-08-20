@@ -88,6 +88,37 @@ suite('RunHistoryStore', () => {
     assert.strictEqual(runs[0].sessionId, undefined);
   });
 
+  test('updateRun() обновляет существующую запись по id (running → success)', () => {
+    store.recordRun(makeEntry({ id: 'run-1', status: 'running', tokensOut: 0 }));
+
+    store.updateRun('run-1', { status: 'success', tokensOut: 999, duration: 500, steps: 3 });
+
+    const run = store.getRuns()[0];
+    assert.strictEqual(run.status, 'success');
+    assert.strictEqual(run.tokensOut, 999);
+    assert.strictEqual(run.duration, 500);
+    assert.strictEqual(run.steps, 3);
+    assert.strictEqual(run.id, 'run-1'); // id не меняется
+    assert.strictEqual(store.getRuns().length, 1); // новая запись не создаётся
+  });
+
+  test('updateRun() игнорирует несуществующий id', () => {
+    store.recordRun(makeEntry({ id: 'run-1', status: 'running' }));
+
+    store.updateRun('run-nonexistent', { status: 'success' });
+
+    const runs = store.getRuns();
+    assert.strictEqual(runs.length, 1);
+    assert.strictEqual(runs[0].status, 'running'); // исходная запись не меняется
+  });
+
+  test('getRun() возвращает запись по id или undefined', () => {
+    store.recordRun(makeEntry({ id: 'run-abc', task: 'Найти меня' }));
+
+    assert.strictEqual(store.getRun('run-abc')?.task, 'Найти меня');
+    assert.strictEqual(store.getRun('run-missing'), undefined);
+  });
+
   test('новые записи добавляются в начало (сортировка от новых к старым)', () => {
     store.recordRun(makeEntry({ id: 'run-1', timestamp: 1000 }));
     store.recordRun(makeEntry({ id: 'run-2', timestamp: 2000 }));

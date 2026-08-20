@@ -23,6 +23,12 @@ since: 0.7.0
 
 ### `clearHistory()`
 
+### `updateRun(runId, patch: Partial<RunEntry>)`
+
+Обновляет существующую запись по id (смена статуса `running` → финальный). Не создаёт новую запись.
+
+### `getRun(runId) → RunEntry | undefined`
+
 ### `generateRunId() → string`
 
 Формат: `run_<timestamp>_<random6>`.
@@ -39,7 +45,7 @@ since: 0.7.0
 | tokensIn, tokensOut | number |
 | cost | number (USD) |
 | duration | number (ms) |
-| status | 'success' \| 'error' \| 'cancelled' \| 'limit_exceeded' |
+| status | 'running' \| 'success' \| 'error' \| 'cancelled' \| 'limit_exceeded' |
 | error? | string |
 | sessionId? | string (ID чат-сессии, для перехода по двойному клику) |
 
@@ -51,6 +57,7 @@ since: 0.7.0
 | 101-я запись | Самая старая вытесняется |
 | 150 записей | Сохраняется только 100 |
 | Перезагрузка VS Code | Данные сохраняются (globalState) |
+| `updateRun()` с несуществующим id | Запись не меняется (no-op) |
 
 ## Связи
 
@@ -65,7 +72,7 @@ since: 0.7.0
 - **cost:** `Math.round(cost * 1e6) / 1e6`
 
 
-## Тесты (runHistoryStore.test.ts, 17 тестов)
+## Тесты (runHistoryStore.test.ts, 20 тестов)
 
 - getRuns() возвращает пустой массив при отсутствии истории
 - recordRun() добавляет запись в начало
@@ -78,6 +85,10 @@ since: 0.7.0
 - Записи всех трёх режимов (chat, agent, edit) сохраняются
 - recordRun() сохраняет sessionId (для перехода к сессии по двойному клику)
 - recordRun() без sessionId — поле отсутствует
+- updateRun() обновляет запись по id (running → success), не создаёт новую
+- updateRun() игнорирует несуществующий id
+- getRun() возвращает запись по id или undefined
+- статус running сохраняется и сменяется на success
 
 ## История изменений
 
@@ -85,3 +96,4 @@ since: 0.7.0
 |--------|------|-----------|
 | 0.7.0 | 2026-08-05 | Базовая реализация |
 | 0.10.0 | 2026-08-20 | Поле `sessionId` в RunEntry — связь записи с чат-сессией |
+| 0.10.0 | 2026-08-20 | Статус `running`, методы `updateRun`/`getRun` (запись со старта + финализация) |
