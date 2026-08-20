@@ -81,7 +81,7 @@ suite('ReviewViewProvider', () => {
 
     const fileEl = dom.window.document.getElementById('file-path');
     assert.strictEqual(fileEl!.textContent, '/tmp/a.ts', 'путь файла отрисован');
-    assert.ok(dom.window.document.getElementById('summary')!.style.display === '', 'сводка показана');
+    assert.strictEqual(dom.window.document.getElementById('summary')!.style.display, 'block', 'сводка показана (display:block)');
 
     // Клик по строке → openReview в extension
     dom.window.document.getElementById('summary-row')!.click();
