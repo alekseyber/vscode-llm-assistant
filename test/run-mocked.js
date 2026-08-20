@@ -60,6 +60,7 @@ const testFiles = [
   '../out/test/suite/registerCommands.test.js',
   '../out/test/suite/lineDiff.test.js',
   '../out/test/suite/chatWebview.test.js',
+  '../out/test/suite/codeReviewer.test.js',
 ];
 
 for (const file of testFiles) {

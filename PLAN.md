@@ -1,137 +1,69 @@
-# PLAN: v0.9.0 — Plan Mode + Каталог скилов
+# PLAN: v0.11.0 — Standalone AI-ревью (P2)
 
-**Версия:** 0.9.0
-**Specs:** specs/PlanModeManager.md, specs/RoleAgentsMdLoader.md
-
----
-
-## Часть A: Plan Mode (📋) — ✅ реализовано
-
-| Этап | Статус |
-|------|--------|
-| A1: PlanModeManager + PlannerAgent | ✅ |
-| A2: WebView UI | ✅ |
-| A3: ChatViewProvider ветвление | ✅ |
-| A4: Coder отмечает AC | ✅ |
-| A5: ReviewerAgent + рефлексия | ✅ |
-| A6: Приёмка, CHANGELOG | ✅ |
-
-**Осталось:** ручное тестирование (MANUAL_TEST_SCENARIOS_PLAN_MODE.md).
+**Версия:** 0.11.0
+**Spec:** specs/CodeReviewer.md
+**Цель:** вынести ReviewerAgent из Plan Mode `reflect()` в standalone-ревьюер кода + команда «Review File».
 
 ---
 
-## Часть B: Каталог скилов
-
-### Этап B1: parseFrontmatter() + getSkillCatalog()
+## Этап 1: CodeReviewer + промпт
 
 | AC | Критерий | Статус |
 |----|----------|--------|
-| SC-1 | `getSkillCatalog()` сканирует `.llma/agents/` → `[{name, description}]` | planned |
-| SC-2 | `parseFrontmatter()` извлекает `role` и `description` из YAML между `---` | planned |
-| SC-3 | Без frontmatter: `name = имя_файла`, `description = первые 80 символов` | planned |
-| SC-4 | Допустимые поля frontmatter: `role`, `version`, `tools`, `description` | planned |
+| CR-1 | `reviewFile` запускает ReviewerAgent (ReAct, maxIterations=8, skipGlobalAllowList) | planned |
+| CR-2 | `reviewCode` передаёт код в задачу и ревьюит без чтения с диска | planned |
+| CR-4 | Пустой код/путь → ранний возврат ошибки без вызова LLM | planned |
+| CR-6 | Отмена по `signal` не зависает | planned |
 
 **Действия:**
-1. `src/shared/RoleAgentsMdLoader.ts`:
-   - `parseFrontmatter(content)` — парсинг между `---`, допустимые ключи
-   - `getSkillCatalog(workspacePath)` — `readdirSync` + `parseFrontmatter` + fallback
-   - Обновить `getSkillTemplate(workspacePath?)` — добавить секцию каталога
-2. `npm run compile && npx tsc -p tsconfig.test.json && npm run test:mocked && npm run lint`
-3. Коммит + push
+1. `src/modes/review/CodeReviewer.ts` — новый компонент (`reviewFile`, `reviewCode`, `CodeReviewResult`)
+2. `CODE_REVIEW_SYSTEM_PROMPT` — директивный промпт (стиль/безопасность/корректность/оптимизация)
+3. `specs/CodeReviewer.md` — уже создан (черновик)
 
-**Gate B1:**
-- [ ] `npm run compile` → exit 0
-- [ ] `npm run test:mocked` → 0 failures
-- [ ] `parseFrontmatter('---\nrole: coder\ndescription: Dev\n---')` → `{role:'coder', description:'Dev'}`
-- [ ] `getSkillCatalog()` с 2 .md файлами → массив из 2 SkillInfo
-- [ ] Файл без frontmatter → fallback (имя файла + первые 80 символов)
+**Gate 1:** `tsc` 0 ошибок · `npm run test:mocked` 0 провалов
 
 ---
 
-### Этап B2: Инжект каталога в system prompt
+## Этап 2: Команда «Review File» + показ отчёта
 
 | AC | Критерий | Статус |
 |----|----------|--------|
-| SC-5 | `getSkillTemplate()` добавляет секцию «Доступные скилы» в формате таблицы `| имя | description |` | planned |
-| SC-6 | Пустая директория `.llma/agents/` → секция не добавляется | planned |
+| CR-5 | Команда «LLM Assistant: Review File» ревьюит активный файл и показывает отчёт | planned |
 
 **Действия:**
-1. `src/modes/apply/AgentWorker.ts`: `getSkillTemplate()` вызывается с workspace path
-2. Проверка: system prompt содержит таблицу скилов
-3. `npm run compile && npm run test:mocked && npm run lint`
-4. Коммит + push
+1. `src/activation/registerCommands.ts` — команда `llmAssistant.review.file`: читает активный редактор (файл или выделение) → `CodeReviewer` → отчёт
+2. Показ отчёта — **решение в clarify** (чат-сообщение / Output Channel / отдельная панель)
+3. `specs/registerCommands.md` — обновить
 
-**Gate B2:**
-- [ ] `npm run compile` → exit 0
-- [ ] `npm run test:mocked` → 0 failures
-- [ ] System prompt содержит `## Доступные скилы` с таблицей
-- [ ] Без файлов в agents/ → секция отсутствует
+**Gate 2:** команда видна в Command Palette · отчёт рендерится
 
 ---
 
-### Этап B3: Тесты + приёмка
+## Этап 3: Тесты + приёмка
 
 | AC | Критерий | Статус |
 |----|----------|--------|
-| SC-7 | Unit-тест: `parseFrontmatter()` — валидный, пустой, без description | planned |
-| SC-8 | Unit-тест: `getSkillCatalog()` с 2 файлами | planned |
-| SC-9 | Unit-тест: `getSkillCatalog()` без frontmatter (fallback) | planned |
-| SC-10 | Все тесты (244+) зелёные | planned |
-| SC-11 | CHANGELOG обновлён | planned |
+| CR-3 | Отчёт содержит секции стиль/безопасность/корректность/оптимизация | planned |
+| CR-7 | Юнит-тесты CodeReviewer (мок AgentWorker) | planned |
+| CR-8 | E2E-тест команды ревью | planned |
+| CR-9 | CHANGELOG обновлён | planned |
 
 **Действия:**
-1. `test/suite/roleAgentsMd.test.ts`: добавить 3 теста
-2. `npm run compile && npx tsc -p tsconfig.test.json && npm run test:mocked && npm run lint`
-3. CHANGELOG.md: версия 0.9.0
-4. `git add -A && git commit -m "каталог скилов: parseFrontmatter + getSkillCatalog + инжект в промт" && git push`
+1. `test/suite/codeReviewer.test.ts` (+ в run-mocked.js)
+2. `test/suite/e2e/review.e2e.ts` (+ в index.ts)
+3. `CHANGELOG.md` → 0.11.0
+4. Коммиты + push + зелёный CI
 
 ---
 
 ## Затронутые файлы
 
-| Файл | Часть | Изменение |
-|------|-------|-----------|
-| `src/shared/RoleAgentsMdLoader.ts` | B | +`parseFrontmatter`, +`getSkillCatalog`, `getSkillTemplate` принимает workspace |
-| `src/modes/apply/AgentWorker.ts` | B | Передача workspace в `getSkillTemplate()` |
-| `specs/RoleAgentsMdLoader.md` | B | Обновлён: интерфейс, контракты, AC, детали |
-| `test/suite/roleAgentsMd.test.ts` | B | +3 теста |
-
----
-
-## Часть C: Слэш-команды код-действий в чате (фича P1)
-
-Слэш-команды в чате (agent + chat режимы, НЕ в Plan Mode). Каждая инжектирует system-промпт с директивной инструкцией.
-
-**Команды:** `/explain`, `/explain_stepbystep`, `/doc`, `/test`, `/review`, `/improve`
-
-### Этап C1: Модуль SlashCommands + интеграция
-
-| AC | Критерий | Статус |
-|----|----------|--------|
-| SL-1 | `SlashCommands.ts` содержит 6 команд с `name`, `description`, `defaultTask`, `promptTemplate` | ✅ |
-| SL-2 | `parseSlashCommand()` разбирает префикс `/имя` и аргумент | ✅ |
-| SL-3 | `getSlashCommand()` по имени, `undefined` для неизвестной | ✅ |
-| SL-4 | Все 6 команд распознаются в `handleSendMessage()` | ✅ |
-| SL-5 | Инжект system-промпта на позицию 1 в `messages` | ✅ |
-| SL-6 | Работает в chat + agent, НЕ в Plan Mode | ✅ |
-| SL-7 | `/skill` — обратная совместимость | ✅ |
-| SL-8 | `@orchestrate` не затронут | ✅ |
-| SL-9 | Все юнит-тесты зелёные, tsc 0 ошибок, lint 0 ошибок | ✅ |
-
-**Действия:**
-1. `src/modes/chat/SlashCommands.ts` — новый компонент
-2. `src/modes/chat/ChatViewProvider.ts` — парсинг и инжект
-3. `specs/SlashCommands.md` + `specs/ChatViewProvider.md`
-4. `test/suite/slashCommands.test.ts` + `test/run-mocked.js`
-5. `instructions/MANUAL_TEST_SCENARIOS_SLASH_COMMANDS.md`
-
-**Затронутые файлы (часть C):**
-
 | Файл | Изменение |
 |------|-----------|
-| `src/modes/chat/SlashCommands.ts` | Новый: 6 команд + парсер |
-| `src/modes/chat/ChatViewProvider.ts` | Интеграция парсинга и инжекта |
-| `specs/SlashCommands.md` | Новый spec |
-| `specs/ChatViewProvider.md` | Обновлён: интерфейс, контракты, история |
-| `test/suite/slashCommands.test.ts` | +10 тестов |
-| `test/run-mocked.js` | +запись slashCommands.test.js |
+| `src/modes/review/CodeReviewer.ts` | новый |
+| `src/activation/registerCommands.ts` | +команда review.file |
+| `src/modes/chat/ChatViewProvider.ts` | +метод показа отчёта (если чат-сообщение) |
+| `specs/CodeReviewer.md` | новый |
+| `specs/registerCommands.md` | обновлён |
+| `specs/ARCHITECTURE.md` | +CodeReviewer в карту |
+| `test/suite/codeReviewer.test.ts`, `test/suite/e2e/review.e2e.ts` | новые |
