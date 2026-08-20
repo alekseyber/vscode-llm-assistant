@@ -51,6 +51,7 @@ const testFiles = [
   '../out/test/suite/orchestratorView.test.js',
   '../out/test/suite/roleAgentsMd.test.js',
   '../out/test/suite/slashCommands.test.js',
+  '../out/test/suite/chatViewProvider.test.js',
 ];
 
 for (const file of testFiles) {
