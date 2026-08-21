@@ -1,6 +1,12 @@
-# Release Notes — v0.11.0
+# Release Notes — v0.11.1
 
-## 🔍 Standalone AI-ревью
+## 📖 Документация
+
+- README актуализирован: убрана версия из заголовка, обновлены фичи (AI-ревью, слэш-команды, 9 инструментов агента) и настройки
+
+---
+
+## 🔍 Standalone AI-ревью (v0.11.0)
 
 - Команда «LLM Assistant: Review File» — ревью активного файла или выделения
 - Отдельный ReviewerAgent (ReAct с `read_file`/`search_files`/`list_files`) — реально читает код и связанные файлы
