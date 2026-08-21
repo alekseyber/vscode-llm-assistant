@@ -1,4 +1,4 @@
-# VS Code LLM Assistant v0.9.0
+# VS Code LLM Assistant
 
 **AI-ассистент для VS Code** — 4 режима работы с LLM через любые OpenAI-совместимые API.
 
@@ -9,50 +9,57 @@
 | ⚡ **Autocomplete** | Tab/Escape | Ghost text на паузе печати |
 | 🤖 **Agent** | Вкладка в чате | ReAct-агент с инструментами, делегированием, MCP, оркестрацией |
 
-## Что нового в v0.9.0
+## Возможности
+
+### 🤖 Агентный кодинг
+- **ReAct-агент** с инструментами: `read_file`, `write_file`, `replace_in_file`, `list_files`, `search_files`, `run_terminal`, `web_fetch`, `ask_user`, `delegate_to_agent`
+- **Подтверждение операций** перед записью/изменением файлов (с git-diff `+N −M`)
+- **Allow-list инструментов** через настройки или `.vscode/llm-assistant.json`
+- **Ход выполнения**: структурированные сворачиваемые шаги по тулам
 
 ### 📋 Plan Mode
 - Переключатель «📋 Plan» в Agent-режиме — план перед кодом
 - **Три этапа:** планирование → имплементация → рефлексия
-- **PlannerAgent** генерирует план в `.llma/plans/plan_YYYY-MM-DD_UUID.md`
-- **AgentOrchestrator** (architect → coder) реализует план
-- **ReviewerAgent** проверяет каждый AC, запускает циклы исправлений
+- Результат (план/имплементация/рефлексия) персистится в сессию
+- **AgentOrchestrator** (architect → coder) реализует план, **ReviewerAgent** проверяет каждый AC
 
-### 🗂 Каталог скилов (.llma/skills/)
-- Агент видит доступные скилы в system prompt
-- **`/coder задача`** — вызов скила по имени с инжектом содержимого
-- Frontmatter: `name`, `version`, `tools`, `description`
-- Поддержка `role` для обратной совместимости
+### 🔍 Standalone AI-ревью
+- Команда «LLM Assistant: Review File» — ревью активного файла или выделения
+- Структурированный отчёт: стиль / безопасность / корректность / оптимизация
+- Компактная сводка в сайдбаре → широкое окно с полным отчётом
+- Правила из `.llma/agents/reviewer.md` подхватываются автоматически
 
-### 🎭 Multi-Agent Harness (MVP)
-- **Вкладка «Оркестратор»** — панель для мониторинга multi-agent задач
-- **`@orchestrate` команда** — запуск цепочки агентов в 🤖 Агенте
-- **3 стратегии**: parallel, sequential, pipeline
-- **Роли**: architect → coder → reviewer (настраиваемые)
-- **Живой прогресс**: древовидный UI со статусами (pending/running/done/error)
+### ⚡ Слэш-команды
+- `/explain`, `/doc`, `/test`, `/review`, `/improve` (+ `/explain_stepbystep`) — по выделенному коду
+- Автокомплит при вводе `/` или `@`: встроенные команды + скилы из `.llma/skills/` + `@orchestrate`
+
+### 🎭 Multi-Agent (`@orchestrate`)
+- Цепочка агентов **architect → coder → reviewer** (роли настраиваются в `.llma/agents/`)
+- **3 стратегии**: `sequential`, `parallel`, `pipeline`
+- Вкладка «Оркестратор»: дерево воркеров со статусами, прогресс, детали по клику
 - **SharedContext**: обмен артефактами между воркерами
-- **226 тестов** (включая 39 новых для multi-agent)
 
-### 🏗 Harness-слои агента (v0.6.0+)
-- **AGENTS.md автоинжект** — правила проекта из `AGENTS.md` в корне workspace автоматически добавляются в system prompt
-- **Context Summary** — при переполнении контекста старые сообщения сжимаются в summary (чат + агент)
-- **Ретраи + таймауты** — exponential backoff при 429/5xx/сетевых ошибках, настраиваемый таймаут
-- **Allow-list инструментов** — ограничение доступных агенту инструментов через настройки или `.vscode/llm-assistant.json`
-- **MCP-клиент** — подключение внешних инструментов через Model Context Protocol (stdio-серверы)
-- **Run History Dashboard** — вкладка «История» с таблицей всех запусков, фильтром и деталями
+### 🗂 Каталог скилов (`.llma/skills/`)
+- Агент видит доступные скилы в system prompt, вызов через `/skill` или `/имя-скила`
+- Frontmatter: `name`, `version`, `tools`, `description`
 
-### Существующие возможности
+### 🏗 Harness-слои агента
+- **AGENTS.md автоинжект** — правила проекта из `AGENTS.md` в корне workspace
+- **Context Summary** — сжатие старых сообщений при переполнении контекста
+- **Ретраи + таймауты** — exponential backoff при 429/5xx/сетевых ошибках
+- **MCP-клиент** — внешние инструменты через Model Context Protocol (stdio)
+- **Run History Dashboard** — вкладка «История» с таблицей всех запусков
+
+### Прочее
 - **Мульти-провайдер**: DeepSeek, Hermes, SiliconFlow, OpenAI и любые OpenAI-совместимые API
-- **6 инструментов агента**: `list_files`, `search_files`, `read_file`, `write_file`, `replace_in_file`, `run_terminal`
-- **Подтверждение операций**: диалог подтверждения перед записью/изменением файлов
 - **Vision**: анализ изображений через Qwen3-VL (SiliconFlow)
-- **Сессии**: авто-именование, переключение, удаление, переименование, сохранение между сессиями VS Code
-- **Индикатор контекста**: полоска заполнения с цветовой индикацией (синяя <80%, оранжевая >80%, красная пульсирующая >100%)
-- **Стоимость токенов**: отображение после каждого ответа
+- **Сессии**: авто-именование, переключение, удаление, переименование, сохранение между сессиями
+- **Индикатор контекста** с цветовой индикацией (синяя <80%, оранжевая >80%, красная >100%)
+- **Стоимость токенов** после каждого ответа
 - **Быстрые действия**: 🔧 Исправить, 💡 Объяснить, ⚡ Оптимизировать
-- **Экспорт сессии**: сохранение в .md и копирование в буфер
-- **Интеграция с Hermes**: кнопка «Поделиться» для передачи контекста
-- **Дебаг-режим**: подробное логирование system prompt и запросов в Output Channel
+- **Экспорт сессии** в `.md` / буфер обмена
+- **Интеграция с Hermes**: кнопка «Поделиться»
+- **Дебаг-режим**: логирование system prompt и запросов в Output Channel
 
 ---
 
@@ -96,13 +103,35 @@
 
 | Ключ | Тип | По умолчанию | Описание |
 |------|-----|-------------|----------|
-| `chat.systemPrompt` | string | `"Ты — AI-ассистент..."` | Системный промпт для чата |
-| `chat.agentSystemPrompt` | string | `"Ты — AI-агент..."` | Системный промпт для агента |
+| `chat.systemPrompt` | string | `"Ты — AI-ассистент…"` | Системный промпт для чата |
+| `chat.agentSystemPrompt` | string | `"Ты — AI-агент…"` | Системный промпт для агента |
 | `chat.maxContextTokens` | number | `4096` | Максимум токенов контекста |
 | `chat.includeOpenFile` | boolean | `true` | Прикреплять открытый файл к запросу |
 | `chat.summaryEnabled` | boolean | `true` | Включить summary при переполнении |
 | `chat.summaryModel` | string | `""` (текущая) | Модель для генерации summary |
-| `chat.summaryTriggerTokens` | number | `256` | Порог токенов для запуска summary |
+| `chat.summaryTriggerTokens` | number | `2048` | Порог обрезанных токенов для запуска summary |
+
+### Агент (`llmAssistant.agent` / `llmAssistant.apply`)
+
+| Ключ | Тип | По умолчанию | Описание |
+|------|-----|-------------|----------|
+| `agent.model` | string | `"gpt-4o"` | Модель агентного режима (если не задана — `defaultModel`) |
+| `agent.requireConfirmation` | boolean | `true` | Подтверждение перед записью/изменением файлов |
+| `apply.allowedTools` | string[] | `[]` (все) | Список разрешённых инструментов агента |
+| `apply.maxIterations` | number | `20` | Максимум шагов агента |
+| `apply.requireConfirmation` | string[] | `["write_file","replace_in_file","run_terminal"]` | Инструменты, требующие подтверждения |
+
+**Инструменты агента:** `read_file`, `write_file`, `replace_in_file`, `list_files`, `search_files`, `run_terminal`, `web_fetch`, `ask_user`, `delegate_to_agent`.
+
+**Приоритет конфигурации:** `.vscode/llm-assistant.json` (workspace) > глобальные настройки VS Code.
+
+Пример `.vscode/llm-assistant.json`:
+```json
+{
+  "allowedTools": ["read_file", "search_files"],
+  "requireConfirmation": ["run_terminal"]
+}
+```
 
 ### AGENTS.md (`llmAssistant.agentsMd`)
 
@@ -117,25 +146,6 @@
 | `retry.enabled` | boolean | `true` | Включить ретраи |
 | `retry.maxRetries` | number | `3` | Максимум повторных попыток |
 | `retry.requestTimeout` | number | `60` | Таймаут запроса (секунды) |
-
-### Агент / Allow-list (`llmAssistant.apply`)
-
-| Ключ | Тип | По умолчанию | Описание |
-|------|-----|-------------|----------|
-| `apply.allowedTools` | string[] | `[]` (все) | Список разрешённых инструментов |
-| `apply.requireConfirmation` | string[] | `["write_file","replace_in_file","run_terminal"]` | Инструменты, требующие подтверждения |
-
-**Возможные значения для `allowedTools`:** `read_file`, `write_file`, `replace_in_file`, `list_files`, `search_files`, `run_terminal`, `patch_file`
-
-**Приоритет конфигурации:** `.vscode/llm-assistant.json` (workspace) > глобальные настройки VS Code.
-
-Пример `.vscode/llm-assistant.json`:
-```json
-{
-  "allowedTools": ["read_file", "search_files"],
-  "requireConfirmation": ["run_terminal"]
-}
-```
 
 ### MCP (`llmAssistant.mcp`)
 
@@ -202,16 +212,17 @@
 ## Разработка
 
 - **Стек:** TypeScript, VS Code Extension API, WebView, Webpack
-- **Тесты:** Mocha + Sinon (234 теста), GitHub Actions CI
+- **Тесты:** Mocha + Sinon (335 mocked), E2E в реальном VS Code (18 тестов), GitHub Actions CI
 - **SDD:** 26 spec-файлов (`specs/`), валидатор, pre-commit + CI
 - **Репозиторий:** github.com/alekseyber/vscode-llm-assistant
 - **Спецификации:** [specs/](https://github.com/alekseyber/vscode-llm-assistant/tree/main/specs) — 26 компонентов, интерфейсы, контракты, AC
+- **Changelog:** [CHANGELOG.md](CHANGELOG.md)
 
 ```bash
 npm install
 npm run compile        # Сборка
 npm run lint           # Линтер
-npm run test:mocked    # Тесты без VS Code (234 шт.)
+npm run test:mocked    # Тесты без VS Code (335 шт.)
 node scripts/spec-validate.js  # Проверка SDD
 ```
 
@@ -220,7 +231,7 @@ node scripts/spec-validate.js  # Проверка SDD
 **Установка локальной сборки:**
 ```bash
 rm -rf ~/.vscode-server/extensions/alekseyber.vscode-llm-assistant-*
-code --install-extension vscode-llm-assistant-0.8.2.vsix
+code --install-extension vscode-llm-assistant-0.11.0.vsix
 ```
 
 ## Лицензия
