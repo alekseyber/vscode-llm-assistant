@@ -290,7 +290,7 @@ code --install-extension vscode-llm-assistant-0.11.2.vsix
 ## Разработка
 
 - **Стек:** TypeScript, VS Code Extension API, WebView, Webpack
-- **Тесты:** Mocha + Sinon (335 mocked), E2E в реальном VS Code (18 тестов), GitHub Actions CI
+- **Тесты:** Mocha + Sinon (335 mocked), E2E в реальном VS Code (20 тестов), GitHub Actions CI
 - **SDD:** 36 spec-файлов (`specs/`), валидатор, pre-commit + CI
 - **Репозиторий:** github.com/alekseyber/vscode-llm-assistant
 - **Спецификации:** [specs/](https://github.com/alekseyber/vscode-llm-assistant/tree/main/specs) — 36 компонентов, интерфейсы, контракты, AC
