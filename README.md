@@ -1,6 +1,6 @@
 # VS Code LLM Assistant
 
-**AI-ассистент для VS Code** — 4 режима работы с LLM через любые OpenAI-совместимые API.
+**AI-ассистент для VS Code** — многорежимный агент с LLM через любые OpenAI-совместимые API. Самый дешёвый и приватный агент не в облаке: твои ключи, твои модели, локальный код.
 
 | Режим | Клавиши | Назначение |
 |-------|---------|-----------|
@@ -8,6 +8,25 @@
 | ✏️ **Edit** | `Ctrl+I` | Выделил код → инструкция → diff → Accept/Reject |
 | ⚡ **Autocomplete** | Tab/Escape | Ghost text на паузе печати |
 | 🤖 **Agent** | Вкладка в чате | ReAct-агент с инструментами, делегированием, MCP, оркестрацией |
+
+## Установка
+
+**Из Marketplace:**
+```bash
+code --install-extension alekseyber.vscode-llm-assistant
+```
+
+Или: VS Code → Extensions (`Ctrl+Shift+X`) → найти «VS Code LLM Assistant» → Install.
+
+**Из `.vsix` (ручная установка):**
+```bash
+code --install-extension vscode-llm-assistant-0.11.2.vsix
+```
+
+**Быстрый старт:**
+1. `Ctrl+,` → добавь провайдера в `settings.json` (секция «Полная конфигурация» ниже)
+2. Открой чат: иконка плагина в Activity Bar → 💬
+3. Напиши сообщение — готово
 
 ## Возможности
 
@@ -87,9 +106,14 @@
 |------|-----|----------|
 | `baseUrl` | string | URL API (OpenAI-совместимый) |
 | `apiKey` | string | Ключ API. Поддерживает `${ENV_VAR}` |
-| `models` | string[] | Список доступных моделей |
+| `models` | string[] или `{name, pricing}[]` | Список моделей; объектная форма задаёт цены для расчёта стоимости |
 | `supportsVision` | boolean | `true` для vision-моделей (изображения) |
 | `systemPrompt` | string | Кастомный промпт для этого провайдера |
+
+**Цены моделей** (для подсчёта стоимости): вместо строки укажи объект:
+```json
+"models": ["deepseek-chat", { "name": "deepseek-v4-pro", "pricing": { "input": 0.435, "output": 0.87 } }]
+```
 
 ### Основные настройки
 
@@ -209,13 +233,67 @@
 
 ---
 
+## Настройка агентов — `.llma/`
+
+Создай папку `.llma/` в корне проекта:
+
+```
+проект/
+└── .llma/
+    ├── main.md              ← главный агент (чат + 🤖)
+    ├── agents/
+    │   ├── architect.md     ← роль «архитектор»
+    │   ├── coder.md         ← роль «программист»
+    │   └── reviewer.md      ← роль «ревьюер»
+    └── skills/
+        └── my-skill.md      ← кастомный скил (вызов через /my-skill)
+```
+
+**`.llma/main.md`** — правила проекта, автоинжектятся в system prompt чата и агента:
+
+```markdown
+## Правила
+- Комментарии в коде — на русском
+- Отвечай кратко
+```
+
+**`.llma/agents/{role}.md`** — роли для `@orchestrate` и делегирования. Пример `reviewer.md`:
+
+```markdown
+Ты — ревьюер кода. Найди проблемы и предложи улучшения.
+
+## Правила
+- Ищи: ошибки, утечки, проблемы с типами
+- Отмечай хорошие решения
+```
+
+**`.llma/skills/{name}.md`** — кастомные скилы. Frontmatter: `name`, `version`, `tools`, `description`. Вызов: `/имя-скила` или `/skill имя`.
+
+Все файлы опциональны. Если их нет — используются дефолтные промпты.
+
+---
+
+## Устранение проблем
+
+| Проблема | Решение |
+|----------|---------|
+| «Неверный API ключ» | Проверь `apiKey` в настройках или env-переменную |
+| «Сервер не отвечает» | Проверь `baseUrl` и интернет |
+| «Лимит запросов» (429) | Подожди или смени провайдера |
+| Автокомплит не работает | Проверь `autocomplete.enabled` |
+| Агент не вызывает инструменты | Убедись, что провайдер поддерживает function calling |
+| Агент завис | Нажми ⏹️ (отмена) или увеличь `apply.maxIterations` |
+| Логи | Output → канал `LLM Assistant` (`llmAssistant.debug: true`) |
+
+---
+
 ## Разработка
 
 - **Стек:** TypeScript, VS Code Extension API, WebView, Webpack
 - **Тесты:** Mocha + Sinon (335 mocked), E2E в реальном VS Code (18 тестов), GitHub Actions CI
-- **SDD:** 26 spec-файлов (`specs/`), валидатор, pre-commit + CI
+- **SDD:** 36 spec-файлов (`specs/`), валидатор, pre-commit + CI
 - **Репозиторий:** github.com/alekseyber/vscode-llm-assistant
-- **Спецификации:** [specs/](https://github.com/alekseyber/vscode-llm-assistant/tree/main/specs) — 26 компонентов, интерфейсы, контракты, AC
+- **Спецификации:** [specs/](https://github.com/alekseyber/vscode-llm-assistant/tree/main/specs) — 36 компонентов, интерфейсы, контракты, AC
 - **Changelog:** [CHANGELOG.md](CHANGELOG.md)
 
 ```bash
@@ -231,7 +309,7 @@ node scripts/spec-validate.js  # Проверка SDD
 **Установка локальной сборки:**
 ```bash
 rm -rf ~/.vscode-server/extensions/alekseyber.vscode-llm-assistant-*
-code --install-extension vscode-llm-assistant-0.11.0.vsix
+code --install-extension vscode-llm-assistant-0.11.2.vsix
 ```
 
 ## Лицензия
