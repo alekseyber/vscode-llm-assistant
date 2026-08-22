@@ -78,9 +78,6 @@
   /** Кнопка отправки */
   const sendButton = document.getElementById('btn-send');
 
-  /** Кнопка очистки истории */
-  const clearButton = document.getElementById('btn-clear');
-
   /** Кнопка отмены запроса */
   const cancelButton = document.getElementById('btn-cancel');
 
@@ -645,20 +642,10 @@
           a.download = `session_${new Date().toISOString().slice(0, 10)}.md`;
           a.click();
           URL.revokeObjectURL(url);
-          const btn = document.getElementById('btn-export');
-          if (btn) {
-            const orig = btn.textContent;
-            btn.textContent = '✅';
-            setTimeout(() => btn.textContent = orig, 1500);
-          }
+          flashButtonIcon('export');
         } else {
           navigator.clipboard.writeText(text).then(() => {
-            const btn = document.getElementById('btn-share');
-            if (btn) {
-              const orig = btn.textContent;
-              btn.textContent = '✅';
-              setTimeout(() => btn.textContent = orig, 1500);
-            }
+            flashButtonIcon('share');
           });
         }
         break;
@@ -748,8 +735,6 @@
   // ---------- Session Management ----------
 
   const sessionSelect = document.getElementById('session-select');
-  const btnNewSession = document.getElementById('btn-new-session');
-  const btnDeleteSession = document.getElementById('btn-delete-session');
 
   let updatingSessionList = false;
 
@@ -789,17 +774,118 @@
     });
   }
 
-  if (btnNewSession) {
-    btnNewSession.addEventListener('click', () => {
-      postMessage({ type: 'newSession' });
-    });
+  // ---------- Toolbar (P0, Этап 1) ----------
+  // Реестр действий загружен из toolbar.js (window.TOOLBAR_ACTIONS) — декларативный,
+  // HTML для кнопок не трогаем (AC P0-1.5). Здесь маппим строковый action → обработчик.
+
+  const toolbarActions = (typeof window !== 'undefined' && window.TOOLBAR_ACTIONS) || [];
+
+  /** Очистить историю текущей сессии (DOM + extension). */
+  function clearHistory() {
+    postMessage({ type: 'clearHistory' });
+    // Восстанавливаем приветственное сообщение
+    const welcome = document.getElementById('welcome-message');
+    messagesContainer.innerHTML = '';
+    if (welcome) {
+      messagesContainer.appendChild(welcome);
+      welcome.classList.remove('hidden');
+    }
   }
 
-  if (btnDeleteSession) {
-    btnDeleteSession.addEventListener('click', () => {
-      postMessage({ type: 'deleteSession', sessionId: sessionSelect.value });
-    });
+  /** Строковый action → обработчик (клики по кнопкам тулбара). */
+  const TOOLBAR_HANDLERS = {
+    newSession: () => postMessage({ type: 'newSession' }),
+    share: () => postMessage({ type: 'getTranscript', sessionId: sessionSelect?.value || '', action: 'copy' }),
+    export: () => postMessage({ type: 'getTranscript', sessionId: sessionSelect?.value || '', action: 'download' }),
+    clearHistory,
+    deleteSession: () => postMessage({ type: 'deleteSession', sessionId: sessionSelect?.value || '' }),
+    deleteAll: () => postMessage({ type: 'clearAllSessions' }),
+  };
+
+  /** Мигнуть иконку кнопки ✅ (для копирования/экспорта). */
+  function flashButtonIcon(actionId) {
+    const btn = document.querySelector(`[data-action-id="${actionId}"]`);
+    if (!btn) return;
+    const iconSpan = btn.querySelector('.toolbar-menu-icon');
+    const target = iconSpan || btn;
+    const orig = target.textContent;
+    target.textContent = '✅';
+    setTimeout(() => { target.textContent = orig; }, 1500);
   }
+
+  /** Закрыть ⋮-меню. */
+  function closeToolbarMenu() {
+    const menu = document.getElementById('toolbar-menu');
+    if (menu) menu.classList.add('hidden');
+  }
+
+  /**
+   * Отрисовать тулбар: primary-действия — видимыми иконками, остальные — в ⋮-меню (AC P0-1.2).
+   */
+  function renderToolbar() {
+    const headerActions = document.getElementById('header-actions');
+    if (!headerActions) return;
+
+    headerActions.innerHTML = '';
+
+    const primary = toolbarActions.filter(a => a.primary);
+    const overflow = toolbarActions.filter(a => !a.primary);
+
+    // Видимые кнопки
+    for (const action of primary) {
+      const btn = document.createElement('button');
+      btn.className = 'icon-btn';
+      btn.dataset.actionId = action.id;
+      btn.title = action.title;
+      btn.textContent = action.icon;
+      btn.addEventListener('click', () => TOOLBAR_HANDLERS[action.action]?.());
+      headerActions.appendChild(btn);
+    }
+
+    // ⋮-меню (если есть не-primary действия)
+    if (overflow.length > 0) {
+      const more = document.createElement('div');
+      more.className = 'toolbar-more';
+
+      const moreBtn = document.createElement('button');
+      moreBtn.id = 'btn-toolbar-more';
+      moreBtn.className = 'icon-btn';
+      moreBtn.title = 'Ещё';
+      moreBtn.textContent = '⋮';
+      more.appendChild(moreBtn);
+
+      const menu = document.createElement('div');
+      menu.id = 'toolbar-menu';
+      menu.className = 'toolbar-menu hidden';
+      more.appendChild(menu);
+
+      for (const action of overflow) {
+        const item = document.createElement('button');
+        item.className = 'toolbar-menu-item' + (action.danger ? ' toolbar-menu-danger' : '');
+        item.dataset.actionId = action.id;
+        item.innerHTML = `<span class="toolbar-menu-icon">${action.icon}</span><span class="toolbar-menu-label">${escapeHtml(action.title)}</span>`;
+        item.addEventListener('click', () => {
+          closeToolbarMenu();
+          TOOLBAR_HANDLERS[action.action]?.();
+        });
+        menu.appendChild(item);
+      }
+
+      moreBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        menu.classList.toggle('hidden');
+      });
+
+      // Клик вне меню — закрыть
+      document.addEventListener('click', (e) => {
+        if (!more.contains(e.target)) menu.classList.add('hidden');
+      });
+
+      headerActions.appendChild(more);
+    }
+  }
+
+  renderToolbar();
 
   // ---------- Provider & Model Management ----------
 
@@ -1104,38 +1190,10 @@
     }
   });
 
-  // Очистка истории
-  clearButton.addEventListener('click', () => {
-    postMessage({ type: 'clearHistory' });
-    // Восстанавливаем приветственное сообщение
-    const welcome = document.getElementById('welcome-message');
-    messagesContainer.innerHTML = '';
-    if (welcome) {
-      messagesContainer.appendChild(welcome);
-      welcome.classList.remove('hidden');
-    }
-  });
-
   // Отмена запроса
   cancelButton.addEventListener('click', () => {
     postMessage({ type: 'cancelRequest', sessionId: sessionSelect?.value || '' });
   });
-
-  // Копировать сессию в буфер (транскрипция из session-log через extension)
-  const shareButton = document.getElementById('btn-share');
-  if (shareButton) {
-    shareButton.addEventListener('click', () => {
-      postMessage({ type: 'getTranscript', sessionId: sessionSelect?.value || '', action: 'copy' });
-    });
-  }
-
-  // Экспорт в .md (транскрипция из session-log через extension)
-  const exportButton = document.getElementById('btn-export');
-  if (exportButton) {
-    exportButton.addEventListener('click', () => {
-      postMessage({ type: 'getTranscript', sessionId: sessionSelect?.value || '', action: 'download' });
-    });
-  }
 
   // Авто-изменение высоты textarea
   messageInput.addEventListener('input', () => {

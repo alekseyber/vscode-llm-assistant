@@ -14,7 +14,8 @@ since: 0.1.0
 | Файл | Назначение | Строк |
 |------|-----------|-------|
 | `index.html` | Разметка: messagesContainer, input, sidebar | ~150 |
-| `main.js` | Логика: сообщения, стриминг, сессии, провайдеры | 912 |
+| `main.js` | Логика: сообщения, стриминг, сессии, провайдеры, тулбар | 912 |
+| `toolbar.js` | Декларативный реестр `TOOLBAR_ACTIONS` (P0) | ~30 |
 | `styles.css` | Стили: чат, кнопки, контекст-бар | ~500 |
 
 ## Интерфейс (postMessage)
@@ -27,6 +28,7 @@ since: 0.1.0
 | `cancelRequest` | Отмена запроса |
 | `ready` | WebView загружен |
 | `newSession` / `switchSession` / `deleteSession` / `renameSession` | Управление сессиями |
+| `clearAllSessions` | Удалить все сессии и логи (кнопка в ⋮-меню тулбара) |
 | `attachFile` | Прикрепление файла (text или image) |
 | `confirmResponse` | Ответ на диалог подтверждения |
 
@@ -66,6 +68,7 @@ since: 0.1.0
 - **Подсветка кода:** ручная (не highlight.js) — regex-правила для 8 языков. Добавляется `hljs-keyword`, `hljs-string`, `hljs-comment`, `hljs-number`, `hljs-title`.
 - **Confirmation:** модальное окно с `requestId`. Ответ через `confirmResponse`.
 - **Провайдеры:** селектор `<select id="provider-select">`, модели обновляются при смене провайдера.
+- **Тулбар ⋮ (P0, Этап 1):** кнопки шапки рендерятся из декларативного реестра `TOOLBAR_ACTIONS` (`toolbar.js`, UMD: глобал в WebView + `module.exports` для тестов). `primary: true` → видимая иконка, остальные — в ⋮-меню (`#toolbar-menu`). Деструктив (очистить/удалить сессию/удалить все) — `primary: false` и `danger: true`. «Удалить все сессии» шлёт `clearAllSessions`.
 - **Токены:** `MODEL_PRICES` в main.js — хардкод (дублирует types.ts). Контекст-бар: `.context-bar-fill { width: N% }`.
 - **Контекст-бар:** `width: 120px; flex-shrink: 0` (не `flex: 1`). `context-overflow` — красный с пульсацией.
 - **Welcome:** `#welcome-message` скрывается при первом сообщении.
@@ -115,4 +118,5 @@ since: 0.1.0
 
 | Версия | Дата | Изменения |
 |--------|------|-----------|
+| 0.13.0 | 2026-08-22 | P0 Этап 1: тулбар ⋮ — реестр `TOOLBAR_ACTIONS` (`toolbar.js`), primary-иконки + ⋮-меню, «Удалить все сессии» (`clearAllSessions`) |
 | 0.1.0 | 2026-08-04 | Базовая реализация |

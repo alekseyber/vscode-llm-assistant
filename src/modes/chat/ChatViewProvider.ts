@@ -107,6 +107,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         break;
       case 'cancelRequest': this.handleCancelRequest(message.sessionId); break;
       case 'clearHistory': this.conversationManager.clearHistory(); this.sendSessionListToWebview(); break;
+      case 'clearAllSessions':
+        // Удалить все сессии и логи — переиспользуем модальный флоу команды (без дублирования).
+        await vscode.commands.executeCommand('llmAssistant.clearAllSessions');
+        break;
       case 'ready': this.sendHistoryToWebview(); this.sendSessionListToWebview(); this.sendProviderListToWebview(); this.sendSlashCommandsToWebview(); this.restoreTokenIndicator(); break;
       case 'newSession': this.conversationManager.session.createSession(); this.sendHistoryToWebview(); this.sendSessionListToWebview(); break;
       case 'switchSession':
@@ -987,6 +991,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       html = html.replace('{{STYLES}}', fs.readFileSync(vscode.Uri.joinPath(base, 'src', 'webviews', 'chat', 'styles.css').fsPath, 'utf-8'));
       html = html.replace('{{MARKED_LIB}}', fs.readFileSync(vscode.Uri.joinPath(base, 'src', 'webviews', 'chat', 'marked.min.js').fsPath, 'utf-8'));
       html = html.replace('{{LINEDIFF}}', fs.readFileSync(vscode.Uri.joinPath(base, 'src', 'webviews', 'chat', 'lineDiff.js').fsPath, 'utf-8'));
+      html = html.replace('{{TOOLBAR}}', fs.readFileSync(vscode.Uri.joinPath(base, 'src', 'webviews', 'chat', 'toolbar.js').fsPath, 'utf-8'));
       html = html.replace('{{SCRIPT}}', fs.readFileSync(vscode.Uri.joinPath(base, 'src', 'webviews', 'chat', 'main.js').fsPath, 'utf-8'));
       return html;
     } catch { return '<html><body><h1>Ошибка загрузки чата</h1></body></html>'; }

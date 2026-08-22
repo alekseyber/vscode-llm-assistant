@@ -435,4 +435,13 @@ suite('ChatViewProvider.handleSendMessage', () => {
     assert.ok(types.includes('sessionList'), 'sessionList отправлен');
     assert.ok(types.includes('history'), 'history отправлен');
   });
+
+  test('clearAllSessions → executeCommand("llmAssistant.clearAllSessions")', async () => {
+    const executeCommand = sandbox.stub(vscode.commands, 'executeCommand').resolves(undefined);
+
+    await (provider as any).handleWebviewMessage({ type: 'clearAllSessions' });
+
+    assert.ok(executeCommand.calledOnce, 'executeCommand вызван один раз');
+    assert.ok(executeCommand.calledWith('llmAssistant.clearAllSessions'), 'с правильным именем команды');
+  });
 });

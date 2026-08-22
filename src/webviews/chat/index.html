@@ -22,13 +22,10 @@
     <div id="header-bottom">
       <div id="session-controls">
         <select id="session-select" class="session-select"></select>
-        <button id="btn-new-session" class="icon-btn" title="Новая сессия">➕</button>
-        <button id="btn-delete-session" class="icon-btn" title="Удалить сессию">🗑️</button>
       </div>
       <div id="header-actions">
-        <button id="btn-share" class="icon-btn" title="Копировать сессию в буфер">📋</button>
-        <button id="btn-export" class="icon-btn" title="Экспорт в Markdown">📥</button>
-        <button id="btn-clear" class="icon-btn" title="Очистить историю">✖️</button>
+        <!-- Кнопки рендерятся из TOOLBAR_ACTIONS (toolbar.js) в main.js:
+             primary → видимая иконка, остальные → ⋮-меню (AC P0-1.2) -->
       </div>
     </div>
   </header>
@@ -97,6 +94,7 @@
   <!-- Подключаем библиотеки и основной скрипт -->
   <script>{{MARKED_LIB}}</script>
   <script>{{LINEDIFF}}</script>
+  <script>{{TOOLBAR}}</script>
   <script>{{SCRIPT}}</script>
 </body>
 </html>

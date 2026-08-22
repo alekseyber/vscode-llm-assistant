@@ -25,6 +25,7 @@ function loadWebview(): WebviewHandle {
     .replace('{{STYLES}}', '')
     .replace('{{MARKED_LIB}}', '')
     .replace('{{LINEDIFF}}', '')
+    .replace('{{TOOLBAR}}', '')
     .replace('{{SCRIPT}}', '');
   const dom = new JSDOM(html, { runScripts: 'outside-only', url: 'http://localhost/' });
   const window = dom.window as any;
@@ -45,6 +46,7 @@ function loadWebview(): WebviewHandle {
 
   // Выполняем вспомогательный UMD и основной скрипт
   window.eval(fs.readFileSync(path.join(CHAT_DIR, 'lineDiff.js'), 'utf-8'));
+  window.eval(fs.readFileSync(path.join(CHAT_DIR, 'toolbar.js'), 'utf-8'));
   window.eval(fs.readFileSync(path.join(CHAT_DIR, 'main.js'), 'utf-8'));
 
   // extension → WebView: синхронный dispatch MessageEvent
@@ -196,5 +198,64 @@ suite('ChatWebview (jsdom)', () => {
 
     assert.ok(urlCreated, 'createObjectURL вызван (blob создан)');
     assert.ok(downloadName.endsWith('.md'), 'имя файла .md');
+  });
+
+  test('toolbar ⋮: primary-иконки видимы, остальные — в ⋮-меню (AC P0-1.2)', () => {
+    const { document } = loadWebview();
+
+    const headerActions = document.getElementById('header-actions')!;
+    assert.ok(headerActions, 'header-actions есть');
+
+    // Primary-кнопки — .icon-btn с data-action-id (⋮-кнопка не имеет data-action-id)
+    const primaryIds = [...headerActions.querySelectorAll('.icon-btn[data-action-id]')]
+      .map((b) => (b as HTMLElement).dataset.actionId);
+    assert.ok(primaryIds.includes('new-session'), '➕ новая сессия — primary');
+    assert.ok(primaryIds.includes('share'), '📋 копировать — primary');
+
+    // ⋮-кнопка и меню
+    const moreBtn = document.getElementById('btn-toolbar-more')!;
+    assert.ok(moreBtn, '⋮-кнопка есть');
+
+    const menu = document.getElementById('toolbar-menu')!;
+    assert.ok(menu, '⋮-меню есть');
+    assert.ok(menu.classList.contains('hidden'), 'меню скрыто по умолчанию');
+
+    // Overflow-действия — в меню
+    const overflowIds = [...menu.querySelectorAll('.toolbar-menu-item')]
+      .map((b) => (b as HTMLElement).dataset.actionId);
+    for (const id of ['export', 'clear', 'delete-session', 'delete-all']) {
+      assert.ok(overflowIds.includes(id), `${id} — в ⋮-меню`);
+    }
+
+    // Деструктив — с классом danger (AC P0-1.4)
+    for (const id of ['clear', 'delete-session', 'delete-all']) {
+      const item = menu.querySelector(`[data-action-id="${id}"]`) as HTMLElement;
+      assert.ok(item.classList.contains('toolbar-menu-danger'), `${id} — деструктив (danger)`);
+    }
+  });
+
+  test('toolbar ⋮: клик по «Удалить все сессии» шлёт clearAllSessions (AC P0-1.3)', () => {
+    const { document, postedMessages } = loadWebview();
+
+    const item = document.querySelector('#toolbar-menu [data-action-id="delete-all"]') as HTMLElement;
+    assert.ok(item, 'пункт «Удалить все сессии» есть');
+    item.click();
+
+    const msg = postedMessages.find((m) => m.type === 'clearAllSessions');
+    assert.ok(msg, 'clearAllSessions отправлен');
+  });
+
+  test('toolbar ⋮: клик по ⋮ переключает видимость меню', () => {
+    const { document } = loadWebview();
+
+    const moreBtn = document.getElementById('btn-toolbar-more') as HTMLElement;
+    const menu = document.getElementById('toolbar-menu')!;
+    assert.ok(menu.classList.contains('hidden'), 'изначально скрыто');
+
+    moreBtn.click();
+    assert.ok(!menu.classList.contains('hidden'), 'после клика видимо');
+
+    moreBtn.click();
+    assert.ok(menu.classList.contains('hidden'), 'повторный клик — скрыто');
   });
 });
