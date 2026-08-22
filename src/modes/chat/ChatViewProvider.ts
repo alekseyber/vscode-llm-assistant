@@ -208,7 +208,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     // Записываем запуск в историю со статусом 'running' (появится сразу, обновится по завершении).
     // Plan Mode записывает свой запуск в handlePlanMode/handleImplementPlan — иначе двойная запись.
     if (!(isAgentMode && planMode)) {
-      this.recordRunStart(runId, startTime, text, providerDisplayName, model, isAgentMode ? 'agent' : 'chat', sessionId);
+      this.recordRunStart(runId, startTime, text, providerDisplayName, model, isAgentMode ? 'agent' : 'chat', this.resolveSessionId(sessionId));
     }
 
     // Авто-контекст — должен быть ПЕРЕД addMessage, чтобы прикрепиться к ТЕКУЩЕМУ сообщению
@@ -872,7 +872,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     const ac = this.abortControllers.get(sid);
     if (ac) { ac.abort(); this.abortControllers.delete(sid); }
   }
-  private sendHistoryToWebview(): void { if (this.view) this.postMessage({ type: 'history', messages: this.conversationManager.getMessages() }); }
+  private sendHistoryToWebview(): void {
+    const messages = this.conversationManager.getMessages();
+    console.warn(`[LLM Assistant] history: ${messages.length} сообщений, активная=${this.conversationManager.session.getActive()?.meta.id?.slice(0, 16) ?? 'нет'}`);
+    if (this.view) this.postMessage({ type: 'history', messages });
+  }
   private sendSessionListToWebview(): void {
     if (!this.view) return;
     this.postMessage({ type: 'sessionList', sessions: this.conversationManager.session.listSessions(), activeId: this.conversationManager.session.getActive()?.meta.id });

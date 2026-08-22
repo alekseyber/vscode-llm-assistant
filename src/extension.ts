@@ -57,10 +57,9 @@ export function activate(context: vscode.ExtensionContext) {
     sessionLog = new SessionLog(context.workspaceState);
     conversationManager = new ConversationManager(context.workspaceState, sessionLog);
     // Ре-консиляция сирот: удалить логи сессий, которых нет в реестре
-    const pruned = sessionLog.pruneUnknown(conversationManager.session.listSessions().map(s => s.id));
-    if (pruned > 0) {
-      console.warn(`[LLM Assistant] Удалено осиротевших логов сессий: ${pruned}`);
-    }
+    const registrySessions = conversationManager.session.listSessions();
+    const pruned = sessionLog.pruneUnknown(registrySessions.map(s => s.id));
+    console.warn(`[LLM Assistant] Ре-консиляция логов: сессий в реестре=${registrySessions.length}, удалено сирот=${pruned}`);
     editController = new EditController(providerManager);
     autocompleteController = new AutocompleteController(providerManager);
 
