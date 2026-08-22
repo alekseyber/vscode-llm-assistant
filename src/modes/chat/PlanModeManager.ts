@@ -113,7 +113,11 @@ export class PlanModeManager {
   /** Путь к workspace (для .llma/plans/) */
   private workspacePath: string;
 
-  constructor(workspacePath: string) {
+  constructor(
+    workspacePath: string,
+    private sessionId?: string,
+    private onEvent?: (event: any) => void,
+  ) {
     this.workspacePath = workspacePath;
   }
 
@@ -159,6 +163,8 @@ export class PlanModeManager {
       enableSummary: true,
       signal,
       skipGlobalAllowList: true,  // PlannerAgent использует role.allowedTools, не глобальный
+      sessionId: this.sessionId,
+      onEvent: this.onEvent,
     });
 
     // Задача: создать план и записать в указанный путь
@@ -225,7 +231,7 @@ export class PlanModeManager {
       strategy: 'sequential',
     };
 
-    const orchestrator = new AgentOrchestrator(onLog, undefined, undefined, { skipGlobalAllowList: true });
+    const orchestrator = new AgentOrchestrator(onLog, undefined, undefined, { skipGlobalAllowList: true, signal, sessionId: this.sessionId, onEvent: this.onEvent });
     const orchestratorResult = await orchestrator.execute(task, provider);
 
     // Читаем обновлённый план
@@ -283,6 +289,8 @@ export class PlanModeManager {
         maxIterations: 8,
         skipGlobalAllowList: true,
         signal,
+        sessionId: this.sessionId,
+        onEvent: this.onEvent,
       });
       const reviewerResult = await reviewer.run(reviewerTask);
       currentReport = reviewerResult.answer;
@@ -321,6 +329,8 @@ export class PlanModeManager {
           maxIterations: 8,
           skipGlobalAllowList: true,
           signal,
+          sessionId: this.sessionId,
+          onEvent: this.onEvent,
         });
         await coderFixer.run(coderFixTask);
       }

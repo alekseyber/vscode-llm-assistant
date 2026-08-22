@@ -54,6 +54,8 @@ class PlanModeManager {
 }
 ```
 
+**F1 (0.12.1):** конструктор `PlanModeManager(workspacePath, sessionId?, onEvent?)` — `sessionId` + `onEvent` пробрасываются во все воркеры (PlannerAgent, оркестратор `implementPlan`, ReviewerAgent, coderFixer), чтобы tool-события Plan Mode писались в session-log (экспорт/копия полные). Ранее tool-события Plan Mode не логировались — дыра F1 Stage 5.
+
 ### `PlannerAgent` — агент-планировщик
 
 Изолированный агент (AgentWorker) со специализированным промтом. Только читает код, не пишет.
@@ -181,6 +183,7 @@ AgentWorker с промтом ревьюера. Сравнивает резул�
 
 | Версия | Дата | Изменения |
 |--------|------|-----------|
+| 0.12.1 | 2026-08-22 | F1 5a: конструктор принимает sessionId + onEvent → проброс во все воркеры (tool-события Plan Mode в session-log) |
 | 0.10.0 | 2026-08-20 | Прямые юнит-тесты: generatePlan/implementPlan/reflect (мок AgentWorker/AgentOrchestrator) |
 | 0.9.0 | 2026-08-11 | Фикс: model передаётся в AgentWorker (generatePlan, implementPlan, reflect) |
 | 0.9.0 | 2026-08-11 | Фикс: убран неиспользуемый loadAllAgentRoles() в implementPlan |

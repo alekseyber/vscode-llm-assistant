@@ -546,7 +546,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     this.postMessage({ type: 'streamChunk', text: '📋 **Генерирую план...**\n' }, sessionId);
 
     try {
-      const planManager = new PlanModeManager(workspacePath);
+      const planManager = new PlanModeManager(workspacePath, this.resolveSessionId(sessionId), (e) => this.sessionLog?.append(e));
       const planResult = await planManager.generatePlan(text, provider, model, signal);
 
       // Отправляем план в WebView
@@ -602,7 +602,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     this.postMessage({ type: 'implementStarted' }, sessionId);
     this.postMessage({ type: 'streamChunk', text: '🚀 **Имплементирую план...**\n' }, sessionId);
 
-    const planManager = new PlanModeManager(workspacePath);
+    const planManager = new PlanModeManager(workspacePath, this.resolveSessionId(sessionId), (e) => this.sessionLog?.append(e));
 
     try {
       // Этап 2: Имплементация

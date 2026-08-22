@@ -40,6 +40,18 @@ suite('PlanModeManager', () => {
     assert.ok(result.planId.length > 0, 'planId не пустой');
   });
 
+  test('generatePlan: пробрасывает sessionId + onEvent воркеру (F1 5a)', async () => {
+    const runStub = sandbox.stub(AgentWorker.prototype, 'run').resolves(workerResult('# План'));
+    const onEvent = (e: any) => {};
+
+    const pm = new PlanModeManager(tmpDir, 'session_plan', onEvent);
+    await pm.generatePlan('задача', {}, 'model');
+
+    const worker = runStub.thisValues[0] as any;
+    assert.strictEqual(worker.options.sessionId, 'session_plan');
+    assert.strictEqual(worker.options.onEvent, onEvent);
+  });
+
   test('reflect: все AC ✅ → allPassed true, один цикл', async () => {
     sandbox.stub(AgentWorker.prototype, 'run').resolves(workerResult('✅ AC-1: ок\n✅ AC-2: ок'));
 
