@@ -145,10 +145,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
           this.sendSessionListToWebview();
         }
         break;
-      case 'copySession': {
+      case 'getTranscript': {
         const sid = (message.sessionId as string) || this.conversationManager.session.getActive()?.meta.id;
         if (sid && this.sessionLog) {
-          this.postMessage({ type: 'sessionTranscript', text: this.sessionLog.toTranscript(sid) });
+          this.postMessage({ type: 'sessionTranscript', text: this.sessionLog.toTranscript(sid), action: message.action || 'copy' });
         }
         break;
       }

@@ -92,7 +92,7 @@ since: 0.1.0
 - **Персистентность результата Plan Mode:** план (`handlePlanMode`), имплементация и рефлексия (`handleImplementPlan`) сохраняются в историю сессии через `addMessageTo` — иначе при переключении чата/восстановлении (`restoreHistory`) результат терялся. `planGenerated` несёт исходную `sessionId`; WebView хранит её в `plan-container.dataset.sessionId`, а кнопка «Имплементировать» шлёт эту исходную сессию (а не `sessionSelect.value`) — результат уходит в сессию, где был запущен план, даже после переключения чатов.
 - **Автокомплит команд:** при `ready` (инициализация WebView) отправляет `{ type: 'slashCommands', items: [{name, description, kind, prefix}] }` — встроенные слэш-команды (`SLASH_COMMANDS`, `prefix: '/'`), скилы (`getSkillCatalog()`, `prefix: '/'`) и `@orchestrate` (`prefix: '@'`). WebView показывает попап автокомплита при вводе `/` или `@`.
 - **Session-log (F1):** конструктор принимает опциональный `sessionLog`. В `runAgentLoop` в `AgentWorker` передаются `sessionId` + `onEvent: e => sessionLog.append(e)` (персист `tool/call`, `tool/result`, `assistant/message`). В стриминговых ветках (chat + vision) `logStreamChunk`/`finalizeStream` пишут `assistant/chunk` (троттлинг по ~200 симв.) и `assistant/message`. `logUserMessage` пишет `user/message` при добавлении пользовательского сообщения (chat + vision). `resolveSessionId` разрешает активную сессию при `sessionId === undefined`.
-- **Копирование сессии (F1):** кнопка «Копировать сессию в буфер» (WebView `btn-share`, ex-«Поделиться с Hermes») шлёт `copySession` → ChatViewProvider отвечает `toTranscript()` → `sessionTranscript` → WebView копирует в clipboard. Источник — session-log, не DOM. `refreshSessionList()` — публичный метод обновления списка сессий + истории (вызывается из команды fork).
+- **Копирование/экспорт сессии (F1):** кнопки «Копировать сессию в буфер» (`btn-share`) и «Экспорт в Markdown» (`btn-export`) шлют `getTranscript` (с `action: 'copy' | 'download'`) → ChatViewProvider отвечает `toTranscript()` → `sessionTranscript` → WebView копирует в clipboard или скачивает `.md`. Источник — session-log, не DOM (DOM-костыль `buildSessionText` удалён). `refreshSessionList()` — публичный метод обновления списка сессий + истории (вызывается из команды fork).
 
 ## Тесты
 
@@ -119,5 +119,5 @@ since: 0.1.0
 | 0.11.3 | 2026-08-22 | F1 (SL-5): sessionLog — персист assistant/chunk (троттлинг) + assistant/message в стриминге; onEvent в AgentWorker |
 | 0.11.3 | 2026-08-22 | F1 (Этап 2): logUserMessage — эмиссия user/message в session-log |
 | 0.11.3 | 2026-08-22 | F1 (Этап 3): steps в RunHistoryStore из лога (computeStats) + фикс sessionId агент-режима |
-| 0.11.3 | 2026-08-22 | F1 UI-хвост: copySession → toTranscript (кнопка «Копировать в буфер»), refreshSessionList для fork |
+| 0.11.3 | 2026-08-22 | F1 UI-хвост: getTranscript (copy/download) → toTranscript; кнопка export выровнена на лог; refreshSessionList для fork |
 | 0.1.0 | 2026-08-04 | Базовая реализация |

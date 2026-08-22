@@ -520,25 +520,6 @@
   }
 
   /**
-   * Извлечь текст из HTML, удаляя теги.
-   * <br> конвертируются в переносы строк (textContent не даёт переносов для <br>),
-   * <pre> блоки кода оборачиваются в ```-фенсы, чтобы сохранить форматирование.
-   */
-  function extractTextFromHtml(html) {
-    const div = document.createElement('div');
-    div.innerHTML = html;
-    // <br> → \n (иначе tool-результаты read_file слипаются в одну строку)
-    div.querySelectorAll('br').forEach(br => br.replaceWith('\n'));
-    // <pre> → ```-фенсы (код читаемо в экспорте)
-    div.querySelectorAll('pre').forEach(pre => {
-      const lang = pre.querySelector('code')?.className?.match(/language-(\w+)/)?.[1] || '';
-      const code = pre.querySelector('code')?.textContent || '';
-      pre.replaceWith(`\n\`\`\`${lang}\n${code}\n\`\`\`\n`);
-    });
-    return div.textContent || '';
-  }
-
-  /**
    * Прокрутить контейнер сообщений вниз.
    */
   function scrollToBottom() {
@@ -654,16 +635,34 @@
         slashItems = message.items || [];
         break;
 
-      case 'sessionTranscript':
-        navigator.clipboard.writeText(message.text || '').then(() => {
-          const btn = document.getElementById('btn-share');
+      case 'sessionTranscript': {
+        const text = message.text || '';
+        if (message.action === 'download') {
+          const blob = new Blob([text], { type: 'text/markdown' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `session_${new Date().toISOString().slice(0, 10)}.md`;
+          a.click();
+          URL.revokeObjectURL(url);
+          const btn = document.getElementById('btn-export');
           if (btn) {
             const orig = btn.textContent;
             btn.textContent = '✅';
             setTimeout(() => btn.textContent = orig, 1500);
           }
-        });
+        } else {
+          navigator.clipboard.writeText(text).then(() => {
+            const btn = document.getElementById('btn-share');
+            if (btn) {
+              const orig = btn.textContent;
+              btn.textContent = '✅';
+              setTimeout(() => btn.textContent = orig, 1500);
+            }
+          });
+        }
         break;
+      }
 
       case 'confirmAction':
         showConfirmDialog(message);
@@ -1126,49 +1125,16 @@
   const shareButton = document.getElementById('btn-share');
   if (shareButton) {
     shareButton.addEventListener('click', () => {
-      postMessage({ type: 'copySession', sessionId: sessionSelect?.value || '' });
+      postMessage({ type: 'getTranscript', sessionId: sessionSelect?.value || '', action: 'copy' });
     });
   }
 
-  // Экспорт в .md
+  // Экспорт в .md (транскрипция из session-log через extension)
   const exportButton = document.getElementById('btn-export');
   if (exportButton) {
     exportButton.addEventListener('click', () => {
-      const text = buildSessionText();
-      const blob = new Blob([text], { type: 'text/markdown' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `session_${new Date().toISOString().slice(0,10)}.md`;
-      a.click();
-      URL.revokeObjectURL(url);
-      exportButton.textContent = '✅';
-      setTimeout(() => exportButton.textContent = '📥', 1500);
+      postMessage({ type: 'getTranscript', sessionId: sessionSelect?.value || '', action: 'download' });
     });
-  }
-
-  function buildSessionText() {
-    const msgs = [];
-    const allMessages = messagesContainer.querySelectorAll('.message:not(#welcome-message)');
-    allMessages.forEach(el => {
-      // Пропускаем токен-бейджи
-      if (el.classList.contains('token-badge')) return;
-      const role = el.querySelector('.message-role')?.textContent || '';
-      const contentEl = el.querySelector('.message-content');
-      if (!contentEl) return;
-      // Для пользовательских — textContent, для ассистента — рендерим HTML в чистый текст
-      let content;
-      if (role === 'Ты') {
-        content = contentEl.textContent;
-      } else {
-        content = extractTextFromHtml(contentEl.innerHTML);
-      }
-      if (content.trim()) {
-        const prefix = role === 'Ты' ? '### 👤 Пользователь' : role === 'Ошибка' ? '### ⚠️ Ошибка' : '### 🤖 Ассистент';
-        msgs.push(`${prefix}\n\n${content}`);
-      }
-    });
-    return `# VS Code LLM Assistant — Сессия\n\n${new Date().toLocaleString('ru-RU')}\n\n---\n\n${msgs.join('\n\n---\n\n')}`;
   }
 
   // Авто-изменение высоты textarea
