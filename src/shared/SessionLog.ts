@@ -149,6 +149,24 @@ export class SessionLog {
   }
 
   /**
+   * Ре-консиляция сирот: удалить логи сессий, которых нет в реестре SessionManager.
+   * Закрывает осиротевшие ключи (сессии удалены до фикса deleteSession) и рассинхроны реестр↔лог.
+   * Возвращает число удалённых сессий.
+   */
+  pruneUnknown(validIds: string[]): number {
+    const valid = new Set(validIds);
+    let removed = 0;
+    for (const sessionId of [...this.logs.keys()]) {
+      if (!valid.has(sessionId)) {
+        this.logs.delete(sessionId);
+        this.storage.update(`${KEY_PREFIX}${sessionId}`, undefined);
+        removed++;
+      }
+    }
+    return removed;
+  }
+
+  /**
    * Чистая проекция лога в модельный контекст (SL-3).
    * Не мутирует лог: отбрасывает события до последнего summary-маркера,
    * проецирует user/message + assistant/message, обрезает по токенам (сохраняя summary).

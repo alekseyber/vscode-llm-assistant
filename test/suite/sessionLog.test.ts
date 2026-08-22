@@ -206,6 +206,18 @@ suite('SessionLog', () => {
     assert.ok(storage.update.calledWith(`llmAssistant.sessionLog.${sid}`, undefined), 'ключ удалён из Memento (update c undefined)');
   });
 
+  test('pruneUnknown(): удаляет логи сессий, которых нет в реестре', () => {
+    log.append(ev('user/message', { content: 'валидное' }));
+    const orphanId = 'session_orphan';
+    log.append({ sessionId: orphanId, ts: Date.now(), type: 'user/message', content: 'сирота' });
+
+    const removed = log.pruneUnknown([sid]);
+    assert.strictEqual(removed, 1, '1 сирота удалена');
+    assert.strictEqual(log.getEvents(sid).length, 1, 'валидная сессия осталась');
+    assert.strictEqual(log.getEvents(orphanId).length, 0, 'сирота удалена из памяти');
+    assert.ok(storage.update.calledWith(`llmAssistant.sessionLog.${orphanId}`, undefined), 'ключ сироты удалён из Memento');
+  });
+
   // ===== SL-8: computeStats — производные метрики из лога =====
 
   test('computeStats(): считает steps (tool/call), тулы, ошибки, сообщения', () => {

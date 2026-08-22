@@ -56,6 +56,11 @@ export function activate(context: vscode.ExtensionContext) {
     // Лог сессий (F1) — до ConversationManager, чтобы addMessageTo писал в него (5a)
     sessionLog = new SessionLog(context.workspaceState);
     conversationManager = new ConversationManager(context.workspaceState, sessionLog);
+    // Ре-консиляция сирот: удалить логи сессий, которых нет в реестре
+    const pruned = sessionLog.pruneUnknown(conversationManager.session.listSessions().map(s => s.id));
+    if (pruned > 0) {
+      console.warn(`[LLM Assistant] Удалено осиротевших логов сессий: ${pruned}`);
+    }
     editController = new EditController(providerManager);
     autocompleteController = new AutocompleteController(providerManager);
 
