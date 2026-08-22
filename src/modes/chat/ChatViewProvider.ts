@@ -747,7 +747,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
           this.postMessage({ type: 'streamChunk', text: `❌ **${roleName}**: ${error}\n` }, sessionId);
         }
       },
-      { signal },
+      // Воркеры оркестратора: лимит 20 итераций (10 было тесно для coder при рефакторинге)
+      { signal, maxIterations: 20 },
     );
 
     // Отмечаем воркеров как running
