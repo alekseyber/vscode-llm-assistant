@@ -149,6 +149,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
   /** Переключить активную сессию чата (вызывается из вкладки «История» по двойному клику) */
   public switchToSession(sessionId: string): void {
+    console.warn(`[LLM Assistant] switchToSession: ${sessionId?.slice(0, 16)}, существует=${this.conversationManager.session.listSessions().some(s => s.id === sessionId)}`);
     this.conversationManager.session.switchTo(sessionId);
     this.sendHistoryToWebview();
     this.sendSessionListToWebview();
