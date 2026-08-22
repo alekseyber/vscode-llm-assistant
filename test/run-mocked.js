@@ -37,6 +37,7 @@ const testFiles = [
   '../out/test/suite/context.test.js',
   '../out/test/suite/conversation.test.js',
   '../out/test/suite/session.test.js',
+  '../out/test/suite/sessionLog.test.js',
   '../out/test/suite/agentsMd.test.js',
   '../out/test/suite/agentsMdIntegration.test.js',
   '../out/test/suite/contextSummarizer.test.js',
