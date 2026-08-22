@@ -7,6 +7,7 @@ import * as sinon from 'sinon';
 import * as vscode from 'vscode';
 import * as assert from 'assert';
 import { ConversationManager, ContextMessage, CodeContext } from '../../src/modes/chat/ConversationManager';
+import { SessionLog } from '../../src/shared/SessionLog';
 
 suite('ConversationManager', () => {
   let sandbox: sinon.SinonSandbox;
@@ -337,5 +338,23 @@ suite('ConversationManager', () => {
     const assistantMsg = messages.find(m => m.role === 'assistant');
     assert.ok(assistantMsg, 'Ассистент должен присутствовать');
     assert.strictEqual(assistantMsg!.content, 'Короткий ответ.');
+  });
+
+  test('F1 5a: addMessageTo пишет user/message + assistant/message в session-log', () => {
+    const log = new SessionLog(storage);
+    const cmWithLog = new ConversationManager(storage, log);
+    const sessionId = cmWithLog.session.getActive()!.meta.id;
+
+    cmWithLog.addMessage({ role: 'user', content: 'привет' });
+    cmWithLog.addMessage({ role: 'assistant', content: 'привет!' });
+
+    const events = log.getEvents(sessionId);
+    const types = events.map(e => e.type);
+    assert.deepStrictEqual(types, ['user/message', 'assistant/message'], 'оба сообщения в логе');
+
+    const user = events.find(e => e.type === 'user/message') as any;
+    assert.strictEqual(user.content, 'привет');
+    const assistant = events.find(e => e.type === 'assistant/message') as any;
+    assert.strictEqual(assistant.content, 'привет!');
   });
 });

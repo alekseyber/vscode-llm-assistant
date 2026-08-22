@@ -53,13 +53,14 @@ export function activate(context: vscode.ExtensionContext) {
 
     // ── 1. Инициализация компонентов ──
     providerManager = new ProviderManager();
-    conversationManager = new ConversationManager(context.workspaceState);
+    // Лог сессий (F1) — до ConversationManager, чтобы addMessageTo писал в него (5a)
+    sessionLog = new SessionLog(context.workspaceState);
+    conversationManager = new ConversationManager(context.workspaceState, sessionLog);
     editController = new EditController(providerManager);
     autocompleteController = new AutocompleteController(providerManager);
 
     // Инициализация хранилища истории запусков (слой 07 Product Shell)
     runHistoryStore = new RunHistoryStore(context.globalState);
-    sessionLog = new SessionLog(context.workspaceState);
 
     // Регистрация провайдера вкладки «История» (Activity Bar) — ДО ChatViewProvider
     historyViewProvider = new HistoryViewProvider(runHistoryStore);

@@ -7,6 +7,7 @@ import { ChatMessage } from '../../providers/types';
 import { SessionManager } from './SessionManager';
 import { loadAgentsMd } from '../../shared/AgentsMdLoader';
 import { ContextSummarizer } from '../../shared/ContextSummarizer';
+import { SessionLog } from '../../shared/SessionLog';
 
 /** Контекст кода */
 export interface CodeContext {
@@ -24,13 +25,16 @@ export interface ContextMessage extends ChatMessage {
 export class ConversationManager {
   private static readonly MAX_MESSAGES = 100;
   private sessionManager: SessionManager;
+  /** Лог сессий (F1) — если задан, addMessageTo пишет события (5a) */
+  private sessionLog?: SessionLog;
   /** Контекст кода для следующего запроса */
   private pendingContext: CodeContext | null = null;
   /** Суммаризатор для сжатия обрезанной истории */
   private summarizer: ContextSummarizer = new ContextSummarizer();
 
-  constructor(storage: vscode.Memento) {
+  constructor(storage: vscode.Memento, sessionLog?: SessionLog) {
     this.sessionManager = new SessionManager(storage);
+    this.sessionLog = sessionLog;
   }
 
   get session(): SessionManager {
@@ -183,6 +187,8 @@ export class ConversationManager {
       this.pendingContext = null;
     }
     this.sessionManager.addMessageTo(targetId, message);
+    // F1 (5a): единая точка записи в session-log
+    this.logMessage(targetId, message);
     // Авто-имя сессии из первого сообщения
     if (message.role === 'user') {
       this.sessionManager.autoNameSession(targetId);
@@ -195,6 +201,25 @@ export class ConversationManager {
     if (debug) {
       const allMsgs = this.sessionManager.getMessages();
       console.warn(`[LLM Assistant] addMessageTo: role=${message.role}, totalMessages=${allMsgs.length}, session=${targetId?.slice(0, 16) ?? 'none'}`);
+    }
+  }
+
+  /** Записать сообщение в session-log как событие (F1 5a) */
+  private logMessage(sessionId: string, message: ContextMessage): void {
+    if (!this.sessionLog) return;
+    const ts = Date.now();
+    if (message.role === 'user') {
+      this.sessionLog.append({
+        sessionId,
+        ts,
+        type: 'user/message',
+        content: message.content,
+        pendingContext: message.context?.content
+          ? `--- Файл: ${message.context.filePath} ---\n\`\`\`\n${message.context.content}\n\`\`\``
+          : undefined,
+      });
+    } else if (message.role === 'assistant') {
+      this.sessionLog.append({ sessionId, ts, type: 'assistant/message', content: message.content });
     }
   }
 

@@ -73,22 +73,13 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     }
   }
 
-  /** Финализировать стрим: добить буфер чанков + assistant/message — F1 SL-5 */
-  private finalizeStream(sessionId: string | undefined, full: string, buffer: { acc: string }): void {
+  /** Добить буфер чанков в лог (assistant/message пишет addMessageTo — F1 5a) */
+  private flushChunkBuffer(sessionId: string | undefined, buffer: { acc: string }): void {
     const sid = this.resolveSessionId(sessionId);
     if (!sid || !this.sessionLog) return;
     if (buffer.acc) {
       this.sessionLog.append({ sessionId: sid, ts: Date.now(), type: 'assistant/chunk', delta: buffer.acc });
       buffer.acc = '';
-    }
-    this.sessionLog.append({ sessionId: sid, ts: Date.now(), type: 'assistant/message', content: full });
-  }
-
-  /** Записать user/message в session-log (F1) — резолвит сессию и игнорирует при отсутствии лога */
-  private logUserMessage(sessionId: string | undefined, text: string): void {
-    const sid = this.resolveSessionId(sessionId);
-    if (sid && this.sessionLog) {
-      this.sessionLog.append({ sessionId: sid, ts: Date.now(), type: 'user/message', content: text });
     }
   }
 
@@ -233,7 +224,6 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     // Не добавляем в историю сразу если будет vision (изображение добавится вместе с текстом)
     if (!isVision) {
       this.conversationManager.addMessageTo(sessionId, { role: 'user', content: text });
-      this.logUserMessage(sessionId, text);
     }
 
     this.postMessage({ type: 'userMessage', text }, sessionId);
@@ -331,9 +321,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         this.postMessage({ type: 'done' }, sessionId);
         // Сохраняем в историю после успешного ответа
         this.conversationManager.addMessageTo(sessionId, { role: 'user', content: text });
-        this.logUserMessage(sessionId, text);
         this.conversationManager.addMessageTo(sessionId, { role: 'assistant', content: full });
-        this.finalizeStream(sessionId, full, buffer);
+        this.flushChunkBuffer(sessionId, buffer);
         outTokens = Math.ceil(full.length / 4);
         this.finalizeRun(runId, startTime, model, providerDisplayName, inTokens, outTokens, 1, 'success');
         return;
@@ -366,7 +355,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         for await (const chunk of stream) { full += chunk; this.postMessage({ type: 'streamChunk', text: chunk }, sessionId); this.logStreamChunk(sessionId, chunk, buffer); }
         this.postMessage({ type: 'done' }, sessionId);
         this.conversationManager.addMessageTo(sessionId, { role: 'assistant', content: full });
-        this.finalizeStream(sessionId, full, buffer);
+        this.flushChunkBuffer(sessionId, buffer);
         this.postTokens(messages, full, model);
         outTokens = Math.ceil(full.length / 4);
         this.finalizeRun(runId, startTime, model, providerDisplayName, inTokens, outTokens, 1, 'success');

@@ -241,7 +241,7 @@ export class AgentWorker {
           outputTokens += response.usage?.completion_tokens ?? Math.ceil(content.length / 4);
           finalAnswer = content;
           emit({ iteration: i, type: 'response', message: content.slice(0, 200) });
-          emitEvent('assistant/message', { content });
+          // assistant/message пишет ConversationManager.addMessageTo (5a) — здесь не дублируем
           messages.push({ role: 'assistant', content });
           break;
         }

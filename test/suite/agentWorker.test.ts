@@ -249,8 +249,8 @@ suite('AgentWorker', () => {
     assert.strictEqual(r2.answer, 'ответ 2');
   });
 
-  // F1 SL-4: AgentWorker эмитит события session-log через onEvent (tool/call + tool/result + assistant/message)
-  test('F1 SL-4: onEvent получает tool/call, tool/result и assistant/message', async () => {
+  // F1 SL-4: AgentWorker эмитит события session-log через onEvent (tool/call + tool/result; assistant/message пишет addMessageTo — 5a)
+  test('F1 SL-4: onEvent получает tool/call и tool/result', async () => {
     const role: AgentRole = { name: 'tool-user', systemPrompt: 'Используй инструменты.' };
     const provider = createMockProvider([
       mockToolCallResponse('read_file', { path: 'test.txt' }),
@@ -267,7 +267,7 @@ suite('AgentWorker', () => {
     const types = events.map(e => e.type);
     assert.ok(types.includes('tool/call'), `ожидался tool/call, получено: ${JSON.stringify(types)}`);
     assert.ok(types.includes('tool/result'), `ожидался tool/result, получено: ${JSON.stringify(types)}`);
-    assert.ok(types.includes('assistant/message'), 'ожидался assistant/message');
+    assert.ok(!types.includes('assistant/message'), 'assistant/message пишет addMessageTo (5a), не onEvent');
 
     const toolCall = events.find(e => e.type === 'tool/call');
     assert.strictEqual(toolCall.name, 'read_file');
