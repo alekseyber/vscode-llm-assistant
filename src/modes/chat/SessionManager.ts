@@ -59,7 +59,7 @@ export class SessionManager {
     if (this.activeId) this.addMessageTo(this.activeId, message);
   }
 
-  /** Добавить сообщение в конкретную сессию (по id) — для сессионной маршрутизации */
+  /** Добавить сообщение в конкретную сессию (по id) — @deprecated (F1 5d): сообщения в session-log */
   addMessageTo(sessionId: string, message: ChatMessage): void {
     const session = this.sessions.get(sessionId);
     if (!session) return;
@@ -69,6 +69,15 @@ export class SessionManager {
     if (session.messages.length > 100) {
       session.messages = session.messages.slice(-100);
     }
+    this.save();
+  }
+
+  /** Обновить meta (lastActiveAt + messageCount) без хранения messages — F1 5d. */
+  touchSession(sessionId: string, messageCount: number): void {
+    const s = this.sessions.get(sessionId);
+    if (!s) return;
+    s.meta.lastActiveAt = Date.now();
+    s.meta.messageCount = messageCount;
     this.save();
   }
 
@@ -104,7 +113,7 @@ export class SessionManager {
   }
 
   /** Создать копию сессии (fork/resume) с новым id и переключиться на неё. */
-  duplicateSession(sourceId: string): string | undefined {
+  duplicateSession(sourceId: string, messageCount?: number): string | undefined {
     const source = this.sessions.get(sourceId);
     if (!source) return undefined;
     const targetId = `session_${crypto.randomUUID()}`;
@@ -114,7 +123,7 @@ export class SessionManager {
         name: `${source.meta.name} (копия)`,
         createdAt: Date.now(),
         lastActiveAt: Date.now(),
-        messageCount: source.messages.length,
+        messageCount: messageCount ?? source.messages.length,
       },
       messages: [...source.messages],
     };
@@ -131,13 +140,13 @@ export class SessionManager {
     if (s) { s.meta.name = name; this.save(); }
   }
 
-  /** Авто-имя из первого сообщения пользователя */
-  autoNameSession(id: string): void {
+  /** Авто-имя из первого сообщения пользователя (контент передаётся извне — F1 5d) */
+  autoNameSession(id: string, firstUserContent?: string): void {
     const s = this.sessions.get(id);
     if (!s || s.meta.name !== 'Новая сессия') return;
-    const firstUserMsg = s.messages.find(m => m.role === 'user');
-    if (firstUserMsg) {
-      s.meta.name = firstUserMsg.content.slice(0, 30) + (firstUserMsg.content.length > 30 ? '...' : '');
+    const text = firstUserContent ?? s.messages.find(m => m.role === 'user')?.content;
+    if (text) {
+      s.meta.name = text.slice(0, 30) + (text.length > 30 ? '...' : '');
       this.save();
     }
   }

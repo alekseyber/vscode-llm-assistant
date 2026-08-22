@@ -39,7 +39,7 @@ suite('registerCommands', () => {
       runHistoryStore: { recordRun: sandbox.stub() },
       historyViewProvider: { refresh: sandbox.stub() },
       reviewViewProvider: { showReview: sandbox.stub() },
-      sessionLog: { toTranscript: sandbox.stub().returns(''), fork: sandbox.stub() },
+      sessionLog: { toTranscript: sandbox.stub().returns(''), fork: sandbox.stub(), computeStats: sandbox.stub().returns({ steps: 0, toolCalls: 0, toolResults: 0, errors: 0, userMessages: 0, assistantMessages: 0, chunks: 0 }) },
       refreshSessions: sandbox.stub(),
     };
   }
@@ -79,7 +79,7 @@ suite('registerCommands', () => {
     assert.ok(handler, 'forkSession зарегистрирован');
     await handler();
 
-    assert.ok(deps.conversationManager.session.duplicateSession.calledWith('session_default'), 'дублирует активную сессию');
+    assert.ok(deps.conversationManager.session.duplicateSession.calledWith('session_default', 0), 'дублирует активную сессию (с messageCount из лога)');
     assert.ok(deps.sessionLog.fork.calledWith('session_default', 'session_fork_default'), 'fork лога с тем же id');
     assert.ok(deps.refreshSessions.calledOnce, 'refresh вызван после fork');
   });

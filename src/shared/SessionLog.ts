@@ -136,6 +136,12 @@ export class SessionLog {
     return newId;
   }
 
+  /** Очистить лог сессии (для clearHistory). */
+  clearSession(sessionId: string): void {
+    this.logs.set(sessionId, []);
+    this.saveSession(sessionId, []);
+  }
+
   /**
    * Чистая проекция лога в модельный контекст (SL-3).
    * Не мутирует лог: отбрасывает события до последнего summary-маркера,
@@ -171,6 +177,33 @@ export class SessionLog {
       return this.trimToTokens(messages, options.maxContextTokens);
     }
     return messages;
+  }
+
+  /**
+   * Проекция + обрезка (для getMessagesForRequest, SL-3/5b): возвращает включённые
+   * сообщения и обрезанные (для summary). Не мутирует лог.
+   */
+  deriveMessagesWithTrimmed(sessionId: string, maxContextTokens: number): { messages: ChatMessage[]; trimmed: ChatMessage[] } {
+    const full = this.deriveMessages(sessionId);
+    const hasSummary = full.length > 0 && full[0].role === 'system';
+    const prefix = hasSummary ? [full[0]] : [];
+    const body = hasSummary ? full.slice(1) : full;
+
+    let used = prefix.reduce((s, m) => s + this.estimateTokens(m.content), 0);
+    const kept: ChatMessage[] = [];
+    const trimmed: ChatMessage[] = [];
+    let dropped = false;
+    for (let i = body.length - 1; i >= 0; i--) {
+      const tokens = this.estimateTokens(body[i].content);
+      if (dropped || used + tokens > maxContextTokens) {
+        trimmed.unshift(body[i]);
+        dropped = true;
+      } else {
+        used += tokens;
+        kept.unshift(body[i]);
+      }
+    }
+    return { messages: [...prefix, ...kept], trimmed };
   }
 
   /**

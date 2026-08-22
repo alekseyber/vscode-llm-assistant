@@ -37,8 +37,10 @@ status: planned
 - `append(event)` — append-only, добавляет в конец, не мутирует
 - `getEvents(sessionId, since?) → SessionEvent[]`
 - `deriveMessages(sessionId, options?) → ChatMessage[]` — **чистая проекция** лога в модельный контекст (compaction-маркер + обрезка по `maxContextTokens`)
+- `deriveMessagesWithTrimmed(sessionId, maxContextTokens) → { messages, trimmed }` — проекция + разделение на включённые/обрезанные (для `getMessagesForRequest`)
 - `replay(sessionId) → SessionEvent[]` — полный путь агента (тулы + аргументы + результаты)
 - `fork(sourceId, targetId?) → newSessionId` — копия лога до точки (targetId — для согласования с SessionManager)
+- `clearSession(sessionId)` — очистить лог сессии (для `clearHistory`)
 - `compact(sessionId, summary)` — вставляет `summary`-событие, старые события НЕ удаляет
 - `computeStats(sessionId) → SessionStats` — производные метрики (steps/toolCalls/errors) для RunHistoryStore
 - `toTranscript(sessionId) → string` — markdown-транскрипция (экспорт + реплей: путь агента виден в тексте)
@@ -96,3 +98,4 @@ status: planned
 | 0.1.0 | 2026-08-22 | Оптимизация: per-session ключи Memento (без SQLite) + легаси-миграция |
 | 0.1.0 | 2026-08-22 | SL-9: migrateLegacySessions() — {meta, messages[]} → события, однократно |
 | 0.1.0 | 2026-08-22 | UI-хвост: toTranscript() + fork(targetId) + команды exportSession/forkSession |
+| 0.1.0 | 2026-08-22 | Stage 5 (5b/5c/5d): deriveMessagesWithTrimmed() + clearSession(); лог подключён к getMessagesForRequest и UI |

@@ -11,7 +11,7 @@ since: 0.1.0
 
 ## Интерфейс
 
-### `new ConversationManager(storage: Memento)`
+### `new ConversationManager(storage: Memento, sessionLog?: SessionLog)` — sessionLog (F1): если задан, addMessageTo/getMessages/getMessagesForRequest работают с логом
 
 ### `getMessages() → ContextMessage[]`
 
@@ -83,3 +83,4 @@ since: 0.1.0
 | Версия | Дата | Изменения |
 |--------|------|-----------|
 | 0.1.0 | 2026-08-04 | Базовая реализация |
+| 0.11.3 | 2026-08-22 | F1 5a/5b/5c/5d: sessionLog-инъекция; addMessageTo → лог; getMessagesForRequest → deriveMessagesWithTrimmed; getMessages → deriveMessages (fallback на SessionManager) |

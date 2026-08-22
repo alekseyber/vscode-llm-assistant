@@ -357,4 +357,18 @@ suite('ConversationManager', () => {
     const assistant = events.find(e => e.type === 'assistant/message') as any;
     assert.strictEqual(assistant.content, 'привет!');
   });
+
+  test('F1 5b: getMessagesForRequest читает историю из session-log', async () => {
+    const log = new SessionLog(storage);
+    const cmWithLog = new ConversationManager(storage, log);
+
+    cmWithLog.addMessage({ role: 'user', content: 'привет' });
+    cmWithLog.addMessage({ role: 'assistant', content: 'привет!' });
+
+    const messages = await cmWithLog.getMessagesForRequest();
+    const user = messages.find(m => m.role === 'user');
+    const assistant = messages.find(m => m.role === 'assistant');
+    assert.strictEqual(user?.content, 'привет', 'user из лога');
+    assert.strictEqual(assistant?.content, 'привет!', 'assistant из лога');
+  });
 });

@@ -166,6 +166,18 @@ suite('SessionLog', () => {
     assert.strictEqual(messages[1].content, 'B'.repeat(40), 'свежее сохраняется');
   });
 
+  test('deriveMessagesWithTrimmed(): разделяет kept и trimmed по лимиту', () => {
+    log.append(ev('user/message', { content: 'A'.repeat(40) }));     // 10 токенов
+    log.append(ev('assistant/message', { content: 'B'.repeat(40) })); // 10 токенов
+    log.append(ev('user/message', { content: 'C'.repeat(40) }));      // 10 токенов
+
+    const { messages, trimmed } = log.deriveMessagesWithTrimmed(sid, 22);
+    assert.strictEqual(messages.length, 2, '2 свежих (B + C)');
+    assert.strictEqual(messages[0].content, 'B'.repeat(40));
+    assert.strictEqual(trimmed.length, 1, '1 обрезанное (A)');
+    assert.strictEqual(trimmed[0].content, 'A'.repeat(40));
+  });
+
   test('deriveMessages(): pendingContext прикрепляется к user/message', () => {
     log.append(ev('user/message', { content: 'текст', pendingContext: 'контекст кода' }));
     const messages = log.deriveMessages(sid);

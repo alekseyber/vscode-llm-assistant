@@ -515,7 +515,10 @@ function forkSession(conversationManager: ConversationManager, sessionLog: Sessi
     vscode.window.showWarningMessage('Нет активной сессии.');
     return;
   }
-  const newId = conversationManager.session.duplicateSession(sourceId);
+  const newId = conversationManager.session.duplicateSession(
+    sourceId,
+    sessionLog.computeStats(sourceId).userMessages + sessionLog.computeStats(sourceId).assistantMessages
+  );
   if (newId) {
     sessionLog.fork(sourceId, newId);
     refreshSessions?.();

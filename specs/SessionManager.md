@@ -27,7 +27,13 @@ since: 0.1.0
 
 ### `renameSession(id, name)` / `autoNameSession(id)` / `clearActive()`
 
-### `duplicateSession(sourceId) → newId | undefined` — копия сессии (fork/resume), переключает активную
+### `duplicateSession(sourceId, messageCount?) → newId | undefined` — копия сессии (fork/resume), переключает активную
+
+### `touchSession(sessionId, messageCount)` — обновить meta (lastActiveAt + messageCount) без хранения messages (F1 5d)
+
+### `autoNameSession(id, firstUserContent?)` — авто-имя из первого user-сообщения (контент извне — F1 5d)
+
+> `addMessage` / `addMessageTo` / `getMessages` — **@deprecated** (F1 5d): сообщения живут в session-log, SessionManager остаётся реестром meta.
 
 ## Контракты
 
@@ -85,3 +91,4 @@ since: 0.1.0
 | 0.1.0 | 2026-08-04 | Базовая реализация |
 | 0.10.0 | 2026-08-20 | `addMessageTo(sessionId)` — сессионная маршрутизация сообщений |
 | 0.11.3 | 2026-08-22 | `duplicateSession(sourceId)` — копия сессии для fork/resume |
+| 0.11.3 | 2026-08-22 | F1 5d: `touchSession` + `autoNameSession(content)`; messages-методы @deprecated (реестр = meta) |

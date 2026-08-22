@@ -42,6 +42,11 @@ export class ConversationManager {
   }
 
   getMessages(): ContextMessage[] {
+    // F1 5c: при наличии лога — проекция из него (fallback на SessionManager.messages)
+    const sessionId = this.sessionManager.getActive()?.meta.id;
+    if (this.sessionLog && sessionId) {
+      return this.sessionLog.deriveMessages(sessionId) as ContextMessage[];
+    }
     return this.sessionManager.getMessages();
   }
 
@@ -62,8 +67,19 @@ export class ConversationManager {
 
     const debug = config.get<boolean>('debug', false);
 
-    // Собираем историю с учётом лимита токенов, получаем обрезанные сообщения
-    const { history, trimmed } = this.buildHistoryWithTrimmed(maxTokens, usedTokens);
+    // F1 5b: проекция истории из session-log; fallback на SessionManager.messages (без лога)
+    const sessionId = this.sessionManager.getActive()?.meta.id;
+    let history: ChatMessage[];
+    let trimmed: ChatMessage[];
+    if (this.sessionLog && sessionId) {
+      const r = this.sessionLog.deriveMessagesWithTrimmed(sessionId, maxTokens - usedTokens);
+      history = r.messages;
+      trimmed = r.trimmed;
+    } else {
+      const r = this.buildHistoryWithTrimmed(maxTokens, usedTokens);
+      history = r.history;
+      trimmed = r.trimmed;
+    }
 
     // --- Слой 04: Summary при переполнении контекста ---
     const summaryEnabled = config.get<boolean>('chat.summaryEnabled', true);
@@ -186,12 +202,17 @@ export class ConversationManager {
       message.context = this.pendingContext;
       this.pendingContext = null;
     }
-    this.sessionManager.addMessageTo(targetId, message);
-    // F1 (5a): единая точка записи в session-log
-    this.logMessage(targetId, message);
+    // F1 (5a/5d): session-log — единственный источник сообщений; fallback на SessionManager.messages
+    if (this.sessionLog) {
+      this.logMessage(targetId, message);
+      const stats = this.sessionLog.computeStats(targetId);
+      this.sessionManager.touchSession(targetId, stats.userMessages + stats.assistantMessages);
+    } else {
+      this.sessionManager.addMessageTo(targetId, message);
+    }
     // Авто-имя сессии из первого сообщения
     if (message.role === 'user') {
-      this.sessionManager.autoNameSession(targetId);
+      this.sessionManager.autoNameSession(targetId, message.content);
     }
     // Инвалидируем кеш summary при добавлении новых сообщений
     this.summarizer.invalidateCache();
@@ -199,8 +220,10 @@ export class ConversationManager {
     // Диагностика: логируем состояние после каждого addMessage
     const debug = vscode.workspace.getConfiguration('llmAssistant').get<boolean>('debug', false);
     if (debug) {
-      const allMsgs = this.sessionManager.getMessages();
-      console.warn(`[LLM Assistant] addMessageTo: role=${message.role}, totalMessages=${allMsgs.length}, session=${targetId?.slice(0, 16) ?? 'none'}`);
+      const totalMessages = this.sessionLog
+        ? this.sessionLog.computeStats(targetId).userMessages + this.sessionLog.computeStats(targetId).assistantMessages
+        : this.sessionManager.getMessages().length;
+      console.warn(`[LLM Assistant] addMessageTo: role=${message.role}, totalMessages=${totalMessages}, session=${targetId?.slice(0, 16) ?? 'none'}`);
     }
   }
 
@@ -224,7 +247,12 @@ export class ConversationManager {
   }
 
   clearHistory(): void {
+    const sessionId = this.sessionManager.getActive()?.meta.id;
     this.sessionManager.clearActive();
+    // F1 5c: очищаем и лог активной сессии
+    if (sessionId && this.sessionLog) {
+      this.sessionLog.clearSession(sessionId);
+    }
     // Сбрасываем кеш summary
     this.summarizer.invalidateCache();
   }
