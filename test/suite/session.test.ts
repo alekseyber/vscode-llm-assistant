@@ -143,4 +143,25 @@ suite('SessionManager', () => {
     sm.createSession('Новая');
     assert.strictEqual(sm.getMessages().length, 0);
   });
+
+  test('duplicateSession() создаёт копию с сообщениями и переключает активную', () => {
+    const sm = new SessionManager(storage);
+    const sourceId = sm.getActive()!.meta.id;
+    sm.addMessage({ role: 'user', content: 'привет' });
+    sm.addMessage({ role: 'assistant', content: 'привет!' });
+
+    const newId = sm.duplicateSession(sourceId);
+
+    assert.ok(newId, 'должен вернуть новый id');
+    assert.notStrictEqual(newId, sourceId);
+    assert.strictEqual(sm.getActive()!.meta.id, newId, 'копия становится активной');
+    assert.strictEqual(sm.getActive()!.messages.length, 2, 'сообщения скопированы');
+    assert.strictEqual(sm.getActive()!.messages[0].content, 'привет');
+    assert.ok(sm.getActive()!.meta.name.includes('(копия)'), 'имя с суффиксом (копия)');
+  });
+
+  test('duplicateSession() для несуществующей сессии → undefined', () => {
+    const sm = new SessionManager(storage);
+    assert.strictEqual(sm.duplicateSession('нет_такой'), undefined);
+  });
 });

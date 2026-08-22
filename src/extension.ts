@@ -95,7 +95,7 @@ export function activate(context: vscode.ExtensionContext) {
     };
 
     // ── 3. Команды ──
-    registerCommands({ context, providerManager, conversationManager, editController, autocompleteController, runHistoryStore, historyViewProvider, reviewViewProvider });
+    registerCommands({ context, providerManager, conversationManager, editController, autocompleteController, runHistoryStore, historyViewProvider, reviewViewProvider, sessionLog });
 
     // ── 4. Конфигурация ──
     context.subscriptions.push(

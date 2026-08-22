@@ -92,9 +92,43 @@ export class SessionLog {
     return this.getEvents(sessionId);
   }
 
-  /** Создать копию сессии до текущей точки (fork/resume). */
-  fork(sourceId: string): string {
-    const newId = `session_${crypto.randomUUID()}`;
+  /**
+   * Читаемая markdown-транскрипция сессии (пользователь/ассистент/тулы/ошибки/summary).
+   * Служит для экспорта и реплея: путь агента (tool/call + tool/result) виден в тексте.
+   */
+  toTranscript(sessionId: string): string {
+    const lines: string[] = [`# Сессия: ${sessionId}`, ''];
+    for (const e of this.getEvents(sessionId)) {
+      switch (e.type) {
+        case 'user/message':
+          lines.push('## 👤 Пользователь', '', e.content, '');
+          break;
+        case 'assistant/message':
+          lines.push('## 🤖 Ассистент', '', e.content, '');
+          break;
+        case 'tool/call':
+          lines.push(`### 🔧 ${e.name}`, '', '```json', JSON.stringify(e.args, null, 2), '```', '');
+          break;
+        case 'tool/result':
+          lines.push('**Результат:**', '', '```', e.result, '```', '');
+          break;
+        case 'error':
+          lines.push('### ⚠️ Ошибка', '', e.message, '');
+          break;
+        case 'summary':
+          lines.push(`> 📝 Краткое содержание: ${e.content}`, '');
+          break;
+        case 'confirm':
+          lines.push(`> ✅ ${e.toolName}: ${e.accepted ? 'подтверждено' : 'отклонено'}`, '');
+          break;
+      }
+    }
+    return lines.join('\n').trim() + '\n';
+  }
+
+  /** Создать копию сессии до текущей точки (fork/resume). Опц. targetId — для согласования с SessionManager. */
+  fork(sourceId: string, targetId?: string): string {
+    const newId = targetId ?? `session_${crypto.randomUUID()}`;
     const source = this.logs.get(sourceId) ?? [];
     const copied = source.map(e => ({ ...e, sessionId: newId }));
     this.logs.set(newId, copied);

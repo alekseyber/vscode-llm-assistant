@@ -20,6 +20,7 @@ import { ToolSystem } from '../modes/apply/ToolSystem';
 import { createTools } from '../modes/apply/ToolDefinitions';
 import { getAllowedTools, loadToolAllowListConfig } from '../modes/apply/ToolAllowList';
 import { RunHistoryStore, generateRunId } from '../shared/RunHistoryStore';
+import { SessionLog } from '../shared/SessionLog';
 import { HistoryViewProvider } from '../modes/history/HistoryViewProvider';
 import { ReviewViewProvider } from '../modes/review/ReviewViewProvider';
 import { CodeReviewer } from '../modes/review/CodeReviewer';
@@ -45,6 +46,8 @@ export interface CommandDependencies {
   historyViewProvider: HistoryViewProvider;
   /** Провайдер вкладки «Ревью» (для показа отчёта код-ревью) */
   reviewViewProvider: ReviewViewProvider;
+  /** Лог сессий (F1) — для экспорта транскрипции и fork */
+  sessionLog: SessionLog;
 }
 
 /**
@@ -55,7 +58,7 @@ export interface CommandDependencies {
  * @param deps - зависимости (контекст, менеджеры, контроллеры режимов)
  */
 export function registerCommands(deps: CommandDependencies): void {
-  const { context, providerManager, conversationManager, editController, autocompleteController, runHistoryStore, historyViewProvider, reviewViewProvider } = deps;
+  const { context, providerManager, conversationManager, editController, autocompleteController, runHistoryStore, historyViewProvider, reviewViewProvider, sessionLog } = deps;
 
   // ── 1. llmAssistant.chat.focus (Ctrl+Shift+L) — открыть/сфокусировать чат ──
   context.subscriptions.push(
@@ -118,7 +121,21 @@ export function registerCommands(deps: CommandDependencies): void {
     })
   );
 
-  console.log('[registerCommands] Зарегистрировано 8 команд: chat.focus, chat.addSelection, edit.selection, autocomplete.toggle, apply.start, selectProvider, openHistory, review.file');
+  // ── 9. llmAssistant.exportSession — экспорт транскрипции активной сессии в markdown ──
+  context.subscriptions.push(
+    vscode.commands.registerCommand('llmAssistant.exportSession', () => {
+      exportSession(conversationManager, sessionLog);
+    })
+  );
+
+  // ── 10. llmAssistant.forkSession — копия активной сессии (fork/resume) ──
+  context.subscriptions.push(
+    vscode.commands.registerCommand('llmAssistant.forkSession', () => {
+      forkSession(conversationManager, sessionLog);
+    })
+  );
+
+  console.log('[registerCommands] Зарегистрировано 10 команд: chat.focus, chat.addSelection, edit.selection, autocomplete.toggle, apply.start, selectProvider, openHistory, review.file, exportSession, forkSession');
 }
 
 /**
@@ -459,5 +476,46 @@ export async function reviewActiveFile(
   } catch (error: any) {
     const errorMessage = error?.message || 'Неизвестная ошибка';
     vscode.window.showErrorMessage(`Ошибка ревью: ${errorMessage}`);
+  }
+}
+
+/**
+ * Экспортировать транскрипцию активной сессии в markdown-файл (точный экспорт из лога).
+ * Транскрипция включает путь агента (tool/call + tool/result) — это и реплей.
+ */
+async function exportSession(conversationManager: ConversationManager, sessionLog: SessionLog): Promise<void> {
+  const sessionId = conversationManager.session.getActive()?.meta.id;
+  if (!sessionId) {
+    vscode.window.showWarningMessage('Нет активной сессии.');
+    return;
+  }
+  const transcript = sessionLog.toTranscript(sessionId);
+  if (!transcript.trim()) {
+    vscode.window.showWarningMessage('Лог сессии пуст — нечего экспортировать.');
+    return;
+  }
+  const workspace = vscode.workspace.workspaceFolders?.[0]?.uri;
+  const defaultUri = workspace
+    ? vscode.Uri.joinPath(workspace, `session-${sessionId.slice(-8)}.md`)
+    : undefined;
+  const uri = await vscode.window.showSaveDialog({ defaultUri, filters: { Markdown: ['md'] } });
+  if (!uri) return;
+  await vscode.workspace.fs.writeFile(uri, Buffer.from(transcript, 'utf8'));
+  vscode.window.showInformationMessage(`Сессия экспортирована: ${uri.fsPath}`);
+}
+
+/**
+ * Создать копию активной сессии (fork/resume): дублирует SessionManager + session-log.
+ */
+function forkSession(conversationManager: ConversationManager, sessionLog: SessionLog): void {
+  const sourceId = conversationManager.session.getActive()?.meta.id;
+  if (!sourceId) {
+    vscode.window.showWarningMessage('Нет активной сессии.');
+    return;
+  }
+  const newId = conversationManager.session.duplicateSession(sourceId);
+  if (newId) {
+    sessionLog.fork(sourceId, newId);
+    vscode.window.showInformationMessage('Сессия скопирована (fork) — можно продолжать с новой ветки.');
   }
 }

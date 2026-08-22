@@ -103,6 +103,28 @@ export class SessionManager {
     return id;
   }
 
+  /** Создать копию сессии (fork/resume) с новым id и переключиться на неё. */
+  duplicateSession(sourceId: string): string | undefined {
+    const source = this.sessions.get(sourceId);
+    if (!source) return undefined;
+    const targetId = `session_${crypto.randomUUID()}`;
+    const copy: Session = {
+      meta: {
+        id: targetId,
+        name: `${source.meta.name} (копия)`,
+        createdAt: Date.now(),
+        lastActiveAt: Date.now(),
+        messageCount: source.messages.length,
+      },
+      messages: [...source.messages],
+    };
+    this.sessions.set(targetId, copy);
+    this.activeId = targetId;
+    this.storage.update(ACTIVE_KEY, targetId);
+    this.save();
+    return targetId;
+  }
+
   /** Переименовать сессию */
   renameSession(id: string, name: string): void {
     const s = this.sessions.get(id);

@@ -53,6 +53,14 @@
       {
         "command": "llmAssistant.review.file",
         "title": "LLM Assistant: Review File"
+      },
+      {
+        "command": "llmAssistant.exportSession",
+        "title": "LLM Assistant: Экспортировать сессию"
+      },
+      {
+        "command": "llmAssistant.forkSession",
+        "title": "LLM Assistant: Скопировать сессию (fork)"
       }
     ],
     "keybindings": [

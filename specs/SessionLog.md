@@ -38,9 +38,10 @@ status: planned
 - `getEvents(sessionId, since?) → SessionEvent[]`
 - `deriveMessages(sessionId, options?) → ChatMessage[]` — **чистая проекция** лога в модельный контекст (compaction-маркер + обрезка по `maxContextTokens`)
 - `replay(sessionId) → SessionEvent[]` — полный путь агента (тулы + аргументы + результаты)
-- `fork(sourceId) → newSessionId` — копия лога до точки
+- `fork(sourceId, targetId?) → newSessionId` — копия лога до точки (targetId — для согласования с SessionManager)
 - `compact(sessionId, summary)` — вставляет `summary`-событие, старые события НЕ удаляет
 - `computeStats(sessionId) → SessionStats` — производные метрики (steps/toolCalls/errors) для RunHistoryStore
+- `toTranscript(sessionId) → string` — markdown-транскрипция (экспорт + реплей: путь агента виден в тексте)
 
 ## Контракты
 
@@ -94,3 +95,4 @@ status: planned
 | 0.1.0 | 2026-08-22 | Этап 3: SL-6/SL-7/SL-8 — computeStats() + steps из лога в RunHistoryStore |
 | 0.1.0 | 2026-08-22 | Оптимизация: per-session ключи Memento (без SQLite) + легаси-миграция |
 | 0.1.0 | 2026-08-22 | SL-9: migrateLegacySessions() — {meta, messages[]} → события, однократно |
+| 0.1.0 | 2026-08-22 | UI-хвост: toTranscript() + fork(targetId) + команды exportSession/forkSession |

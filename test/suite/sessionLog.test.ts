@@ -331,4 +331,33 @@ suite('SessionLog', () => {
     assert.strictEqual(events.length, 1, 'не дублирует: остаются существующие события');
     assert.strictEqual((events[0] as any).content, 'уже в логе', 'существующие события не перезаписаны');
   });
+
+  // ===== UI-хвост: toTranscript (экспорт/реплей) + fork(targetId) =====
+
+  test('toTranscript(): markdown с пользователем/ассистентом/тулами', () => {
+    log.append(ev('user/message', { content: 'привет' }));
+    log.append(ev('tool/call', { stepId: 's1', name: 'read_file', args: { path: 'a.ts' } }));
+    log.append(ev('tool/result', { stepId: 's1', name: 'read_file', result: 'содержимое' }));
+    log.append(ev('assistant/message', { content: 'готово' }));
+
+    const t = log.toTranscript(sid);
+    assert.ok(t.includes(`# Сессия: ${sid}`), 'заголовок сессии');
+    assert.ok(t.includes('## 👤 Пользователь'), 'секция пользователя');
+    assert.ok(t.includes('привет'), 'текст пользователя');
+    assert.ok(t.includes('### 🔧 read_file'), 'вызов инструмента');
+    assert.ok(t.includes('"path": "a.ts"'), 'аргументы инструмента');
+    assert.ok(t.includes('содержимое'), 'результат инструмента');
+    assert.ok(t.includes('## 🤖 Ассистент'), 'секция ассистента');
+    assert.ok(t.includes('готово'), 'текст ассистента');
+  });
+
+  test('fork(sourceId, targetId): использует переданный id', () => {
+    log.append(ev('user/message', { content: 'исходное' }));
+    const newId = log.fork(sid, 'session_fixed');
+    assert.strictEqual(newId, 'session_fixed');
+    const forked = log.getEvents('session_fixed');
+    assert.strictEqual(forked.length, 1);
+    assert.strictEqual(forked[0].sessionId, 'session_fixed');
+    assert.strictEqual((forked[0] as any).content, 'исходное');
+  });
 });

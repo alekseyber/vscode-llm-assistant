@@ -27,6 +27,8 @@ since: 0.1.0
 
 ### `renameSession(id, name)` / `autoNameSession(id)` / `clearActive()`
 
+### `duplicateSession(sourceId) → newId | undefined` — копия сессии (fork/resume), переключает активную
+
 ## Контракты
 
 | Ситуация | Поведение |
@@ -82,3 +84,4 @@ since: 0.1.0
 | 0.7.0 | 2026-08-05 | crypto.randomUUID вместо Date.now |
 | 0.1.0 | 2026-08-04 | Базовая реализация |
 | 0.10.0 | 2026-08-20 | `addMessageTo(sessionId)` — сессионная маршрутизация сообщений |
+| 0.11.3 | 2026-08-22 | `duplicateSession(sourceId)` — копия сессии для fork/resume |

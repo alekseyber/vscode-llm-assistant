@@ -33,10 +33,11 @@ suite('registerCommands', () => {
       runHistoryStore: { recordRun: sandbox.stub() },
       historyViewProvider: { refresh: sandbox.stub() },
       reviewViewProvider: { showReview: sandbox.stub() },
+      sessionLog: { toTranscript: sandbox.stub().returns(''), fork: sandbox.stub() },
     };
   }
 
-  test('регистрирует все 8 команд', () => {
+  test('регистрирует все 10 команд', () => {
     registerCommands(makeDeps());
 
     const names = registerSpy.getCalls().map((c) => c.args[0]);
@@ -46,18 +47,20 @@ suite('registerCommands', () => {
       'llmAssistant.chat.addSelection',
       'llmAssistant.chat.focus',
       'llmAssistant.edit.selection',
+      'llmAssistant.exportSession',
+      'llmAssistant.forkSession',
       'llmAssistant.openHistory',
       'llmAssistant.review.file',
       'llmAssistant.selectProvider',
     ].sort());
-    assert.strictEqual(registerSpy.callCount, 8);
+    assert.strictEqual(registerSpy.callCount, 10);
   });
 
   test('все команды добавляются в context.subscriptions', () => {
     const deps = makeDeps();
     registerCommands(deps);
 
-    // 8 команд регистрируются через context.subscriptions.push
-    assert.strictEqual(deps.context.subscriptions.push.callCount, 8);
+    // 10 команд регистрируются через context.subscriptions.push
+    assert.strictEqual(deps.context.subscriptions.push.callCount, 10);
   });
 });
