@@ -672,6 +672,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     const ac = new AbortController();
     this.abortControllers.set(sid, ac);
     const signal = ac.signal;
+    console.warn(`[LLM Assistant] orchestrator: sid=${sid.slice(0, 16)}, контроллер создан, всего=${this.abortControllers.size}`);
+
+    // Пишем user-сообщение в лог сразу — иначе при переключении чата список пуст, пока процесс идёт
+    this.conversationManager.addMessageTo(sessionId, { role: 'user', content: `@orchestrate ${taskText}` });
 
     // Загружаем роли из .llma/agents/*.md (динамически) или fallback
     const roles = loadOrchestratorRoles();
@@ -784,8 +788,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     // Токены оркестратора в индикатор
     this.postMessage({ type: 'tokens', inputTokens: result.totalInputTokens, outputTokens: result.totalOutputTokens, model }, sessionId);
 
-    // Сохраняем ответ в историю
-    this.conversationManager.addMessageTo(sessionId, { role: 'user', content: `@orchestrate ${taskText}` });
+    // Сохраняем ответ в историю (user-сообщение уже записано в начале оркестрации)
     this.conversationManager.addMessageTo(sessionId, { role: 'assistant', content: result.summary });
 
     // Обновляем запись в истории запусков финальным статусом
@@ -906,6 +909,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   private handleCancelRequest(sessionId?: string): void {
     const sid = sessionId || 'default';
     const ac = this.abortControllers.get(sid);
+    console.warn(`[LLM Assistant] cancelRequest: sid=${sid.slice(0, 16)}, найден=${!!ac}, всего=${this.abortControllers.size}`);
     if (ac) { ac.abort(); this.abortControllers.delete(sid); }
   }
   private sendHistoryToWebview(): void {
