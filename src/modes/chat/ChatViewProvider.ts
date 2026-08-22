@@ -778,9 +778,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         outputTokens: wt.result.outputTokens,
       });
 
+      const wtStatus = wt.error ? ' ❌' : (wt.result.limitExceeded ? ' ⚠️' : ' ✅');
+      const wtBody = wt.error ? `Ошибка: ${wt.error}` : wt.result.answer;
       this.postMessage({
         type: 'streamChunk',
-        text: `\n### ${wt.roleName}${wt.error ? ' ❌' : ' ✅'}\n${wt.error ? `Ошибка: ${wt.error}` : wt.result.answer}\n`,
+        text: `\n### ${wt.roleName}${wtStatus}\n${wtBody}\n`,
       }, sessionId);
     }
 
@@ -802,7 +804,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       result.totalInputTokens,
       result.totalOutputTokens,
       result.workers.reduce((s, w) => s + w.result.iterations, 0),
-      result.success ? 'success' : 'error',
+      result.workers.some((w) => w.error) ? 'error' : result.workers.some((w) => w.result?.limitExceeded) ? 'limit_exceeded' : 'success',
     );
   }
 

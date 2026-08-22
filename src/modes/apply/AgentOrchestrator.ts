@@ -148,10 +148,14 @@ export class AgentOrchestrator {
     for (const w of workers) {
       costPerWorker[w.roleName] = w.result?.cost ?? 0;
     }
-    const success = workers.every(w => !w.error);
+    const success = workers.every(w => !w.error && !w.result?.limitExceeded);
 
     const summary = workers
-      .map(w => `### ${w.roleName}${w.error ? ' ❌' : ' ✅'}\n${w.error ? `Ошибка: ${w.error}` : w.result?.answer ?? '(нет ответа)'}`)
+      .map((w) => {
+        const status = w.error ? ' ❌' : (w.result?.limitExceeded ? ' ⚠️' : ' ✅');
+        const body = w.error ? `Ошибка: ${w.error}` : (w.result?.answer ?? '(нет ответа)');
+        return `### ${w.roleName}${status}\n${body}`;
+      })
       .join('\n\n');
 
     this.log(`Оркестратор '${task.id}': завершён. Успех=${success}, токены: ${totalInputTokens}+${totalOutputTokens}`);

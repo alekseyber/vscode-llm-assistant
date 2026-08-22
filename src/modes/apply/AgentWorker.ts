@@ -60,6 +60,8 @@ export interface WorkerResult {
   cost: number;
   /** Ошибка, если агент упал */
   error?: string;
+  /** true, если агент исчерпал лимит итераций без финального ответа */
+  limitExceeded?: boolean;
 }
 
 /**
@@ -334,7 +336,8 @@ export class AgentWorker {
       }
     }
 
-    if (!finalAnswer) {
+    const limitExceeded = !finalAnswer;
+    if (limitExceeded) {
       finalAnswer = 'Агент не дал финального ответа (исчерпан лимит итераций).';
     }
 
@@ -345,6 +348,7 @@ export class AgentWorker {
       inputTokens: Math.ceil(inputTokens),
       outputTokens: Math.ceil(outputTokens),
       cost: calculateCost(model, Math.ceil(inputTokens), Math.ceil(outputTokens)),
+      limitExceeded,
     };
   }
 }

@@ -100,6 +100,26 @@ suite('AgentOrchestrator', () => {
     assert.ok(result.summary.includes('Ответ воркера'), 'Сводка должна содержать ответы');
   });
 
+  // limitExceeded: воркер без финального ответа помечается ⚠️, не ✅
+  test('summary: limitExceeded-воркер помечается ⚠️', async () => {
+    const task: MultiAgentTask = {
+      id: 'test-limit',
+      goal: 'Задача',
+      roles: [makeRole('coder')],
+      strategy: 'sequential',
+    };
+    const provider = {
+      createWithTools: sinon.stub().resolves({
+        choices: [{ message: { role: 'assistant', content: '', tool_calls: [{ id: 'c1', function: { name: 'no_such_tool', arguments: '{}' } }] } }],
+      }),
+    };
+    const orchestrator = new AgentOrchestrator(undefined, undefined, undefined, { maxIterations: 2 });
+    const result = await orchestrator.execute(task, provider);
+
+    assert.ok(result.summary.includes('coder ⚠️'), `Сводка должна содержать ⚠️: ${result.summary}`);
+    assert.strictEqual(result.success, false);
+  });
+
   // MA-2.3: sequential — каждый следующий получает результат предыдущего
   test('MA-2.3: sequential передаёт контекст между воркерами', async () => {
     const responses = ['Архитектура готова', 'Код написан', 'Тесты пройдены'];

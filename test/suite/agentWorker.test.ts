@@ -119,6 +119,17 @@ suite('AgentWorker', () => {
     assert.strictEqual(caught.message, 'Request was aborted.', 'не переоборачивается в новый Error');
   });
 
+  // limitExceeded: исчерпан лимит итераций без финального ответа
+  test('limitExceeded: исчерпан лимит итераций без финального ответа', async () => {
+    const role: AgentRole = { name: 't', systemPrompt: 'Тест' };
+    const provider = createMockProvider();
+    provider.createWithTools.callsFake(async () => mockToolCallResponse('no_such_tool', {}));
+    const worker = new AgentWorker(role, provider, { maxIterations: 2, skipGlobalAllowList: true });
+    const result = await worker.run('задача');
+    assert.strictEqual(result.limitExceeded, true);
+    assert.ok(result.answer.includes('исчерпан лимит итераций'));
+  });
+
   // MA-1.2: Воркер использует свой systemPrompt
   test('MA-1.2: systemPrompt роли передаётся в LLM', async () => {
     const role: AgentRole = {
