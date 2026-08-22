@@ -190,6 +190,7 @@ export class AgentOrchestrator {
         this.onWorkerDone?.(role.name);
         this.log(`Воркер '${role.name}': завершён (${wt.result.iterations} итераций)`);
       } catch (e: any) {
+        if (e?.name === 'AbortError') { throw e; }
         wt.error = e.message || String(e);
         this.onWorkerDone?.(role.name, wt.error);
         this.log(`Воркер '${role.name}': ОШИБКА — ${wt.error}`);
@@ -231,6 +232,7 @@ export class AgentOrchestrator {
         this.sharedContext.put(`result:${role.name}`, wt.result.answer, role.name);
         this.log(`Воркер '${role.name}': завершён (${wt.result.iterations} итераций)`);
       } catch (e: any) {
+        if (e?.name === 'AbortError') { throw e; }
         wt.error = e.message || String(e);
         this.onWorkerDone?.(role.name, wt.error);
         this.log(`Воркер '${role.name}': ОШИБКА — ${wt.error}`);
@@ -270,6 +272,7 @@ export class AgentOrchestrator {
         this.sharedContext.put(`artifact:${role.name}`, wt.result.answer, role.name);
         this.log(`Воркер '${role.name}': завершён (${wt.result.iterations} итераций)`);
       } catch (e: any) {
+        if (e?.name === 'AbortError') { throw e; }
         wt.error = e.message || String(e);
         this.onWorkerDone?.(role.name, wt.error);
         this.log(`Воркер '${role.name}': ОШИБКА — ${wt.error}`);

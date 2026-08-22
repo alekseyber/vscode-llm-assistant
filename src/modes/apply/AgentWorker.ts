@@ -192,6 +192,12 @@ export class AgentWorker {
 
     // ReAct-цикл
     for (let i = 1; i <= (this.options.maxIterations || 10); i++) {
+      if (this.options.signal?.aborted) {
+        emit({ iteration: i, type: 'info', message: 'Выполнение отменено.' });
+        const abortErr: any = new Error('Request was aborted');
+        abortErr.name = 'AbortError';
+        throw abortErr;
+      }
       emit({ iteration: i, type: 'info', message: `Шаг ${i}: запрос к LLM...` });
 
       // --- Сжатие истории (если включено) ---
@@ -317,6 +323,10 @@ export class AgentWorker {
           messages.splice(1, 1);
         }
       } catch (e: any) {
+        if (e?.name === 'AbortError') {
+          emit({ iteration: i, type: 'info', message: 'Выполнение отменено.' });
+          throw e;
+        }
         emit({ iteration: i, type: 'error', message: `Ошибка LLM: ${e.message}` });
         const errMsg = e.message || String(e);
         throw new Error(errMsg);

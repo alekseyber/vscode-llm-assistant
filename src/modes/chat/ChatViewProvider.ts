@@ -12,7 +12,7 @@ import { loadRoleAgentsMd, loadOrchestratorRoles, loadAllAgentRoles, getSkillTem
 import { loadToolAllowListConfig, isConfirmationRequired } from '../apply/ToolAllowList';
 import { McpClient, loadMcpConfig } from '../apply/McpClient';
 import { AgentWorker, AgentRole } from '../apply/AgentWorker';
-import { AgentOrchestrator, MultiAgentTask } from '../apply/AgentOrchestrator';
+import { AgentOrchestrator, MultiAgentTask, MultiAgentResult } from '../apply/AgentOrchestrator';
 import { RunHistoryStore, generateRunId, RunEntry } from '../../shared/RunHistoryStore';
 import { SessionLog } from '../../shared/SessionLog';
 import { HistoryViewProvider } from '../history/HistoryViewProvider';
@@ -354,7 +354,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
           this.finalizeRun(runId, startTime, model, providerDisplayName, inTokens, 0, 0, 'error', 'Нет createWithTools');
           return;
         }
-        await this.runAgentLoop(provider, model, messages, onRetry, sid);
+        await this.runAgentLoop(provider, model, messages, onRetry, sid, abortController.signal);
         const runSteps = this.sessionLog?.computeStats(this.resolveSessionId(sessionId) ?? '')?.steps || 1;
         this.finalizeRun(runId, startTime, model, providerDisplayName, inTokens, 0, runSteps, 'success');
       } else {
@@ -443,7 +443,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
   /** ReAct-цикл с инструментами (только для агентного режима).
    *  Делегирует выполнение AgentWorker — общему движку для чат-агента и оркестратора. */
-  private async runAgentLoop(provider: any, model: string, messages: any[], onRetry?: (attempt: number, maxRetries: number, delayMs: number, errorMsg: string) => void, sessionId?: string): Promise<void> {
+  private async runAgentLoop(provider: any, model: string, messages: any[], onRetry?: (attempt: number, maxRetries: number, delayMs: number, errorMsg: string) => void, sessionId?: string, signal?: AbortSignal): Promise<void> {
     const MAX_ITER = 5;
     const allowListConfig = loadToolAllowListConfig();
 
@@ -491,6 +491,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         maxIterations: MAX_ITER,
         extraTools: mcpTools,
         enableSummary: true,
+        signal,
         sessionId: this.resolveSessionId(sessionId === 'default' ? undefined : sessionId),
         onEvent: (e) => this.sessionLog?.append(e),
         onConfirm: async (toolName, args) => {
@@ -666,6 +667,12 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     const orchStartTime = Date.now();
     this.recordRunStart(orchRunId, orchStartTime, taskText, 'orchestrator', model, 'agent', sessionId);
 
+    // AbortController для отмены (привязан к сессии) — кнопка ⏹️
+    const sid = sessionId || 'default';
+    const ac = new AbortController();
+    this.abortControllers.set(sid, ac);
+    const signal = ac.signal;
+
     // Загружаем роли из .llma/agents/*.md (динамически) или fallback
     const roles = loadOrchestratorRoles();
 
@@ -734,6 +741,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
           this.postMessage({ type: 'streamChunk', text: `❌ **${roleName}**: ${error}\n` }, sessionId);
         }
       },
+      { signal },
     );
 
     // Отмечаем воркеров как running
@@ -741,7 +749,17 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       orchestratorView.updateWorker(role.name, { status: 'pending' });
     }
 
-    const result = await orchestrator.execute(task, provider, mcpTools.length > 0 ? mcpTools : undefined);
+    let result: MultiAgentResult;
+    try {
+      result = await orchestrator.execute(task, provider, mcpTools.length > 0 ? mcpTools : undefined);
+    } catch (err: any) {
+      if (err?.name === 'AbortError') {
+        this.postMessage({ type: 'cancelled' }, sessionId);
+        this.finalizeRun(orchRunId, orchStartTime, model, 'orchestrator', 0, 0, 0, 'cancelled');
+        return;
+      }
+      throw err;
+    }
 
     // Обновляем статусы и показываем результаты
     for (const wt of result.workers) {

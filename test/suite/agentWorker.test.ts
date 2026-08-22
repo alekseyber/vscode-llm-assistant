@@ -70,6 +70,38 @@ suite('AgentWorker', () => {
     assert.strictEqual(worker.role.systemPrompt, 'Ты тестовый агент.');
   });
 
+  // Отмена: signal.aborted → бросаем AbortError до вызова LLM
+  test('отмена: signal.aborted → run() бросает AbortError до вызова LLM', async () => {
+    const role: AgentRole = { name: 't', systemPrompt: 'Тест' };
+    const provider = createMockProvider([mockTextResponse('Ответ')]);
+    const ac = new AbortController();
+    ac.abort();
+    const worker = new AgentWorker(role, provider, { signal: ac.signal });
+
+    let caught: any = null;
+    try { await worker.run('задача'); } catch (e: any) { caught = e; }
+
+    assert.strictEqual(caught?.name, 'AbortError', 'AbortError проброшен');
+    assert.strictEqual(provider.createWithTools.called, false, 'LLM не вызывался');
+  });
+
+  // Отмена: AbortError из createWithTools сохраняет имя (не переоборачивается)
+  test('отмена: AbortError из createWithTools не теряет имя', async () => {
+    const role: AgentRole = { name: 't', systemPrompt: 'Тест' };
+    const provider = createMockProvider();
+    provider.createWithTools.callsFake(async () => {
+      const e: any = new Error('Request was aborted');
+      e.name = 'AbortError';
+      throw e;
+    });
+    const worker = new AgentWorker(role, provider);
+
+    let caught: any = null;
+    try { await worker.run('задача'); } catch (e: any) { caught = e; }
+
+    assert.strictEqual(caught?.name, 'AbortError', 'AbortError не потерян');
+  });
+
   // MA-1.2: Воркер использует свой systemPrompt
   test('MA-1.2: systemPrompt роли передаётся в LLM', async () => {
     const role: AgentRole = {
