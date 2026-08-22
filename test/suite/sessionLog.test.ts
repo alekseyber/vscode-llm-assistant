@@ -197,6 +197,15 @@ suite('SessionLog', () => {
     assert.strictEqual(events[1].type, 'assistant/message');
   });
 
+  test('deleteSession(): удаляет лог из памяти и ключ из Memento', () => {
+    log.append(ev('user/message', { content: 'q' }));
+    assert.strictEqual(log.getEvents(sid).length, 1, 'до удаления 1 событие');
+
+    log.deleteSession(sid);
+    assert.strictEqual(log.getEvents(sid).length, 0, 'в памяти удалён');
+    assert.ok(storage.update.calledWith(`llmAssistant.sessionLog.${sid}`, undefined), 'ключ удалён из Memento (update c undefined)');
+  });
+
   // ===== SL-8: computeStats — производные метрики из лога =====
 
   test('computeStats(): считает steps (tool/call), тулы, ошибки, сообщения', () => {

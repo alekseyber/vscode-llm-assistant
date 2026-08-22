@@ -41,6 +41,7 @@ status: planned
 - `replay(sessionId) → SessionEvent[]` — полный путь агента (тулы + аргументы + результаты)
 - `fork(sourceId, targetId?) → newSessionId` — копия лога до точки (targetId — для согласования с SessionManager)
 - `clearSession(sessionId)` — очистить лог сессии (для `clearHistory`)
+- `deleteSession(sessionId)` — удалить лог сессии полностью (память + ключ Memento, для `deleteSession`)
 - `compact(sessionId, summary)` — вставляет `summary`-событие, старые события НЕ удаляет
 - `computeStats(sessionId) → SessionStats` — производные метрики (steps/toolCalls/errors) для RunHistoryStore
 - `toTranscript(sessionId) → string` — markdown-транскрипция (экспорт + реплей: путь агента виден в тексте)

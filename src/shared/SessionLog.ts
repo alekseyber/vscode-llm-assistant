@@ -142,6 +142,12 @@ export class SessionLog {
     this.saveSession(sessionId, []);
   }
 
+  /** Удалить лог сессии полностью — память + ключ Memento (для deleteSession). */
+  deleteSession(sessionId: string): void {
+    this.logs.delete(sessionId);
+    this.storage.update(`${KEY_PREFIX}${sessionId}`, undefined);
+  }
+
   /**
    * Чистая проекция лога в модельный контекст (SL-3).
    * Не мутирует лог: отбрасывает события до последнего summary-маркера,
