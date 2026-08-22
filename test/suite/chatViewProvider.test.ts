@@ -120,6 +120,34 @@ suite('ChatViewProvider.handleSendMessage', () => {
     return (provider as any).handleSendMessage(text, mode, undefined, undefined, planMode, sessionId);
   }
 
+  test('restoreTokenIndicator: восстанавливает токены последнего запуска сессии', () => {
+    const id1 = cm.session.getActive()!.meta.id;
+    history.recordRun({
+      id: 'run1', timestamp: Date.now(), mode: 'agent', task: 'задача',
+      provider: 'test', model: 'm', steps: 1, tokensIn: 100, tokensOut: 50,
+      cost: 0.01, duration: 100, status: 'success', sessionId: id1,
+    });
+
+    const spy = sandbox.spy(provider as any, 'postMessage');
+    (provider as any).restoreTokenIndicator(id1);
+
+    const call = spy.getCalls().find((c: any) => c.args[0]?.type === 'tokens');
+    assert.ok(call, 'должен быть вызов tokens');
+    assert.strictEqual(call.args[0].inputTokens, 100);
+    assert.strictEqual(call.args[0].outputTokens, 50);
+  });
+
+  test('restoreTokenIndicator: без запусков в сессии — сброс в 0', () => {
+    const id1 = cm.session.getActive()!.meta.id;
+    const spy = sandbox.spy(provider as any, 'postMessage');
+    (provider as any).restoreTokenIndicator(id1);
+
+    const call = spy.getCalls().find((c: any) => c.args[0]?.type === 'tokens');
+    assert.ok(call, 'должен быть вызов tokens');
+    assert.strictEqual(call.args[0].inputTokens, 0);
+    assert.strictEqual(call.args[0].outputTokens, 0);
+  });
+
   test('chat-режим: одна запись success в указанной сессии (без «сирот»)', async () => {
     const id1 = cm.session.getActive()!.meta.id;
 

@@ -107,10 +107,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         break;
       case 'cancelRequest': this.handleCancelRequest(message.sessionId); break;
       case 'clearHistory': this.conversationManager.clearHistory(); this.sendSessionListToWebview(); break;
-      case 'ready': this.sendHistoryToWebview(); this.sendSessionListToWebview(); this.sendProviderListToWebview(); this.sendSlashCommandsToWebview(); break;
+      case 'ready': this.sendHistoryToWebview(); this.sendSessionListToWebview(); this.sendProviderListToWebview(); this.sendSlashCommandsToWebview(); this.restoreTokenIndicator(); break;
       case 'newSession': this.conversationManager.session.createSession(); this.sendHistoryToWebview(); this.sendSessionListToWebview(); break;
       case 'switchSession':
-        if (message.sessionId) { this.conversationManager.session.switchTo(message.sessionId); this.sendHistoryToWebview(); this.sendSessionListToWebview(); }
+        if (message.sessionId) { this.conversationManager.session.switchTo(message.sessionId); this.sendHistoryToWebview(); this.sendSessionListToWebview(); this.restoreTokenIndicator(message.sessionId); }
         break;
       case 'listSessions': this.sendSessionListToWebview(); break;
       case 'attachFile':
@@ -161,6 +161,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     this.conversationManager.session.switchTo(sessionId);
     this.sendHistoryToWebview();
     this.sendSessionListToWebview();
+    this.restoreTokenIndicator(sessionId);
     // Фокусируем вкладку чата (reveal) — иначе переключение сессии не видно
     this.view?.show(true);
   }
@@ -917,6 +918,18 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     const messages = this.conversationManager.getMessages();
     console.warn(`[LLM Assistant] history: ${messages.length} сообщений, активная=${this.conversationManager.session.getActive()?.meta.id?.slice(0, 16) ?? 'нет'}`);
     if (this.view) this.postMessage({ type: 'history', messages });
+  }
+
+  /** Восстановить индикатор токенов (📊) из истории запусков для сессии — иначе после Reload он 0. */
+  private restoreTokenIndicator(sessionId?: string): void {
+    const sid = sessionId || this.conversationManager.session.getActive()?.meta.id;
+    if (!sid) return;
+    const last = this.runHistoryStore.getRuns().find((r) => r.sessionId === sid && r.status !== 'running');
+    if (last) {
+      this.postMessage({ type: 'tokens', inputTokens: last.tokensIn, outputTokens: last.tokensOut, model: last.model });
+    } else {
+      this.postMessage({ type: 'tokens', inputTokens: 0, outputTokens: 0, model: '' });
+    }
   }
   private sendSessionListToWebview(): void {
     if (!this.view) return;
