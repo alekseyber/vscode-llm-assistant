@@ -40,6 +40,8 @@ function loadWebview(): WebviewHandle {
   // Stub marked (markdown) и clipboard
   window.marked = { parse: (text: string) => '<p>' + text + '</p>' };
   window.navigator.clipboard = { writeText: () => Promise.resolve() };
+  window.URL.createObjectURL = () => 'blob:mock-url';
+  window.URL.revokeObjectURL = () => {};
 
   // Выполняем вспомогательный UMD и основной скрипт
   window.eval(fs.readFileSync(path.join(CHAT_DIR, 'lineDiff.js'), 'utf-8'));
@@ -165,5 +167,34 @@ suite('ChatWebview (jsdom)', () => {
     const implMsg = postedMessages.find((m) => m.type === 'implementPlan');
     assert.ok(implMsg, 'implementPlan отправлен');
     assert.strictEqual(implMsg.sessionId, 'A', 'сессия — исходная A, а не текущая B');
+  });
+
+  test('sessionTranscript (copy): транскрипция уходит в clipboard', async () => {
+    const { dispatch, window } = loadWebview();
+    let copied = '';
+    (window.navigator as any).clipboard = { writeText: (t: string) => { copied = t; return Promise.resolve(); } };
+
+    dispatch({ type: 'sessionTranscript', text: '# Сессия\nпривет', action: 'copy' });
+    await new Promise(r => setTimeout(r, 20));
+
+    assert.strictEqual(copied, '# Сессия\nпривет', 'текст скопирован в clipboard');
+  });
+
+  test('sessionTranscript (download): blob → a.download .md', () => {
+    const { dispatch, window } = loadWebview();
+    let urlCreated = false;
+    (window as any).URL.createObjectURL = () => { urlCreated = true; return 'blob:mock'; };
+    let downloadName = '';
+    const origCE = window.document.createElement.bind(window.document);
+    (window.document as any).createElement = (tag: string) => {
+      const el = origCE(tag);
+      if (tag === 'a') { (el as any).click = () => { downloadName = (el as any).download; }; }
+      return el;
+    };
+
+    dispatch({ type: 'sessionTranscript', text: '# Сессия\nпривет', action: 'download' });
+
+    assert.ok(urlCreated, 'createObjectURL вызван (blob создан)');
+    assert.ok(downloadName.endsWith('.md'), 'имя файла .md');
   });
 });
