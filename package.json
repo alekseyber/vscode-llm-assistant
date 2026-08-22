@@ -61,6 +61,10 @@
       {
         "command": "llmAssistant.forkSession",
         "title": "LLM Assistant: Скопировать сессию (fork)"
+      },
+      {
+        "command": "llmAssistant.clearAllSessions",
+        "title": "LLM Assistant: Удалить все сессии"
       }
     ],
     "keybindings": [

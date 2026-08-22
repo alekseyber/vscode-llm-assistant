@@ -113,6 +113,15 @@ suite('SessionManager', () => {
     assert.strictEqual(sm.getActive()!.meta.name, 'Привет, как дела?', 'имя из переданного контента');
   });
 
+  test('clearAll(): удаляет все сессии, создаёт одну свежую', () => {
+    const sm = new SessionManager(storage);
+    sm.createSession('A');
+    sm.createSession('B');
+    assert.strictEqual(sm.listSessions().length, 3, '3 сессии (1 авто + A + B)');
+    sm.clearAll();
+    assert.strictEqual(sm.listSessions().length, 1, 'осталась 1 свежая');
+  });
+
   test('getMessages() возвращает сообщения активной сессии', () => {
     const sm = new SessionManager(storage);
     sm.addMessage({ role: 'user', content: 'msg1' });

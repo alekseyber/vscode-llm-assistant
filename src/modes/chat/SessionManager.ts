@@ -171,6 +171,13 @@ export class SessionManager {
     return deleted;
   }
 
+  /** Удалить все сессии, создать одну свежую. */
+  clearAll(): void {
+    this.sessions.clear();
+    this.activeId = null;
+    this.createSession();
+  }
+
   /** Очистить активную сессию */
   clearActive(): void {
     const session = this.getActive();

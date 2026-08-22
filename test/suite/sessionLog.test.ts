@@ -218,6 +218,50 @@ suite('SessionLog', () => {
     assert.ok(storage.update.calledWith(`llmAssistant.sessionLog.${orphanId}`, undefined), 'ключ сироты удалён из Memento');
   });
 
+  test('clearAll(): удаляет все логи', () => {
+    log.append(ev('user/message', { content: 'q' }));
+    log.append({ sessionId: 'session_other', ts: Date.now(), type: 'user/message', content: 'другая' });
+    assert.strictEqual(log.getEvents(sid).length, 1);
+    assert.strictEqual(log.getEvents('session_other').length, 1);
+
+    log.clearAll();
+    assert.strictEqual(log.getEvents(sid).length, 0, 'все логи очищены');
+    assert.strictEqual(log.getEvents('session_other').length, 0, 'все логи очищены (другая сессия)');
+  });
+
+  test('truncate(): обрезает старые события, оставляет summary + свежие', () => {
+    log.append(ev('user/message', { content: 'A' }));
+    log.append(ev('assistant/message', { content: 'B' }));
+    log.append(ev('user/message', { content: 'C' }));
+
+    log.truncate(sid, 'итог A+B', 1);
+
+    const events = log.getEvents(sid);
+    assert.strictEqual(events.length, 2, 'summary + 1 свежее');
+    assert.strictEqual(events[0].type, 'summary');
+    assert.strictEqual((events[0] as any).content, 'итог A+B');
+    assert.strictEqual(events[1].type, 'user/message');
+    assert.strictEqual((events[1] as any).content, 'C');
+  });
+
+  test('truncate(): сохраняет tool-события свежих сообщений', () => {
+    log.append(ev('user/message', { content: 'задача1' }));
+    log.append(ev('tool/call', { stepId: 's1', name: 'read_file', args: {} }));
+    log.append(ev('assistant/message', { content: 'ответ1' }));
+    log.append(ev('user/message', { content: 'задача2' }));
+    log.append(ev('tool/call', { stepId: 's2', name: 'read_file', args: {} }));
+    log.append(ev('assistant/message', { content: 'ответ2' }));
+
+    log.truncate(sid, 'итог', 2);
+
+    const events = log.getEvents(sid);
+    assert.strictEqual(events.length, 4, 'summary + 2 сообщения + 1 tool');
+    assert.strictEqual(events[0].type, 'summary');
+    assert.strictEqual(events[1].type, 'user/message');
+    assert.strictEqual(events[2].type, 'tool/call');
+    assert.strictEqual(events[3].type, 'assistant/message');
+  });
+
   // ===== SL-8: computeStats — производные метрики из лога =====
 
   test('computeStats(): считает steps (tool/call), тулы, ошибки, сообщения', () => {

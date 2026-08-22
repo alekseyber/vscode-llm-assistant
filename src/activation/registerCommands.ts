@@ -137,7 +137,14 @@ export function registerCommands(deps: CommandDependencies): void {
     })
   );
 
-  console.log('[registerCommands] Зарегистрировано 10 команд: chat.focus, chat.addSelection, edit.selection, autocomplete.toggle, apply.start, selectProvider, openHistory, review.file, exportSession, forkSession');
+  // ── 11. llmAssistant.clearAllSessions — удалить все сессии и логи ──
+  context.subscriptions.push(
+    vscode.commands.registerCommand('llmAssistant.clearAllSessions', () => {
+      clearAllSessions(conversationManager, refreshSessions);
+    })
+  );
+
+  console.log('[registerCommands] Зарегистрировано 11 команд: chat.focus, chat.addSelection, edit.selection, autocomplete.toggle, apply.start, selectProvider, openHistory, review.file, exportSession, forkSession, clearAllSessions');
 }
 
 /**
@@ -524,4 +531,20 @@ function forkSession(conversationManager: ConversationManager, sessionLog: Sessi
     refreshSessions?.();
     vscode.window.showInformationMessage('Сессия скопирована (fork) — можно продолжать с новой ветки.');
   }
+}
+
+/**
+ * Удалить все сессии и их логи (полная очистка). С подтверждением.
+ */
+async function clearAllSessions(conversationManager: ConversationManager, refreshSessions?: () => void): Promise<void> {
+  const count = conversationManager.session.listSessions().length;
+  const answer = await vscode.window.showWarningMessage(
+    `Удалить все сессии (${count}) и их логи? Действие необратимо.`,
+    { modal: true },
+    'Удалить всё',
+  );
+  if (answer !== 'Удалить всё') return;
+  conversationManager.clearAll();
+  refreshSessions?.();
+  vscode.window.showInformationMessage('Все сессии и логи удалены.');
 }

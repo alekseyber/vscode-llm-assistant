@@ -29,6 +29,8 @@ since: 0.1.0
 
 ### `clearHistory()` / `attachCodeContext(context)`
 
+### `clearAll()` — удалить все сессии и их логи (полная очистка)
+
 ### `estimateTokens(text) → number` — chars/4
 
 ## Контракты

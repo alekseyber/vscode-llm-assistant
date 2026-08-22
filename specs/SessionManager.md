@@ -31,6 +31,8 @@ since: 0.1.0
 
 ### `touchSession(sessionId, messageCount)` — обновить meta (lastActiveAt + messageCount) без хранения messages (F1 5d)
 
+### `clearAll()` — удалить все сессии, создать одну свежую
+
 ### `autoNameSession(id, firstUserContent?)` — авто-имя из первого user-сообщения (контент извне — F1 5d)
 
 > `addMessage` / `addMessageTo` / `getMessages` — **@deprecated** (F1 5d): сообщения живут в session-log, SessionManager остаётся реестром meta.

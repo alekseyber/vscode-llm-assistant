@@ -110,13 +110,19 @@ export class ConversationManager {
             if (debug) {
               console.log(`[LLM Assistant] Summary сгенерирован (${trimmedTokens} токенов обрезано): ${summary.slice(0, 200)}...`);
             }
+            if (this.sessionLog && sessionId) {
+              // F1 (5b + storage-гигиена): персист summary-маркера + обрезка старых событий
+              const keptCount = history.filter(m => m.role !== 'system').length;
+              this.sessionLog.truncate(sessionId, summary, keptCount);
+              history = this.sessionLog.deriveMessages(sessionId);
+              return [systemMessage, ...history];
+            }
             const summaryMessage: ChatMessage = {
               role: 'system',
               content: `## Краткое содержание предыдущего диалога:\n${summary}`,
             };
             // Вставляем summary после основного system-сообщения
-            const result = [systemMessage, summaryMessage, ...history];
-            return result;
+            return [systemMessage, summaryMessage, ...history];
           }
         } catch (err) {
           // Если суммаризация упала — молча продолжаем без summary
@@ -254,6 +260,13 @@ export class ConversationManager {
       this.sessionLog.clearSession(sessionId);
     }
     // Сбрасываем кеш summary
+    this.summarizer.invalidateCache();
+  }
+
+  /** Удалить все сессии и их логи (полная очистка). */
+  clearAll(): void {
+    this.sessionLog?.clearAll();
+    this.sessionManager.clearAll();
     this.summarizer.invalidateCache();
   }
 

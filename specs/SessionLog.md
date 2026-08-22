@@ -43,6 +43,8 @@ status: planned
 - `clearSession(sessionId)` — очистить лог сессии (для `clearHistory`)
 - `deleteSession(sessionId)` — удалить лог сессии полностью (память + ключ Memento, для `deleteSession`)
 - `pruneUnknown(validIds)` — ре-консиляция: удалить логи сессий, которых нет в реестре (закрывает сирот)
+- `clearAll()` — удалить все логи (все сессии)
+- `truncate(sessionId, summary, keepMessagesCount)` — обрезка старых событий: summary-маркер + последние keepMessagesCount сообщений (storage-гигиена)
 - `compact(sessionId, summary)` — вставляет `summary`-событие, старые события НЕ удаляет
 - `computeStats(sessionId) → SessionStats` — производные метрики (steps/toolCalls/errors) для RunHistoryStore
 - `toTranscript(sessionId) → string` — markdown-транскрипция (экспорт + реплей: путь агента виден в тексте)
@@ -101,3 +103,4 @@ status: planned
 | 0.1.0 | 2026-08-22 | SL-9: migrateLegacySessions() — {meta, messages[]} → события, однократно |
 | 0.1.0 | 2026-08-22 | UI-хвост: toTranscript() + fork(targetId) + команды exportSession/forkSession |
 | 0.1.0 | 2026-08-22 | Stage 5 (5b/5c/5d): deriveMessagesWithTrimmed() + clearSession(); лог подключён к getMessagesForRequest и UI |
+| 0.1.0 | 2026-08-22 | deleteSession/pruneUnknown/clearAll/truncate — полный жизненный цикл лога (удаление, ре-консиляция сирот, обрезка старых событий) |

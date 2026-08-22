@@ -166,6 +166,40 @@ export class SessionLog {
     return removed;
   }
 
+  /** Удалить ВСЕ логи (все сессии) — память + ключи Memento. */
+  clearAll(): void {
+    for (const sessionId of [...this.logs.keys()]) {
+      this.storage.update(`${KEY_PREFIX}${sessionId}`, undefined);
+    }
+    this.logs.clear();
+  }
+
+  /**
+   * Обрезка старых событий (storage-гигиена): удалить события, оставив summary-маркер
+   * + последние keepMessagesCount сообщений (вместе с их tool-событиями). Старое сжимается в `summary`.
+   */
+  truncate(sessionId: string, summary: string, keepMessagesCount: number): void {
+    const list = this.logs.get(sessionId) ?? [];
+    if (list.length === 0) return;
+    const cutIdx = this.eventCutIndex(list, keepMessagesCount);
+    const marker: SessionEvent = { sessionId, ts: Date.now(), type: 'summary', content: summary, replacedRange: [0, cutIdx] };
+    const newList = [marker, ...list.slice(cutIdx)];
+    this.logs.set(sessionId, newList);
+    this.saveSession(sessionId, newList);
+  }
+
+  /** Индекс первого события, входящего в последние keepMessagesCount сообщений (для truncate). */
+  private eventCutIndex(events: SessionEvent[], keepMessagesCount: number): number {
+    if (keepMessagesCount <= 0) return events.length;
+    const msgTypes = new Set(['user/message', 'assistant/message']);
+    let msgCount = 0;
+    for (let i = events.length - 1; i >= 0; i--) {
+      if (msgTypes.has(events[i].type)) msgCount++;
+      if (msgCount === keepMessagesCount) return i;
+    }
+    return 0;
+  }
+
   /**
    * Чистая проекция лога в модельный контекст (SL-3).
    * Не мутирует лог: отбрасывает события до последнего summary-маркера,
