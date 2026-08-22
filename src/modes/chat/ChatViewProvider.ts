@@ -796,7 +796,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     this.postMessage({ type: 'done' }, sessionId);
 
     // Токены оркестратора в индикатор
-    this.postMessage({ type: 'tokens', inputTokens: result.totalInputTokens, outputTokens: result.totalOutputTokens, model }, sessionId);
+    this.postMessage({ type: 'tokens', inputTokens: result.totalInputTokens, outputTokens: result.totalOutputTokens, model, maxTokens: this.getMaxContextTokens() }, sessionId);
 
     // Сохраняем ответ в историю (user-сообщение уже записано в начале оркестрации)
     this.conversationManager.addMessageTo(sessionId, { role: 'assistant', content: result.summary });
@@ -851,10 +851,15 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     });
   }
 
+  /** Максимальный размер контекста из настроек (для индикатора токенов). */
+  private getMaxContextTokens(): number {
+    return vscode.workspace.getConfiguration('llmAssistant').get<number>('chat.maxContextTokens', 4096);
+  }
+
   private postTokens(messages: any[], fullResponse: string, model: string): void {
     const inTokens = Math.ceil(messages.reduce((s: number, m: any) => s + (typeof m.content === 'string' ? m.content.length : JSON.stringify(m.content).length), 0) / 4);
     const outTokens = Math.ceil(fullResponse.length / 4);
-    this.postMessage({ type: 'tokens', inputTokens: inTokens, outputTokens: outTokens, model });
+    this.postMessage({ type: 'tokens', inputTokens: inTokens, outputTokens: outTokens, model, maxTokens: this.getMaxContextTokens() });
   }
 
   private async getSystemPrompt(mode: string, providerName?: string): Promise<string> {
@@ -934,9 +939,9 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     if (!sid) return;
     const last = this.runHistoryStore.getRuns().find((r) => r.sessionId === sid && r.status !== 'running');
     if (last) {
-      this.postMessage({ type: 'tokens', inputTokens: last.tokensIn, outputTokens: last.tokensOut, model: last.model });
+      this.postMessage({ type: 'tokens', inputTokens: last.tokensIn, outputTokens: last.tokensOut, model: last.model, maxTokens: this.getMaxContextTokens() });
     } else {
-      this.postMessage({ type: 'tokens', inputTokens: 0, outputTokens: 0, model: '' });
+      this.postMessage({ type: 'tokens', inputTokens: 0, outputTokens: 0, model: '', maxTokens: this.getMaxContextTokens() });
     }
   }
   private sendSessionListToWebview(): void {
