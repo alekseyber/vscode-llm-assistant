@@ -559,8 +559,13 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       this.postMessage({ type: 'done' }, sessionId);
       this.finalizeRun(planRunId, planStartTime, model, 'plan-mode', 0, 0, 1, 'success');
     } catch (err: any) {
-      this.postMessage({ type: 'error', text: `Ошибка планирования: ${err.message}` }, sessionId);
-      this.finalizeRun(planRunId, planStartTime, model, 'plan-mode', 0, 0, 0, 'error', err.message);
+      if (err?.name === 'AbortError') {
+        this.postMessage({ type: 'cancelled' }, sessionId);
+        this.finalizeRun(planRunId, planStartTime, model, 'plan-mode', 0, 0, 0, 'cancelled');
+      } else {
+        this.postMessage({ type: 'error', text: `Ошибка планирования: ${err.message}` }, sessionId);
+        this.finalizeRun(planRunId, planStartTime, model, 'plan-mode', 0, 0, 0, 'error', err.message);
+      }
     }
   }
 
@@ -638,8 +643,13 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       this.postMessage({ type: 'done' }, sessionId);
       this.finalizeRun(implRunId, implStartTime, model, 'plan-mode', 0, 0, 1, 'success');
     } catch (err: any) {
-      this.postMessage({ type: 'error', text: `Ошибка имплементации: ${err.message}` }, sessionId);
-      this.finalizeRun(implRunId, implStartTime, model, 'plan-mode', 0, 0, 0, 'error', err.message);
+      if (err?.name === 'AbortError') {
+        this.postMessage({ type: 'cancelled' }, sessionId);
+        this.finalizeRun(implRunId, implStartTime, model, 'plan-mode', 0, 0, 0, 'cancelled');
+      } else {
+        this.postMessage({ type: 'error', text: `Ошибка имплементации: ${err.message}` }, sessionId);
+        this.finalizeRun(implRunId, implStartTime, model, 'plan-mode', 0, 0, 0, 'error', err.message);
+      }
     }
   }
 
