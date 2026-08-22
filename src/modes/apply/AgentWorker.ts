@@ -15,6 +15,7 @@ import { getToolSchemas, getTool, getToolSchemasUnfiltered, getToolUnfiltered } 
 import { ContextSummarizer } from '../../shared/ContextSummarizer';
 import { loadRoleAgentsMd, getSkillTemplate } from '../../shared/RoleAgentsMdLoader';
 import { calculateCost } from '../../providers/types';
+import { SessionEvent } from '../../shared/SessionLog';
 
 /**
  * Роль агента: определяет поведение, доступные инструменты и модель.
@@ -79,6 +80,10 @@ export interface AgentWorkerOptions {
   signal?: AbortSignal;
   /** Пропустить глобальный allow-list (для Plan Mode и оркестратора, где фильтрация через role.allowedTools) */
   skipGlobalAllowList?: boolean;
+  /** Колбэк событий session-log (F1) — получает SessionEvent для персиста */
+  onEvent?: (event: SessionEvent) => void;
+  /** ID сессии для session-log (F1) — без него события не эмитятся */
+  sessionId?: string;
 }
 
 /**
@@ -123,6 +128,12 @@ export class AgentWorker {
     const emit = (step: AgentStep): void => {
       steps.push(step);
       this.options.onStep?.(step);
+    };
+    // Эмиссия событий session-log (F1): только если заданы onEvent и sessionId
+    const emitEvent = (type: string, extra: Record<string, any>): void => {
+      if (this.options.onEvent && this.options.sessionId) {
+        this.options.onEvent({ sessionId: this.options.sessionId, ts: Date.now(), type, ...extra } as SessionEvent);
+      }
     };
 
     // Определяем модель
@@ -230,6 +241,7 @@ export class AgentWorker {
           outputTokens += response.usage?.completion_tokens ?? Math.ceil(content.length / 4);
           finalAnswer = content;
           emit({ iteration: i, type: 'response', message: content.slice(0, 200) });
+          emitEvent('assistant/message', { content });
           messages.push({ role: 'assistant', content });
           break;
         }
@@ -282,17 +294,20 @@ export class AgentWorker {
           }
 
           emit({ iteration: i, type: 'tool_call', message: `🔧 ${toolName}`, toolName });
+          emitEvent('tool/call', { stepId: `step_${i}`, name: toolName, args });
 
           try {
             const result = await tool.execute(args);
             messages.push({ role: 'tool', tool_call_id: tc.id, content: result });
             emit({ iteration: i, type: 'tool_result', message: result.slice(0, 200), toolName, toolResult: result });
+            emitEvent('tool/result', { stepId: `step_${i}`, name: toolName, result });
           } catch (e: any) {
             messages.push({
               role: 'tool', tool_call_id: tc.id,
               content: `Ошибка: ${e.message}`,
             });
             emit({ iteration: i, type: 'error', message: `Ошибка ${toolName}: ${e.message}` });
+            emitEvent('tool/result', { stepId: `step_${i}`, name: toolName, result: `Ошибка: ${e.message}`, error: e.message });
           }
         }
 

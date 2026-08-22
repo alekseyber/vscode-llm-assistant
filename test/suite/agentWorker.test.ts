@@ -248,4 +248,48 @@ suite('AgentWorker', () => {
     assert.strictEqual(r1.answer, 'ответ 1');
     assert.strictEqual(r2.answer, 'ответ 2');
   });
+
+  // F1 SL-4: AgentWorker эмитит события session-log через onEvent (tool/call + tool/result + assistant/message)
+  test('F1 SL-4: onEvent получает tool/call, tool/result и assistant/message', async () => {
+    const role: AgentRole = { name: 'tool-user', systemPrompt: 'Используй инструменты.' };
+    const provider = createMockProvider([
+      mockToolCallResponse('read_file', { path: 'test.txt' }),
+      mockTextResponse('Файл прочитан'),
+    ]);
+
+    const events: any[] = [];
+    const worker = new AgentWorker(role, provider, {
+      sessionId: 'session_1',
+      onEvent: (e) => events.push(e),
+    });
+    await worker.run('прочитай test.txt');
+
+    const types = events.map(e => e.type);
+    assert.ok(types.includes('tool/call'), `ожидался tool/call, получено: ${JSON.stringify(types)}`);
+    assert.ok(types.includes('tool/result'), `ожидался tool/result, получено: ${JSON.stringify(types)}`);
+    assert.ok(types.includes('assistant/message'), 'ожидался assistant/message');
+
+    const toolCall = events.find(e => e.type === 'tool/call');
+    assert.strictEqual(toolCall.name, 'read_file');
+    assert.strictEqual(toolCall.sessionId, 'session_1');
+    assert.deepStrictEqual(toolCall.args, { path: 'test.txt' });
+
+    const toolResult = events.find(e => e.type === 'tool/result');
+    assert.strictEqual(toolResult.name, 'read_file');
+    assert.ok(typeof toolResult.result === 'string', 'tool/result.result должен быть строкой');
+  });
+
+  // F1 SL-4: без onEvent/sessionId события не эмитятся (гард)
+  test('F1 SL-4: без onEvent и sessionId события не эмитятся', async () => {
+    const role: AgentRole = { name: 'tool-user', systemPrompt: 'Используй инструменты.' };
+    const provider = createMockProvider([
+      mockToolCallResponse('read_file', { path: 'test.txt' }),
+      mockTextResponse('Файл прочитан'),
+    ]);
+
+    // onEvent НЕ передан — события не должны падать
+    const worker = new AgentWorker(role, provider);
+    const result = await worker.run('прочитай test.txt');
+    assert.ok(result.answer.includes('Файл прочитан'), 'должен быть финальный ответ');
+  });
 });

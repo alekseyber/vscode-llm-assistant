@@ -24,6 +24,8 @@ since: 0.7.0
 | `options.extraTools` | `ToolSchema[]` | MCP-инструменты |
 | `options.onConfirm` | `callback` | Подтверждение операций |
 | `options.enableSummary` | `boolean` | Сжатие истории в цикле |
+| `options.onEvent` | `callback` | События session-log (F1): `tool/call`, `tool/result`, `assistant/message` |
+| `options.sessionId` | `string` | ID сессии для session-log (без него события не эмитятся) |
 
 ### `worker.run(task, initialMessages?) → WorkerResult`
 
@@ -57,6 +59,8 @@ since: 0.7.0
 | Исчерпан лимит итераций | `answer = 'Агент не дал финального ответа'` |
 | После выполнения `ask_user` (если есть инжект ⚠️ на позиции 1) | Инжект удаляется из messages |
 | LLM выбросил ошибку | Пробрасывается наверх (throw) |
+| `onEvent` + `sessionId` заданы | Эмитит `tool/call`, `tool/result`, `assistant/message` |
+| `onEvent` или `sessionId` не заданы | События не эмитятся (гард) |
 
 ## AC
 
@@ -111,7 +115,7 @@ since: 0.7.0
 {summary}
 ```
 
-## Тесты (agentWorker.test.ts, 10 тестов)
+## Тесты (agentWorker.test.ts, 12 тестов)
 
 - MA-1.1: AgentWorker принимает AgentRole и создаёт изолированный контекст
 - MA-1.2: Воркер использует свой systemPrompt, разные роли дают разные промпты
@@ -127,6 +131,7 @@ since: 0.7.0
 | 0.9.0 | 2026-08-11 | signal и skipGlobalAllowList в AgentWorkerOptions; unfiltered-инструменты для обхода глобального allow-list |
 | 0.9.0 | 2026-08-09 | Добавлен SkillsLoader: инжект скилов в system prompt воркера |
 | 0.8.1 | 2026-08-08 | Очистка инжекта ⚠️ после выполнения ask_user (MA-1.11) |
+| 0.11.3 | 2026-08-22 | onEvent + sessionId: эмиссия событий session-log (F1, SL-4) |
 | 0.8.0 | 2026-08-06 | Добавлены extraTools, onConfirm, enableSummary, initialMessages, usage API |
 | 0.8.0 | 2026-08-07 | Исправлены тесты: конструктор { maxIterations }, мок usage, очистка тестового мусора |
 | 0.7.0 | 2026-08-05 | Базовая реализация |
