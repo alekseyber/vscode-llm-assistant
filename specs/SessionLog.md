@@ -77,7 +77,7 @@ status: planned
 
 ## Детали реализации
 
-- **Хранение (Этап 1–3):** `Memento` (workspaceState), ключ `llmAssistant.sessionLog`, `SessionEvent[]` на сессию. Сохраняет «лёгкий старт».
+- **Хранение (Этап 1–3):** `Memento` (workspaceState), per-session ключи `llmAssistant.sessionLog.<sessionId>` — каждый append пишет только свою сессию (без O(n²) полного переписывания). Легаси-миграция из единого ключа `llmAssistant.sessionLog`.
 - **Хранение (Этап 4, по необходимости):** SQLite (`sql.js`) — общий с P8.
 - **Миграция:** при загрузке старого формата `{meta, messages[]}` → конвертация в события, однократно.
 - **`deriveMessages()`:** читает лог → отбрасывает до последнего `summary`-маркера → обрезает по токенам → отдаёт.
@@ -92,3 +92,4 @@ status: planned
 | 0.1.0 | 2026-08-22 | Этап 1: SL-1/SL-2/SL-4/SL-5 — словарь + персист + wiring AgentWorker/стриминг |
 | 0.1.0 | 2026-08-22 | Этап 2: SL-3 — deriveMessages() + compact() + user/message-эмиссия |
 | 0.1.0 | 2026-08-22 | Этап 3: SL-6/SL-7/SL-8 — computeStats() + steps из лога в RunHistoryStore |
+| 0.1.0 | 2026-08-22 | Оптимизация: per-session ключи Memento (без SQLite) + легаси-миграция |

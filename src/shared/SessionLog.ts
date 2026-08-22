@@ -48,7 +48,8 @@ export interface SessionStats {
   chunks: number;
 }
 
-const LOG_KEY = 'llmAssistant.sessionLog';
+const KEY_PREFIX = 'llmAssistant.sessionLog.';
+const LEGACY_KEY = 'llmAssistant.sessionLog';
 
 /**
  * SessionLog — append-only журнал событий по сессиям.
@@ -68,7 +69,7 @@ export class SessionLog {
     const list = this.logs.get(event.sessionId) ?? [];
     list.push(event);
     this.logs.set(event.sessionId, list);
-    this.save();
+    this.saveSession(event.sessionId, list);
   }
 
   /** Все события сессии (опционально — не раньше `since`). */
@@ -86,8 +87,9 @@ export class SessionLog {
   fork(sourceId: string): string {
     const newId = `session_${crypto.randomUUID()}`;
     const source = this.logs.get(sourceId) ?? [];
-    this.logs.set(newId, source.map(e => ({ ...e, sessionId: newId })));
-    this.save();
+    const copied = source.map(e => ({ ...e, sessionId: newId }));
+    this.logs.set(newId, copied);
+    this.saveSession(newId, copied);
     return newId;
   }
 
@@ -186,9 +188,26 @@ export class SessionLog {
 
   private load(): void {
     try {
-      const saved = this.storage.get<Record<string, SessionEvent[]>>(LOG_KEY, {});
-      for (const [id, events] of Object.entries(saved)) {
-        this.logs.set(id, events);
+      // Новый формат: per-session ключи `llmAssistant.sessionLog.<id>`
+      for (const key of this.storage.keys()) {
+        if (key.startsWith(KEY_PREFIX)) {
+          const sessionId = key.slice(KEY_PREFIX.length);
+          const events = this.storage.get<SessionEvent[]>(key, []);
+          if (events.length > 0) {
+            this.logs.set(sessionId, events);
+          }
+        }
+      }
+      // Легаси-миграция: старый единый ключ (F1-данные в прежнем формате)
+      const legacy = this.storage.get<Record<string, SessionEvent[]>>(LEGACY_KEY, {});
+      if (legacy && Object.keys(legacy).length > 0) {
+        for (const [id, events] of Object.entries(legacy)) {
+          if (!this.logs.has(id)) {
+            this.logs.set(id, events);
+            this.storage.update(`${KEY_PREFIX}${id}`, events);
+          }
+        }
+        this.storage.update(LEGACY_KEY, {});
       }
     } catch (err) {
       console.error('[SessionLog] Ошибка загрузки, сброс:', err);
@@ -196,11 +215,7 @@ export class SessionLog {
     }
   }
 
-  private save(): void {
-    const obj: Record<string, SessionEvent[]> = {};
-    for (const [id, events] of this.logs) {
-      obj[id] = events;
-    }
-    this.storage.update(LOG_KEY, obj);
+  private saveSession(sessionId: string, events: SessionEvent[]): void {
+    this.storage.update(`${KEY_PREFIX}${sessionId}`, events);
   }
 }

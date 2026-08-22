@@ -219,4 +219,29 @@ suite('SessionLog', () => {
     assert.strictEqual(stats.errors, 1);
     assert.strictEqual(stats.chunks, 1);
   });
+
+  // ===== Per-session хранение (оптимизация Memento: без полного переписывания) =====
+
+  test('append() сохраняет под per-session ключом', () => {
+    log.append(ev('user/message', { content: 'x' }));
+    const updateCalls = storage.update.getCalls();
+    assert.ok(updateCalls.length > 0, 'update должен вызываться');
+    const key = updateCalls[updateCalls.length - 1].args[0];
+    assert.strictEqual(key, `llmAssistant.sessionLog.${sid}`, 'ключ должен быть per-session');
+  });
+
+  test('загрузка из per-session ключей — данные восстанавливаются', () => {
+    const key = `llmAssistant.sessionLog.${sid}`;
+    const events = [{ sessionId: sid, ts: 1, type: 'user/message', content: 'из per-session' }];
+    const storage2 = {
+      keys: sandbox.stub().returns([key]),
+      get: sandbox.stub().callsFake((k: string, d: any) => (k === key ? events : d)),
+      update: sandbox.stub().returns(Promise.resolve()),
+      setKeysForSync: sandbox.stub(),
+    };
+    const log2 = new SessionLog(storage2);
+    const loaded = log2.getEvents(sid);
+    assert.strictEqual(loaded.length, 1);
+    assert.strictEqual((loaded[0] as any).content, 'из per-session');
+  });
 });
