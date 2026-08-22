@@ -308,6 +308,30 @@ suite('ChatViewProvider.handleSendMessage', () => {
     assert.strictEqual(msgs[1].content, 'архитектура');
   });
 
+  test('@orchestrate: limitExceeded-воркер → статус limit_exceeded (не success)', async () => {
+    sandbox.stub(AgentOrchestrator.prototype, 'execute').resolves({
+      taskId: 'orch_2',
+      strategy: 'sequential',
+      workers: [
+        { roleName: 'coder', result: { answer: 'Агент не дал финального ответа (исчерпан лимит итераций).', steps: [], iterations: 20, inputTokens: 100, outputTokens: 0, cost: 0.001, limitExceeded: true } },
+      ],
+      totalInputTokens: 100,
+      totalOutputTokens: 0,
+      totalCost: 0.001,
+      costPerWorker: { coder: 0.001 },
+      success: false,
+      summary: 'coder ⚠️',
+    });
+
+    const id1 = cm.session.getActive()!.meta.id;
+    await send('@orchestrate сделай модуль', 'agent', false, id1);
+
+    const runs = history.getRuns();
+    assert.strictEqual(runs.length, 1);
+    assert.strictEqual(runs[0].status, 'limit_exceeded', 'воркер без финального ответа → limit_exceeded');
+    assert.strictEqual(runs[0].provider, 'orchestrator');
+  });
+
   // ===== Отмена: AbortError → cancelled (не error) =====
 
   test('Plan Mode: AbortError → cancelled (не «Ошибка планирования»)', async () => {
