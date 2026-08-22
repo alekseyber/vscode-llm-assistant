@@ -184,4 +184,39 @@ suite('SessionLog', () => {
     assert.strictEqual(events[0].type, 'user/message');
     assert.strictEqual(events[1].type, 'assistant/message');
   });
+
+  // ===== SL-8: computeStats — производные метрики из лога =====
+
+  test('computeStats(): считает steps (tool/call), тулы, ошибки, сообщения', () => {
+    log.append(ev('user/message', { content: 'задача' }));
+    log.append(ev('tool/call', { stepId: 's1', name: 'read_file', args: {} }));
+    log.append(ev('tool/result', { stepId: 's1', name: 'read_file', result: 'x' }));
+    log.append(ev('tool/call', { stepId: 's2', name: 'write_file', args: {} }));
+    log.append(ev('tool/result', { stepId: 's2', name: 'write_file', result: 'y' }));
+    log.append(ev('assistant/message', { content: 'готово' }));
+
+    const stats = log.computeStats(sid);
+    assert.strictEqual(stats.steps, 2, '2 tool/call = 2 шага');
+    assert.strictEqual(stats.toolCalls, 2);
+    assert.strictEqual(stats.toolResults, 2);
+    assert.strictEqual(stats.userMessages, 1);
+    assert.strictEqual(stats.assistantMessages, 1);
+    assert.strictEqual(stats.errors, 0);
+  });
+
+  test('computeStats(): пустая сессия → нули', () => {
+    const stats = log.computeStats('нет_такой');
+    assert.deepStrictEqual(stats, {
+      steps: 0, toolCalls: 0, toolResults: 0, errors: 0,
+      userMessages: 0, assistantMessages: 0, chunks: 0,
+    });
+  });
+
+  test('computeStats(): считает ошибки и чанки', () => {
+    log.append(ev('error', { message: 'сбой' }));
+    log.append(ev('assistant/chunk', { delta: 'частичный' }));
+    const stats = log.computeStats(sid);
+    assert.strictEqual(stats.errors, 1);
+    assert.strictEqual(stats.chunks, 1);
+  });
 });

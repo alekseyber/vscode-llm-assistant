@@ -117,4 +117,5 @@ since: 0.1.0
 | 0.7.0 | 2026-08-05 | @orchestrate, RunHistoryStore |
 | 0.11.3 | 2026-08-22 | F1 (SL-5): sessionLog — персист assistant/chunk (троттлинг) + assistant/message в стриминге; onEvent в AgentWorker |
 | 0.11.3 | 2026-08-22 | F1 (Этап 2): logUserMessage — эмиссия user/message в session-log |
+| 0.11.3 | 2026-08-22 | F1 (Этап 3): steps в RunHistoryStore из лога (computeStats) + фикс sessionId агент-режима |
 | 0.1.0 | 2026-08-04 | Базовая реализация |

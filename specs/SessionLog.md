@@ -40,6 +40,7 @@ status: planned
 - `replay(sessionId) → SessionEvent[]` — полный путь агента (тулы + аргументы + результаты)
 - `fork(sourceId) → newSessionId` — копия лога до точки
 - `compact(sessionId, summary)` — вставляет `summary`-событие, старые события НЕ удаляет
+- `computeStats(sessionId) → SessionStats` — производные метрики (steps/toolCalls/errors) для RunHistoryStore
 
 ## Контракты
 
@@ -62,9 +63,9 @@ status: planned
 | SL-3 | `deriveMessages()` — чистая проекция, воспроизводит модельный контекст | ✅ |
 | SL-4 | `tool/call` + `tool/result` персистятся из `AgentWorker` | ✅ |
 | SL-5 | `assistant/chunk` персистится из стриминга (throttle) | ✅ |
-| SL-6 | `replay()` восстанавливает путь агента (тулы+аргументы+результаты) | planned |
-| SL-7 | `fork()` создаёт сессию-копию | planned |
-| SL-8 | `RunHistoryStore` считает cost/steps из лога | planned |
+| SL-6 | `replay()` восстанавливает путь агента (тулы+аргументы+результаты) | ✅ |
+| SL-7 | `fork()` создаёт сессию-копию | ✅ |
+| SL-8 | `RunHistoryStore` считает cost/steps из лога | ✅ |
 | SL-9 | миграция старых сессий без потери сообщений | planned |
 | SL-10 | unit-тесты: append/derive/replay/fork/migrate | planned |
 
@@ -90,3 +91,4 @@ status: planned
 | 0.1.0 | 2026-08-22 | Черновик spec (F1) — консолидация session-log |
 | 0.1.0 | 2026-08-22 | Этап 1: SL-1/SL-2/SL-4/SL-5 — словарь + персист + wiring AgentWorker/стриминг |
 | 0.1.0 | 2026-08-22 | Этап 2: SL-3 — deriveMessages() + compact() + user/message-эмиссия |
+| 0.1.0 | 2026-08-22 | Этап 3: SL-6/SL-7/SL-8 — computeStats() + steps из лога в RunHistoryStore |

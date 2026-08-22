@@ -36,6 +36,18 @@ export type SessionEvent =
 /** Тип события — для switch по дискриминанту */
 export type SessionEventType = SessionEvent['type'];
 
+/** Агрегатные метрики сессии, производные из лога (SL-8) */
+export interface SessionStats {
+  /** Число ReAct-шагов (tool/call) */
+  steps: number;
+  toolCalls: number;
+  toolResults: number;
+  errors: number;
+  userMessages: number;
+  assistantMessages: number;
+  chunks: number;
+}
+
 const LOG_KEY = 'llmAssistant.sessionLog';
 
 /**
@@ -133,6 +145,22 @@ export class SessionLog {
       content: summary,
       replacedRange: [lastSummaryIdx + 1, list.length],
     });
+  }
+
+  /** Производные метрики из лога — источник для RunHistoryStore (SL-8) */
+  computeStats(sessionId: string): SessionStats {
+    const stats: SessionStats = { steps: 0, toolCalls: 0, toolResults: 0, errors: 0, userMessages: 0, assistantMessages: 0, chunks: 0 };
+    for (const e of this.getEvents(sessionId)) {
+      switch (e.type) {
+        case 'tool/call': stats.toolCalls++; stats.steps++; break;
+        case 'tool/result': stats.toolResults++; break;
+        case 'error': stats.errors++; break;
+        case 'user/message': stats.userMessages++; break;
+        case 'assistant/message': stats.assistantMessages++; break;
+        case 'assistant/chunk': stats.chunks++; break;
+      }
+    }
+    return stats;
   }
 
   /** Обрезать сообщения по токенам: сохраняем summary (первое system) + самые свежие */

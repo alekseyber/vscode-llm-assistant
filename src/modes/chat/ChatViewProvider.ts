@@ -344,7 +344,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
           return;
         }
         await this.runAgentLoop(provider, model, messages, onRetry, sid);
-        this.finalizeRun(runId, startTime, model, providerDisplayName, inTokens, 0, 1, 'success');
+        const runSteps = this.sessionLog?.computeStats(this.resolveSessionId(sessionId) ?? '')?.steps || 1;
+        this.finalizeRun(runId, startTime, model, providerDisplayName, inTokens, 0, runSteps, 'success');
       } else {
         const stream = provider.chat(messages, { model, stream: true }, abortController.signal, onRetry);
         let full = '';
@@ -479,7 +480,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         maxIterations: MAX_ITER,
         extraTools: mcpTools,
         enableSummary: true,
-        sessionId,
+        sessionId: this.resolveSessionId(sessionId === 'default' ? undefined : sessionId),
         onEvent: (e) => this.sessionLog?.append(e),
         onConfirm: async (toolName, args) => {
           this.debugChannel.appendLine(`[DEBUG] onConfirm: toolName=${toolName}, requires=${isConfirmationRequired(toolName, allowListConfig)}`);
