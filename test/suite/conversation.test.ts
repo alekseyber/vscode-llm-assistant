@@ -371,4 +371,26 @@ suite('ConversationManager', () => {
     assert.strictEqual(user?.content, 'привет', 'user из лога');
     assert.strictEqual(assistant?.content, 'привет!', 'assistant из лога');
   });
+
+  test('F1 5c: clearHistory очищает session-log', () => {
+    const log = new SessionLog(storage);
+    const cmWithLog = new ConversationManager(storage, log);
+    const sessionId = cmWithLog.session.getActive()!.meta.id;
+
+    cmWithLog.addMessage({ role: 'user', content: 'привет' });
+    assert.strictEqual(log.getEvents(sessionId).length, 1, 'до очистки 1 событие');
+
+    cmWithLog.clearHistory();
+    assert.strictEqual(log.getEvents(sessionId).length, 0, 'лог очищен');
+  });
+
+  test('F1 5d: addMessageTo обновляет messageCount через лог (touchSession)', () => {
+    const log = new SessionLog(storage);
+    const cmWithLog = new ConversationManager(storage, log);
+
+    cmWithLog.addMessage({ role: 'user', content: 'привет' });
+    cmWithLog.addMessage({ role: 'assistant', content: 'привет!' });
+
+    assert.strictEqual(cmWithLog.session.getActive()!.meta.messageCount, 2, 'messageCount = 1 user + 1 assistant из лога');
+  });
 });

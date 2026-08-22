@@ -106,6 +106,13 @@ suite('SessionManager', () => {
     assert.ok(active!.meta.name.endsWith('...'));
   });
 
+  test('autoNameSession(content): имя из переданного контента (F1 5d)', () => {
+    const sm = new SessionManager(storage);
+    const id = sm.createSession();
+    sm.autoNameSession(id, 'Привет, как дела?');
+    assert.strictEqual(sm.getActive()!.meta.name, 'Привет, как дела?', 'имя из переданного контента');
+  });
+
   test('getMessages() возвращает сообщения активной сессии', () => {
     const sm = new SessionManager(storage);
     sm.addMessage({ role: 'user', content: 'msg1' });
