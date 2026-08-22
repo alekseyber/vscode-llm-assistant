@@ -120,6 +120,29 @@ suite('AgentOrchestrator', () => {
     assert.strictEqual(result.success, false);
   });
 
+  // F1 5a: workerOptions (onEvent + sessionId) пробрасываются воркерам — tool-события попадают в лог
+  test('workerOptions: onEvent + sessionId пробрасываются воркерам', async () => {
+    const events: any[] = [];
+    const provider = {
+      createWithTools: sinon.stub()
+        .onFirstCall().resolves({
+          choices: [{ message: { role: 'assistant', content: '', tool_calls: [{ id: 'c1', function: { name: 'read_file', arguments: JSON.stringify({ path: 'test.txt' }) } }] } }],
+        })
+        .onSecondCall().resolves({ choices: [{ message: { role: 'assistant', content: 'Готово' } }] }),
+    };
+
+    const orchestrator = new AgentOrchestrator(undefined, undefined, undefined, {
+      sessionId: 'session_orch',
+      onEvent: (e: any) => events.push(e),
+      maxIterations: 3,
+    });
+    const task: MultiAgentTask = { id: 't', goal: 'g', roles: [makeRole('coder')], strategy: 'sequential' };
+    await orchestrator.execute(task, provider);
+
+    assert.ok(events.some((e: any) => e.type === 'tool/call' && e.sessionId === 'session_orch'), 'tool/call должен попасть в onEvent');
+    assert.ok(events.some((e: any) => e.type === 'tool/result'), 'tool/result должен попасть в onEvent');
+  });
+
   // MA-2.3: sequential — каждый следующий получает результат предыдущего
   test('MA-2.3: sequential передаёт контекст между воркерами', async () => {
     const responses = ['Архитектура готова', 'Код написан', 'Тесты пройдены'];
