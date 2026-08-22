@@ -59,7 +59,7 @@ status: planned
 |----|----------|--------|
 | SL-1 | Словарь `SessionEvent` определён (все 10 типов) | ✅ |
 | SL-2 | `SessionLog.append()` персистит события (Memento) | ✅ |
-| SL-3 | `deriveMessages()` — чистая проекция, воспроизводит модельный контекст | planned |
+| SL-3 | `deriveMessages()` — чистая проекция, воспроизводит модельный контекст | ✅ |
 | SL-4 | `tool/call` + `tool/result` персистятся из `AgentWorker` | ✅ |
 | SL-5 | `assistant/chunk` персистится из стриминга (throttle) | ✅ |
 | SL-6 | `replay()` восстанавливает путь агента (тулы+аргументы+результаты) | planned |
@@ -89,3 +89,4 @@ status: planned
 |--------|------|-----------|
 | 0.1.0 | 2026-08-22 | Черновик spec (F1) — консолидация session-log |
 | 0.1.0 | 2026-08-22 | Этап 1: SL-1/SL-2/SL-4/SL-5 — словарь + персист + wiring AgentWorker/стриминг |
+| 0.1.0 | 2026-08-22 | Этап 2: SL-3 — deriveMessages() + compact() + user/message-эмиссия |

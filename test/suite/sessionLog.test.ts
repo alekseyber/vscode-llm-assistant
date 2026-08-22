@@ -97,4 +97,91 @@ suite('SessionLog', () => {
     assert.strictEqual(events.length, 1);
     assert.strictEqual((events[0] as any).content, 'из стора');
   });
+
+  // ===== SL-3: deriveMessages — чистая проекция лога в модельный контекст =====
+
+  test('deriveMessages(): user/message + assistant/message → сообщения', () => {
+    log.append(ev('user/message', { content: 'привет' }));
+    log.append(ev('assistant/message', { content: 'привет!' }));
+    log.append(ev('user/message', { content: 'как дела?' }));
+    log.append(ev('assistant/message', { content: 'норм' }));
+
+    const messages = log.deriveMessages(sid);
+    assert.deepStrictEqual(messages, [
+      { role: 'user', content: 'привет' },
+      { role: 'assistant', content: 'привет!' },
+      { role: 'user', content: 'как дела?' },
+      { role: 'assistant', content: 'норм' },
+    ]);
+  });
+
+  test('deriveMessages(): пропускает tool/call, chunk, step и др.', () => {
+    log.append(ev('user/message', { content: 'задача' }));
+    log.append(ev('step/start', { stepId: 's1' }));
+    log.append(ev('tool/call', { stepId: 's1', name: 'read_file', args: {} }));
+    log.append(ev('assistant/chunk', { delta: 'частичный' }));
+    log.append(ev('assistant/message', { content: 'готово' }));
+
+    const messages = log.deriveMessages(sid);
+    assert.deepStrictEqual(messages, [
+      { role: 'user', content: 'задача' },
+      { role: 'assistant', content: 'готово' },
+    ]);
+  });
+
+  test('deriveMessages(): summary-маркер → system + события после него', () => {
+    log.append(ev('user/message', { content: 'вопрос 1' }));
+    log.append(ev('assistant/message', { content: 'ответ 1' }));
+    log.compact(sid, 'краткое содержание');
+    log.append(ev('user/message', { content: 'вопрос 2' }));
+    log.append(ev('assistant/message', { content: 'ответ 2' }));
+
+    const messages = log.deriveMessages(sid);
+    assert.deepStrictEqual(messages, [
+      { role: 'system', content: '## Краткое содержание предыдущего диалога:\nкраткое содержание' },
+      { role: 'user', content: 'вопрос 2' },
+      { role: 'assistant', content: 'ответ 2' },
+    ]);
+  });
+
+  test('deriveMessages(): чистая проекция — лог не мутирует', () => {
+    log.append(ev('user/message', { content: 'a' }));
+    log.append(ev('assistant/message', { content: 'b' }));
+    const before = log.getEvents(sid).length;
+    log.deriveMessages(sid);
+    log.deriveMessages(sid, { maxContextTokens: 1 });
+    const after = log.getEvents(sid).length;
+    assert.strictEqual(before, after, 'deriveMessages не должен менять лог');
+  });
+
+  test('deriveMessages({maxContextTokens}): обрезает старые, сохраняет summary и свежие', () => {
+    log.compact(sid, 'summary');
+    log.append(ev('user/message', { content: 'A'.repeat(40) }));     // 10 токенов
+    log.append(ev('assistant/message', { content: 'B'.repeat(40) })); // 10 токенов
+
+    // summary (~13 токенов) + 1 сообщение (10 токенов) = 23 → лимит 25
+    const messages = log.deriveMessages(sid, { maxContextTokens: 25 });
+    assert.strictEqual(messages[0].role, 'system', 'summary сохраняется');
+    assert.strictEqual(messages.length, 2, 'summary + 1 самое свежее');
+    assert.strictEqual(messages[1].content, 'B'.repeat(40), 'свежее сохраняется');
+  });
+
+  test('deriveMessages(): pendingContext прикрепляется к user/message', () => {
+    log.append(ev('user/message', { content: 'текст', pendingContext: 'контекст кода' }));
+    const messages = log.deriveMessages(sid);
+    assert.strictEqual(messages[0].content, 'контекст кода\nтекст');
+  });
+
+  test('compact(): вставляет summary-маркер, история не удаляется', () => {
+    log.append(ev('user/message', { content: 'q' }));
+    log.append(ev('assistant/message', { content: 'a' }));
+    log.compact(sid, 'итог');
+    const events = log.getEvents(sid);
+    assert.strictEqual(events.length, 3, 'user + assistant + summary');
+    assert.strictEqual(events[2].type, 'summary');
+    assert.deepStrictEqual((events[2] as any).replacedRange, [0, 2], 'summary заменяет [0,2)');
+    // История НЕ удалена
+    assert.strictEqual(events[0].type, 'user/message');
+    assert.strictEqual(events[1].type, 'assistant/message');
+  });
 });

@@ -84,6 +84,14 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     this.sessionLog.append({ sessionId: sid, ts: Date.now(), type: 'assistant/message', content: full });
   }
 
+  /** Записать user/message в session-log (F1) — резолвит сессию и игнорирует при отсутствии лога */
+  private logUserMessage(sessionId: string | undefined, text: string): void {
+    const sid = this.resolveSessionId(sessionId);
+    if (sid && this.sessionLog) {
+      this.sessionLog.append({ sessionId: sid, ts: Date.now(), type: 'user/message', content: text });
+    }
+  }
+
   resolveWebviewView(wv: vscode.WebviewView, _ctx: vscode.WebviewViewResolveContext, _t: vscode.CancellationToken): void {
     this.view = wv;
     wv.webview.options = {
@@ -212,6 +220,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     // Не добавляем в историю сразу если будет vision (изображение добавится вместе с текстом)
     if (!isVision) {
       this.conversationManager.addMessageTo(sessionId, { role: 'user', content: text });
+      this.logUserMessage(sessionId, text);
     }
 
     this.postMessage({ type: 'userMessage', text }, sessionId);
@@ -309,6 +318,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         this.postMessage({ type: 'done' }, sessionId);
         // Сохраняем в историю после успешного ответа
         this.conversationManager.addMessageTo(sessionId, { role: 'user', content: text });
+        this.logUserMessage(sessionId, text);
         this.conversationManager.addMessageTo(sessionId, { role: 'assistant', content: full });
         this.finalizeStream(sessionId, full, buffer);
         outTokens = Math.ceil(full.length / 4);
