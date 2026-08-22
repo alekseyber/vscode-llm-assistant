@@ -8,6 +8,7 @@ import * as assert from 'assert';
 import {
   withRetry,
   isRetryableError,
+  isAbortError,
   calculateDelay,
   RetryOptions,
 } from '../../src/shared/RetryHandler';
@@ -23,6 +24,18 @@ suite('RetryHandler', () => {
 
   teardown(() => {
     sandbox.restore();
+  });
+
+  // ---------------------------------------------------------------------------
+  // isAbortError
+  // ---------------------------------------------------------------------------
+
+  test('isAbortError: распознаёт AbortError и APIUserAbortError (OpenAI SDK)', () => {
+    assert.ok(isAbortError({ name: 'AbortError' }), 'DOMException AbortError');
+    assert.ok(isAbortError({ name: 'Error', message: 'Request was aborted.' }), 'APIUserAbortError (name=Error)');
+    assert.ok(isAbortError({ name: 'APIUserAbortError' }), 'APIUserAbortError (name)');
+    assert.ok(!isAbortError({ name: 'Error', message: '500 Server Error' }), 'обычная ошибка не abort');
+    assert.ok(!isAbortError(null), 'null не abort');
   });
 
   // ---------------------------------------------------------------------------

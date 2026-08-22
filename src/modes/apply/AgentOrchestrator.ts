@@ -7,6 +7,7 @@ import { AgentWorker, AgentRole, WorkerResult, AgentWorkerOptions } from './Agen
 import { AgentSharedContext } from './AgentSharedContext';
 import { setDelegateHandler } from '../chat/ChatAgentTools';
 import { loadAllAgentRoles } from '../../shared/RoleAgentsMdLoader';
+import { isAbortError } from '../../shared/RetryHandler';
 
 /**
  * Стратегия выполнения.
@@ -190,7 +191,7 @@ export class AgentOrchestrator {
         this.onWorkerDone?.(role.name);
         this.log(`Воркер '${role.name}': завершён (${wt.result.iterations} итераций)`);
       } catch (e: any) {
-        if (e?.name === 'AbortError') { throw e; }
+        if (isAbortError(e)) { throw e; }
         wt.error = e.message || String(e);
         this.onWorkerDone?.(role.name, wt.error);
         this.log(`Воркер '${role.name}': ОШИБКА — ${wt.error}`);
@@ -232,7 +233,7 @@ export class AgentOrchestrator {
         this.sharedContext.put(`result:${role.name}`, wt.result.answer, role.name);
         this.log(`Воркер '${role.name}': завершён (${wt.result.iterations} итераций)`);
       } catch (e: any) {
-        if (e?.name === 'AbortError') { throw e; }
+        if (isAbortError(e)) { throw e; }
         wt.error = e.message || String(e);
         this.onWorkerDone?.(role.name, wt.error);
         this.log(`Воркер '${role.name}': ОШИБКА — ${wt.error}`);
@@ -272,7 +273,7 @@ export class AgentOrchestrator {
         this.sharedContext.put(`artifact:${role.name}`, wt.result.answer, role.name);
         this.log(`Воркер '${role.name}': завершён (${wt.result.iterations} итераций)`);
       } catch (e: any) {
-        if (e?.name === 'AbortError') { throw e; }
+        if (isAbortError(e)) { throw e; }
         wt.error = e.message || String(e);
         this.onWorkerDone?.(role.name, wt.error);
         this.log(`Воркер '${role.name}': ОШИБКА — ${wt.error}`);

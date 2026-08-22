@@ -102,6 +102,23 @@ suite('AgentWorker', () => {
     assert.strictEqual(caught?.name, 'AbortError', 'AbortError не потерян');
   });
 
+  // Отмена: APIUserAbortError из OpenAI SDK (name='Error', message='Request was aborted.') сохраняется
+  test('отмена: APIUserAbortError (name=Error) распознаётся как отмена', async () => {
+    const role: AgentRole = { name: 't', systemPrompt: 'Тест' };
+    const provider = createMockProvider();
+    provider.createWithTools.callsFake(async () => {
+      const e: any = new Error('Request was aborted.');
+      throw e; // реальный APIUserAbortError: name='Error', message='Request was aborted.'
+    });
+    const worker = new AgentWorker(role, provider);
+
+    let caught: any = null;
+    try { await worker.run('задача'); } catch (e: any) { caught = e; }
+
+    assert.ok(caught, 'ошибка проброшена');
+    assert.strictEqual(caught.message, 'Request was aborted.', 'не переоборачивается в новый Error');
+  });
+
   // MA-1.2: Воркер использует свой systemPrompt
   test('MA-1.2: systemPrompt роли передаётся в LLM', async () => {
     const role: AgentRole = {

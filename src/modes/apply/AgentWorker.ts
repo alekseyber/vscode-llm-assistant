@@ -16,6 +16,7 @@ import { ContextSummarizer } from '../../shared/ContextSummarizer';
 import { loadRoleAgentsMd, getSkillTemplate } from '../../shared/RoleAgentsMdLoader';
 import { calculateCost } from '../../providers/types';
 import { SessionEvent } from '../../shared/SessionLog';
+import { isAbortError } from '../../shared/RetryHandler';
 
 /**
  * Роль агента: определяет поведение, доступные инструменты и модель.
@@ -323,7 +324,7 @@ export class AgentWorker {
           messages.splice(1, 1);
         }
       } catch (e: any) {
-        if (e?.name === 'AbortError') {
+        if (isAbortError(e)) {
           emit({ iteration: i, type: 'info', message: 'Выполнение отменено.' });
           throw e;
         }

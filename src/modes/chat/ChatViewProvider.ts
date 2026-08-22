@@ -15,6 +15,7 @@ import { AgentWorker, AgentRole } from '../apply/AgentWorker';
 import { AgentOrchestrator, MultiAgentTask, MultiAgentResult } from '../apply/AgentOrchestrator';
 import { RunHistoryStore, generateRunId, RunEntry } from '../../shared/RunHistoryStore';
 import { SessionLog } from '../../shared/SessionLog';
+import { isAbortError } from '../../shared/RetryHandler';
 import { HistoryViewProvider } from '../history/HistoryViewProvider';
 import { OrchestratorViewProvider, OrchestratorTaskInfo, WorkerInfo } from '../orchestrator/OrchestratorViewProvider';
 import { setDelegateHandler } from './ChatAgentTools';
@@ -371,7 +372,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       }
     } catch (error: any) {
       const duration = Date.now() - startTime;
-      if (error.name === 'AbortError') {
+      if (isAbortError(error)) {
         this.postMessage({ type: 'cancelled' }, sessionId);
         this.finalizeRun(runId, startTime, model, providerDisplayName, inTokens, 0, 0, 'cancelled');
       } else {
@@ -560,7 +561,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       this.postMessage({ type: 'done' }, sessionId);
       this.finalizeRun(planRunId, planStartTime, model, 'plan-mode', 0, 0, 1, 'success');
     } catch (err: any) {
-      if (err?.name === 'AbortError') {
+      if (isAbortError(err)) {
         this.postMessage({ type: 'cancelled' }, sessionId);
         this.finalizeRun(planRunId, planStartTime, model, 'plan-mode', 0, 0, 0, 'cancelled');
       } else {
@@ -644,7 +645,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       this.postMessage({ type: 'done' }, sessionId);
       this.finalizeRun(implRunId, implStartTime, model, 'plan-mode', 0, 0, 1, 'success');
     } catch (err: any) {
-      if (err?.name === 'AbortError') {
+      if (isAbortError(err)) {
         this.postMessage({ type: 'cancelled' }, sessionId);
         this.finalizeRun(implRunId, implStartTime, model, 'plan-mode', 0, 0, 0, 'cancelled');
       } else {
@@ -757,7 +758,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     try {
       result = await orchestrator.execute(task, provider, mcpTools.length > 0 ? mcpTools : undefined);
     } catch (err: any) {
-      if (err?.name === 'AbortError') {
+      if (isAbortError(err)) {
         this.postMessage({ type: 'cancelled' }, sessionId);
         this.finalizeRun(orchRunId, orchStartTime, model, 'orchestrator', 0, 0, 0, 'cancelled');
         return;

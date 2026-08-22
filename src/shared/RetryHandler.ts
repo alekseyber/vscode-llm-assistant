@@ -76,9 +76,22 @@ const NETWORK_PHRASES = ['fetch failed', 'network error', 'connection reset', 'c
  * @param error — объект ошибки (обычно от OpenAI SDK)
  * @param retryOn — список HTTP-статусов для ретрая
  */
+/**
+ * Определяет, является ли ошибка прерыванием запроса (отмена пользователем или таймаут).
+ * OpenAI SDK бросает APIUserAbortError (name='Error', message='Request was aborted.'),
+ * а не DOMException AbortError — поэтому проверяем оба варианта.
+ */
+export function isAbortError(error: any): boolean {
+  if (!error) return false;
+  if (error?.name === 'AbortError') return true;
+  if (error?.name === 'APIUserAbortError') return true;
+  if (typeof error?.message === 'string' && error.message.startsWith('Request was aborted')) return true;
+  return false;
+}
+
 export function isRetryableError(error: any, retryOn: number[]): boolean {
   // AbortError — не ретраим здесь (обрабатывается в withRetry отдельно)
-  if (error?.name === 'AbortError') {
+  if (isAbortError(error)) {
     return false;
   }
 
@@ -199,8 +212,8 @@ export async function withRetry<T>(
     } catch (error: any) {
       lastError = error;
 
-      // AbortError: определяем источник
-      if (error?.name === 'AbortError') {
+      // AbortError/APIUserAbortError: определяем источник
+      if (isAbortError(error)) {
         if (signal?.aborted) {
           // Пользователь отменил запрос — не ретраим
           throw error;
