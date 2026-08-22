@@ -20,6 +20,10 @@ class Uri {
     return new Uri('file', '', p, '', '');
   }
 
+  static joinPath(base, ...segments) {
+    return new Uri('file', '', [base.path, ...segments].join('/'), '', '');
+  }
+
   static parse(value) {
     return new Uri('file', '', value, '', '');
   }
@@ -117,6 +121,7 @@ const window = {
   showWarningMessage(msg) { return Promise.resolve(); },
   showQuickPick(items, options) { return Promise.resolve(); },
   showInputBox(options) { return Promise.resolve(); },
+  showSaveDialog(options) { return Promise.resolve(); },
   createOutputChannel(name) {
     return {
       appendLine(text) {},

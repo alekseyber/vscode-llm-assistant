@@ -14,7 +14,7 @@ suite('E2E: активация и команды', () => {
     assert.strictEqual(ext!.isActive, true, 'расширение активно после activate()');
   });
 
-  test('все 8 команд зарегистрированы', async () => {
+  test('все 10 команд зарегистрированы', async () => {
     const ext = vscode.extensions.getExtension(EXTENSION_ID)!;
     await ext.activate();
 
@@ -28,9 +28,18 @@ suite('E2E: активация и команды', () => {
       'llmAssistant.selectProvider',
       'llmAssistant.openHistory',
       'llmAssistant.review.file',
+      'llmAssistant.exportSession',
+      'llmAssistant.forkSession',
     ];
     for (const cmd of expected) {
       assert.ok(commands.includes(cmd), `команда ${cmd} зарегистрирована`);
     }
+  });
+
+  test('forkSession выполняется без ошибок (smoke)', async () => {
+    const ext = vscode.extensions.getExtension(EXTENSION_ID)!;
+    await ext.activate();
+    // fork не бросает — логика дублирования покрыта unit-тестом registerCommands
+    await vscode.commands.executeCommand('llmAssistant.forkSession');
   });
 });

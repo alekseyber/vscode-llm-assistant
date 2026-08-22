@@ -10,6 +10,7 @@ import { ConversationManager } from '../../src/modes/chat/ConversationManager';
 import { RunHistoryStore } from '../../src/shared/RunHistoryStore';
 import { PlanModeManager } from '../../src/modes/chat/PlanModeManager';
 import { AgentOrchestrator } from '../../src/modes/apply/AgentOrchestrator';
+import { SessionLog } from '../../src/shared/SessionLog';
 
 /** Асинхронный генератор чанков — имитация стриминга LLM */
 async function* chunks(...parts: string[]): AsyncIterable<string> {
@@ -277,5 +278,36 @@ suite('ChatViewProvider.handleSendMessage', () => {
     assert.strictEqual(msgs.length, 2);
     assert.strictEqual(msgs[0].content, '@orchestrate сделай модуль');
     assert.strictEqual(msgs[1].content, 'архитектура');
+  });
+
+  // ===== F1: getTranscript + refreshSessionList =====
+
+  test('getTranscript → sessionTranscript с текстом из session-log', async () => {
+    const sessionLog = new SessionLog(storage);
+    const sid = 'session_transcript_test';
+    sessionLog.append({ sessionId: sid, ts: 1, type: 'user/message', content: 'привет' });
+    (provider as any).sessionLog = sessionLog;
+    const postMessage = sandbox.stub();
+    (provider as any).view = { webview: { postMessage } };
+
+    await (provider as any).handleWebviewMessage({ type: 'getTranscript', sessionId: sid, action: 'copy' });
+
+    assert.ok(postMessage.calledOnce, 'postMessage вызван один раз');
+    const msg = postMessage.getCall(0).args[0];
+    assert.strictEqual(msg.type, 'sessionTranscript');
+    assert.strictEqual(msg.action, 'copy');
+    assert.ok(msg.text.includes(`# Сессия: ${sid}`), 'заголовок транскрипции');
+    assert.ok(msg.text.includes('привет'), 'текст события из лога');
+  });
+
+  test('refreshSessionList(): шлёт sessionList + history в WebView', () => {
+    const postMessage = sandbox.stub();
+    (provider as any).view = { webview: { postMessage } };
+
+    (provider as any).refreshSessionList();
+
+    const types = postMessage.getCalls().map((c: any) => c.args[0].type);
+    assert.ok(types.includes('sessionList'), 'sessionList отправлен');
+    assert.ok(types.includes('history'), 'history отправлен');
   });
 });
