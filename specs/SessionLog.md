@@ -57,11 +57,11 @@ status: planned
 
 | ID | Критерий | Статус |
 |----|----------|--------|
-| SL-1 | Словарь `SessionEvent` определён (все 10 типов) | planned |
-| SL-2 | `SessionLog.append()` персистит события (Memento) | planned |
+| SL-1 | Словарь `SessionEvent` определён (все 10 типов) | ✅ |
+| SL-2 | `SessionLog.append()` персистит события (Memento) | ✅ |
 | SL-3 | `deriveMessages()` — чистая проекция, воспроизводит модельный контекст | planned |
-| SL-4 | `tool/call` + `tool/result` персистятся из `AgentWorker` | planned |
-| SL-5 | `assistant/chunk` персистится из стриминга (throttle) | planned |
+| SL-4 | `tool/call` + `tool/result` персистятся из `AgentWorker` | ✅ |
+| SL-5 | `assistant/chunk` персистится из стриминга (throttle) | ✅ |
 | SL-6 | `replay()` восстанавливает путь агента (тулы+аргументы+результаты) | planned |
 | SL-7 | `fork()` создаёт сессию-копию | planned |
 | SL-8 | `RunHistoryStore` считает cost/steps из лога | planned |
@@ -88,3 +88,4 @@ status: planned
 | Версия | Дата | Изменения |
 |--------|------|-----------|
 | 0.1.0 | 2026-08-22 | Черновик spec (F1) — консолидация session-log |
+| 0.1.0 | 2026-08-22 | Этап 1: SL-1/SL-2/SL-4/SL-5 — словарь + персист + wiring AgentWorker/стриминг |

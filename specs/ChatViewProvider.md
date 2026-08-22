@@ -11,7 +11,7 @@ since: 0.1.0
 
 ## Интерфейс
 
-### `new ChatViewProvider(ctx, providerManager, conversationManager, runHistoryStore, historyViewProvider?, orchestratorViewProvider?)`
+### `new ChatViewProvider(ctx, providerManager, conversationManager, runHistoryStore, historyViewProvider?, orchestratorViewProvider?, sessionLog?)`
 
 ### `resolveWebviewView(wv, ctx, token)` — точка входа WebView
 
@@ -91,7 +91,7 @@ since: 0.1.0
 - **Сигнал отмены Plan Mode:** `handlePlanMode` получает `signal` напрямую параметром (`abortController.signal` из `handleSendMessage`), а не через `abortControllers.get(sessionId)` — исключает гонку, когда в одной сессии несколько параллельных запусков перезаписывают контроллер в Map (приводило к «Request was aborted»). `implementPlan` передаёт `sessionId` (кнопка «Имплементировать»).
 - **Персистентность результата Plan Mode:** план (`handlePlanMode`), имплементация и рефлексия (`handleImplementPlan`) сохраняются в историю сессии через `addMessageTo` — иначе при переключении чата/восстановлении (`restoreHistory`) результат терялся. `planGenerated` несёт исходную `sessionId`; WebView хранит её в `plan-container.dataset.sessionId`, а кнопка «Имплементировать» шлёт эту исходную сессию (а не `sessionSelect.value`) — результат уходит в сессию, где был запущен план, даже после переключения чатов.
 - **Автокомплит команд:** при `ready` (инициализация WebView) отправляет `{ type: 'slashCommands', items: [{name, description, kind, prefix}] }` — встроенные слэш-команды (`SLASH_COMMANDS`, `prefix: '/'`), скилы (`getSkillCatalog()`, `prefix: '/'`) и `@orchestrate` (`prefix: '@'`). WebView показывает попап автокомплита при вводе `/` или `@`.
-
+- **Session-log (F1, SL-5):** конструктор принимает опциональный `sessionLog`. В `runAgentLoop` в `AgentWorker` передаются `sessionId` + `onEvent: e => sessionLog.append(e)` (персист `tool/call`, `tool/result`, `assistant/message`). В стриминговых ветках (chat + vision) `logStreamChunk`/`finalizeStream` пишут `assistant/chunk` (троттлинг по ~200 симв.) и `assistant/message`. `resolveSessionId` разрешает активную сессию при `sessionId === undefined`.
 
 ## Тесты
 
@@ -115,4 +115,5 @@ since: 0.1.0
 | 0.9.0 | 2026-08-08 | Plan Mode: ветвление handleSendMessage → PlanModeManager, переключатель UI |
 | 0.8.0 | 2026-08-06 | Делегирование в AgentWorker, loadOrchestratorRoles, MCP для оркестратора |
 | 0.7.0 | 2026-08-05 | @orchestrate, RunHistoryStore |
+| 0.11.3 | 2026-08-22 | F1 (SL-5): sessionLog — персист assistant/chunk (троттлинг) + assistant/message в стриминге; onEvent в AgentWorker |
 | 0.1.0 | 2026-08-04 | Базовая реализация |

@@ -11,6 +11,7 @@ import { AutocompleteController } from './modes/autocomplete/AutocompleteControl
 import { registerCommands } from './activation/registerCommands';
 import { debugLog } from './shared/logger';
 import { RunHistoryStore } from './shared/RunHistoryStore';
+import { SessionLog } from './shared/SessionLog';
 import { HistoryViewProvider, HISTORY_VIEW_TYPE } from './modes/history/HistoryViewProvider';
 import { OrchestratorViewProvider, ORCHESTRATOR_VIEW_TYPE } from './modes/orchestrator/OrchestratorViewProvider';
 import { ReviewViewProvider, REVIEW_VIEW_TYPE } from './modes/review/ReviewViewProvider';
@@ -30,6 +31,9 @@ let autocompleteController: AutocompleteController;
 
 /** Глобальный экземпляр хранилища истории запусков (слой 07 Product Shell) */
 let runHistoryStore: RunHistoryStore;
+
+/** Глобальный экземпляр session-log (F1) — единый источник правды по событиям */
+let sessionLog: SessionLog;
 
 /** Глобальный экземпляр провайдера вкладки «История» */
 let historyViewProvider: HistoryViewProvider;
@@ -55,6 +59,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     // Инициализация хранилища истории запусков (слой 07 Product Shell)
     runHistoryStore = new RunHistoryStore(context.globalState);
+    sessionLog = new SessionLog(context.workspaceState);
 
     // Регистрация провайдера вкладки «История» (Activity Bar) — ДО ChatViewProvider
     historyViewProvider = new HistoryViewProvider(runHistoryStore);
@@ -79,7 +84,7 @@ export function activate(context: vscode.ExtensionContext) {
     };
 
     // ── 2. Регистрация WebView Provider ──
-    const chatViewProvider = new ChatViewProvider(context, providerManager, conversationManager, runHistoryStore, historyViewProvider, orchestratorViewProvider);
+    const chatViewProvider = new ChatViewProvider(context, providerManager, conversationManager, runHistoryStore, historyViewProvider, orchestratorViewProvider, sessionLog);
     context.subscriptions.push(
         vscode.window.registerWebviewViewProvider(ChatViewProvider.viewType, chatViewProvider)
     );

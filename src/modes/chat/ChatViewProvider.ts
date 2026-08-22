@@ -14,6 +14,7 @@ import { McpClient, loadMcpConfig } from '../apply/McpClient';
 import { AgentWorker, AgentRole } from '../apply/AgentWorker';
 import { AgentOrchestrator, MultiAgentTask } from '../apply/AgentOrchestrator';
 import { RunHistoryStore, generateRunId, RunEntry } from '../../shared/RunHistoryStore';
+import { SessionLog } from '../../shared/SessionLog';
 import { HistoryViewProvider } from '../history/HistoryViewProvider';
 import { OrchestratorViewProvider, OrchestratorTaskInfo, WorkerInfo } from '../orchestrator/OrchestratorViewProvider';
 import { setDelegateHandler } from './ChatAgentTools';
@@ -27,6 +28,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   private readonly providerManager: ProviderManager;
   private readonly conversationManager: ConversationManager;
   private readonly runHistoryStore: RunHistoryStore;
+  private readonly sessionLog?: SessionLog;
   /** Контроллеры отмены по сессии — поддержка параллельных процессов */
   private abortControllers = new Map<string, AbortController>();
   private pendingImage: { fileName: string; base64: string; mimeType: string } | null = null;
@@ -34,11 +36,12 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   private readonly orchestratorViewProvider?: OrchestratorViewProvider;
   private debugChannel: vscode.OutputChannel;
 
-  constructor(ctx: vscode.ExtensionContext, pm: ProviderManager, cm: ConversationManager, runHistoryStore: RunHistoryStore, historyViewProvider?: HistoryViewProvider, orchestratorViewProvider?: OrchestratorViewProvider) {
+  constructor(ctx: vscode.ExtensionContext, pm: ProviderManager, cm: ConversationManager, runHistoryStore: RunHistoryStore, historyViewProvider?: HistoryViewProvider, orchestratorViewProvider?: OrchestratorViewProvider, sessionLog?: SessionLog) {
     this.context = ctx;
     this.providerManager = pm;
     this.conversationManager = cm;
     this.runHistoryStore = runHistoryStore;
+    this.sessionLog = sessionLog;
     this.historyViewProvider = historyViewProvider;
     this.orchestratorViewProvider = orchestratorViewProvider;
     this.debugChannel = vscode.window.createOutputChannel('LLM Assistant');
@@ -52,6 +55,33 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         }
       })
     );
+  }
+
+  /** Разрешить эффективный ID сессии для session-log (F1): переданный или активный */
+  private resolveSessionId(sessionId?: string): string | undefined {
+    return sessionId || this.conversationManager.session.getActive()?.meta.id;
+  }
+
+  /** Записать чанк ассистента в session-log (троттлинг по длине буфера) — F1 SL-5 */
+  private logStreamChunk(sessionId: string | undefined, chunk: string, buffer: { acc: string }): void {
+    const sid = this.resolveSessionId(sessionId);
+    if (!sid || !this.sessionLog) return;
+    buffer.acc += chunk;
+    if (buffer.acc.length >= 200) {
+      this.sessionLog.append({ sessionId: sid, ts: Date.now(), type: 'assistant/chunk', delta: buffer.acc });
+      buffer.acc = '';
+    }
+  }
+
+  /** Финализировать стрим: добить буфер чанков + assistant/message — F1 SL-5 */
+  private finalizeStream(sessionId: string | undefined, full: string, buffer: { acc: string }): void {
+    const sid = this.resolveSessionId(sessionId);
+    if (!sid || !this.sessionLog) return;
+    if (buffer.acc) {
+      this.sessionLog.append({ sessionId: sid, ts: Date.now(), type: 'assistant/chunk', delta: buffer.acc });
+      buffer.acc = '';
+    }
+    this.sessionLog.append({ sessionId: sid, ts: Date.now(), type: 'assistant/message', content: full });
   }
 
   resolveWebviewView(wv: vscode.WebviewView, _ctx: vscode.WebviewViewResolveContext, _t: vscode.CancellationToken): void {
@@ -274,11 +304,13 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
         const stream = openaiProvider.chatWithVision(messages, { model, stream: true }, abortController.signal, onRetry);
         let full = '';
-        for await (const chunk of stream) { full += chunk; this.postMessage({ type: 'streamChunk', text: chunk }, sessionId); }
+        const buffer = { acc: '' };
+        for await (const chunk of stream) { full += chunk; this.postMessage({ type: 'streamChunk', text: chunk }, sessionId); this.logStreamChunk(sessionId, chunk, buffer); }
         this.postMessage({ type: 'done' }, sessionId);
         // Сохраняем в историю после успешного ответа
         this.conversationManager.addMessageTo(sessionId, { role: 'user', content: text });
         this.conversationManager.addMessageTo(sessionId, { role: 'assistant', content: full });
+        this.finalizeStream(sessionId, full, buffer);
         outTokens = Math.ceil(full.length / 4);
         this.finalizeRun(runId, startTime, model, providerDisplayName, inTokens, outTokens, 1, 'success');
         return;
@@ -306,9 +338,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       } else {
         const stream = provider.chat(messages, { model, stream: true }, abortController.signal, onRetry);
         let full = '';
-        for await (const chunk of stream) { full += chunk; this.postMessage({ type: 'streamChunk', text: chunk }, sessionId); }
+        const buffer = { acc: '' };
+        for await (const chunk of stream) { full += chunk; this.postMessage({ type: 'streamChunk', text: chunk }, sessionId); this.logStreamChunk(sessionId, chunk, buffer); }
         this.postMessage({ type: 'done' }, sessionId);
         this.conversationManager.addMessageTo(sessionId, { role: 'assistant', content: full });
+        this.finalizeStream(sessionId, full, buffer);
         this.postTokens(messages, full, model);
         outTokens = Math.ceil(full.length / 4);
         this.finalizeRun(runId, startTime, model, providerDisplayName, inTokens, outTokens, 1, 'success');
@@ -435,6 +469,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         maxIterations: MAX_ITER,
         extraTools: mcpTools,
         enableSummary: true,
+        sessionId,
+        onEvent: (e) => this.sessionLog?.append(e),
         onConfirm: async (toolName, args) => {
           this.debugChannel.appendLine(`[DEBUG] onConfirm: toolName=${toolName}, requires=${isConfirmationRequired(toolName, allowListConfig)}`);
           if (isConfirmationRequired(toolName, allowListConfig)) {
