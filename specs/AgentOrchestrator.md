@@ -11,13 +11,14 @@ since: 0.7.0
 
 ## Интерфейс
 
-### `new AgentOrchestrator(onLog?, onWorkerStart?, onWorkerDone?)`
+### `new AgentOrchestrator(onLog?, onWorkerStart?, onWorkerDone?, workerOptions?)`
 
 | Параметр | Тип | Описание |
 |----------|-----|----------|
 | `onLog` | `(msg: string) => void` | Логирование |
 | `onWorkerStart` | `(roleName: string) => void` | Воркер начал работу |
 | `onWorkerDone` | `(roleName: string, error?: string) => void` | Воркер завершил |
+| `workerOptions` | `AgentWorkerOptions` | Пробрасывается каждому воркеру: signal, maxIterations, sessionId, onEvent, skipGlobalAllowList |
 
 ### `orchestrator.execute(task, provider, extraTools?) → MultiAgentResult`
 
@@ -35,8 +36,8 @@ since: 0.7.0
 | `workers` | `WorkerTaskResult[]` |
 | `totalInputTokens` | `number` |
 | `totalOutputTokens` | `number` |
-| `success` | `boolean` |
-| `summary` | `string` |
+| `success` | `boolean` — `false`, если хоть один воркер с `error` или `limitExceeded` |
+| `summary` | `string` — сводка воркеров (`✅`/`⚠️`/`❌`) |
 
 ## Стратегии
 
@@ -54,6 +55,8 @@ since: 0.7.0
 | Ошибка воркера в sequential | Цепочка прерывается |
 | `extraTools` передан | Пробрасывается каждому AgentWorker |
 | Результаты воркеров | Сохраняются в `SharedContext` |
+| Воркер без финального ответа (`limitExceeded`) | `success=false`, в сводке `⚠️` (не `✅`) |
+| Воркер выбросил `AbortError`/`APIUserAbortError` | Распознаётся через `isAbortError()` → пробрасывается как отмена |
 
 ## AC
 
@@ -78,7 +81,10 @@ since: 0.7.0
 - **Контекст передачи:** sequential — `\n## Результат предыдущего этапа:\n{result}`; pipeline — `\n## Артефакты:\n{artifacts}`
 - **Изоляция ошибок:** parallel — ошибка воркера изолируется; sequential/pipeline — цепочка прерывается
 - **SharedContext:** результаты как `result:{name}` и `artifact:{name}`
-- **Summary:** конкатенация через `\n\n`
+- **Summary:** конкатенация через `\n\n`; воркер с `limitExceeded` помечается `⚠️`, с `error` — `❌`, иначе `✅`
+- **workerOptions:** `{ extraTools, ...workerOptions }` пробрасывается каждому AgentWorker (signal, maxIterations, sessionId, onEvent — для session-log F1)
+- **success:** `workers.every(w => !w.error && !w.result?.limitExceeded)`
+- **Отмена:** `isAbortError()` распознаёт AbortError и APIUserAbortError, пробрасывается наверх
 
 ## Тесты (agentOrchestrator.test.ts, 9 тестов)
 
@@ -89,11 +95,14 @@ since: 0.7.0
 - MA-2.5: ошибка воркера изолируется (parallel), останавливает цепочку (sequential)
 - pipeline: воркеры выполняются последовательно с артефактами
 - onLog: колбэк вызывается при логировании
+- summary: воркер с limitExceeded помечается ⚠️, success=false
+- workerOptions: onEvent + sessionId пробрасываются воркерам (tool-события в лог)
 
 ## История изменений
 
 | Версия | Дата | Изменения |
 |--------|------|-----------|
+| 0.12.0 | 2026-08-22 | limitExceeded → success=false + ⚠️; isAbortError; workerOptions (sessionId + onEvent) для session-log |
 | 0.9.0 | 2026-08-11 | workerOptions в конструкторе — проброс skipGlobalAllowList во все AgentWorker |
 | 0.8.0 | 2026-08-06 | extraTools в execute() и всех стратегиях |
 | 0.7.0 | 2026-08-05 | Базовая реализация (parallel/sequential/pipeline) |

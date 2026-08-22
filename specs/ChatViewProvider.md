@@ -93,6 +93,11 @@ since: 0.1.0
 - **Автокомплит команд:** при `ready` (инициализация WebView) отправляет `{ type: 'slashCommands', items: [{name, description, kind, prefix}] }` — встроенные слэш-команды (`SLASH_COMMANDS`, `prefix: '/'`), скилы (`getSkillCatalog()`, `prefix: '/'`) и `@orchestrate` (`prefix: '@'`). WebView показывает попап автокомплита при вводе `/` или `@`.
 - **Session-log (F1):** конструктор принимает опциональный `sessionLog`. В `runAgentLoop` в `AgentWorker` передаются `sessionId` + `onEvent: e => sessionLog.append(e)` (персист `tool/call`, `tool/result`, `assistant/message`). В стриминговых ветках (chat + vision) `logStreamChunk`/`finalizeStream` пишут `assistant/chunk` (троттлинг по ~200 симв.) и `assistant/message`. `logUserMessage` пишет `user/message` при добавлении пользовательского сообщения (chat + vision). `resolveSessionId` разрешает активную сессию при `sessionId === undefined`.
 - **Копирование/экспорт сессии (F1):** кнопки «Копировать сессию в буфер» (`btn-share`) и «Экспорт в Markdown» (`btn-export`) шлют `getTranscript` (с `action: 'copy' | 'download'`) → ChatViewProvider отвечает `toTranscript()` → `sessionTranscript` → WebView копирует в clipboard или скачивает `.md`. Источник — session-log, не DOM (DOM-костыль `buildSessionText` удалён). `refreshSessionList()` — публичный метод обновления списка сессий + истории (вызывается из команды fork).
+- **Оркестратор → session-log (F1 5a):** воркеры оркестратора создаются с `sessionId` + `onEvent: e => sessionLog.append(e)` (через workerOptions) — tool-события оркестратора пишутся в лог, экспорт/копия оркестратор-сессии стали полными (🔧-шаги). User-сообщение `@orchestrate` пишется в лог в **начале** оркестрации (до раннего return) — иначе список сообщений пуст при переключении чата.
+- **restoreTokenIndicator:** при `ready`/`switchSession`/`switchToSession` индикатор 📊 подтягивает токены последнего запуска активной сессии из `RunHistoryStore` — решает «0+0 ≈ $0.0000 / 0/4096» у исходника после переключения/загрузки.
+- **maxContextTokens в индикатор:** `getMaxContextTokens()` читает `llmAssistant.chat.maxContextTokens` (дефолт 4096) и шлёт `maxTokens` во все `tokens`-сообщения (postTokens/оркестратор/restore) — индикатор показывает реальный лимит, а не хардкод 4096.
+- **limitExceeded → finalizeRun:** при воркере оркестратора без финального ответа запуск помечается статусом `limit_exceeded` (в истории «Лимит», не «Успех»); лимит итераций воркеров оркестратора 20 (было 10).
+- **isAbortError:** отмена распознаётся через `isAbortError()` (AbortError + APIUserAbortError), применяется в catch-ветках чат/агент/оркестратор.
 
 ## Тесты
 
@@ -106,6 +111,7 @@ since: 0.1.0
 
 | Версия | Дата | Изменения |
 |--------|------|-----------|
+| 0.12.0 | 2026-08-22 | isAbortError; user-msg оркестратора в лог сразу; restoreTokenIndicator; maxTokens в индикатор (getMaxContextTokens); limitExceeded → finalizeRun + maxIterations 20; onEvent+sessionId воркерам оркестратора (F1 5a) |
 | 0.10.0 | 2026-08-20 | Фикс: результат Plan Mode персистится в сессию + кнопка «Имплементировать» шлёт исходную sessionId (не текущую) — результат не теряется при переключении чатов |
 | 0.10.0 | 2026-08-20 | `computeLineDiff` (git-diff диалога) вынесен в `lineDiff.js` (инлайнится в index.html через `{{LINEDIFF}}`) |
 | 0.10.0 | 2026-08-19 | Автокомплит команд: sendSlashCommandsToWebview (встроенные + скилы + @orchestrate, поле prefix) |

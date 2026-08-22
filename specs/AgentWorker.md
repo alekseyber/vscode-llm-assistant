@@ -43,6 +43,7 @@ since: 0.7.0
 | `outputTokens` | `number` — из `usage.completion_tokens` или chars/4 |
 | `cost` | `number` — стоимость в USD через `calculateCost()` |
 | `error?` | `string` |
+| `limitExceeded?` | `boolean` — воркер не дал финального ответа (исчерпан лимит итераций) |
 
 ## Контракты
 
@@ -56,9 +57,10 @@ since: 0.7.0
 | `enableSummary: true` и messages > 6 | Старые сообщения сжимаются в summary |
 | `createWithTools` вернул `usage` | Токены из API, иначе chars/4 |
 | `createWithTools` без tool_calls | Финальный ответ, завершение цикла |
-| Исчерпан лимит итераций | `answer = 'Агент не дал финального ответа'` |
+| Исчерпан лимит итераций | `answer = 'Агент не дал финального ответа (исчерпан лимит итераций).'` + `limitExceeded: true` |
 | После выполнения `ask_user` (если есть инжект ⚠️ на позиции 1) | Инжект удаляется из messages |
 | LLM выбросил ошибку | Пробрасывается наверх (throw) |
+| LLM выбросил `AbortError` / `APIUserAbortError` | Распознаётся через `isAbortError()` → отмена (не ошибка) |
 | `onEvent` + `sessionId` заданы | Эмитит `tool/call`, `tool/result`, `assistant/message` |
 | `onEvent` или `sessionId` не заданы | События не эмитятся (гард) |
 
@@ -87,7 +89,7 @@ since: 0.7.0
 
 ## Детали реализации
 
-- **Итерации:** max 5 в чате (runAgentLoop), 10 в headless (оркестратор)
+- **Итерации:** max 5 в чате (runAgentLoop), 20 в headless (оркестратор — лимит пробрасывается из ChatViewProvider через workerOptions); дефолт 10
 - **initialMessages:** если передан — используется как есть; иначе строится system + task
 - **Summary:** срабатывает при `enableSummary && i >= 2 && messages.length > 6`. Сжимаются все сообщения кроме system, task, и последних 2 пар. Результат вставляется как system-сообщение.
 - **All tools merging:** `[...baseToolSchemas, ...extraTools]`, затем фильтр по `allowedTools`
@@ -122,12 +124,15 @@ since: 0.7.0
 - MA-1.3: allowedTools фильтрует инструменты, без allowedTools — все доступны
 - MA-1.4: Можно указать отдельную модель (AgentRole.model)
 - MA-1.5: run() возвращает WorkerResult с ответом, шагами, токенами; fallback при исчерпании итераций
+- limitExceeded: воркер без финального ответа возвращает `limitExceeded: true` + фолбэк-ответ
+- Отмена: APIUserAbortError (name='Error') распознаётся через isAbortError как отмена
 - Изоляция: два воркера с разными ролями работают независимо
 
 ## История изменений
 
 | Версия | Дата | Изменения |
 |--------|------|-----------|
+| 0.12.0 | 2026-08-22 | WorkerResult.limitExceeded; isAbortError в catch ReAct-цикла |
 | 0.9.0 | 2026-08-11 | signal и skipGlobalAllowList в AgentWorkerOptions; unfiltered-инструменты для обхода глобального allow-list |
 | 0.9.0 | 2026-08-09 | Добавлен SkillsLoader: инжект скилов в system prompt воркера |
 | 0.8.1 | 2026-08-08 | Очистка инжекта ⚠️ после выполнения ask_user (MA-1.11) |
