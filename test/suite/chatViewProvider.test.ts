@@ -280,6 +280,79 @@ suite('ChatViewProvider.handleSendMessage', () => {
     assert.strictEqual(msgs[1].content, 'архитектура');
   });
 
+  // ===== Отмена: AbortError → cancelled (не error) =====
+
+  test('Plan Mode: AbortError → cancelled (не «Ошибка планирования»)', async () => {
+    const abortErr: any = new Error('Request was aborted');
+    abortErr.name = 'AbortError';
+    sandbox.stub(PlanModeManager.prototype, 'generatePlan').rejects(abortErr);
+    wsFolders = [{ uri: { fsPath: '/tmp' } }];
+
+    const postMessage = sandbox.stub();
+    (provider as any).view = { webview: { postMessage }, show: sandbox.stub() };
+
+    const id1 = cm.session.getActive()!.meta.id;
+    await send('составь план', 'agent', true, id1);
+
+    const types = postMessage.getCalls().map(c => c.args[0]?.type);
+    assert.ok(types.includes('cancelled'), 'должен быть cancelled');
+    assert.ok(!types.includes('error'), 'не должно быть error');
+    assert.strictEqual(history.getRuns()[0].status, 'cancelled');
+  });
+
+  test('handleImplementPlan: AbortError → cancelled (не «Ошибка имплементации»)', async () => {
+    const abortErr: any = new Error('Request was aborted');
+    abortErr.name = 'AbortError';
+    sandbox.stub(PlanModeManager.prototype, 'implementPlan').rejects(abortErr);
+
+    const postMessage = sandbox.stub();
+    (provider as any).view = { webview: { postMessage }, show: sandbox.stub() };
+
+    const id1 = cm.session.getActive()!.meta.id;
+    await (provider as any).handleImplementPlan('/tmp/plan.md', undefined, undefined, id1);
+
+    const types = postMessage.getCalls().map(c => c.args[0]?.type);
+    assert.ok(types.includes('cancelled'), 'должен быть cancelled');
+    assert.ok(!types.includes('error'), 'не должно быть error');
+    assert.strictEqual(history.getRuns()[0].status, 'cancelled');
+  });
+
+  test('@orchestrate: AbortError → cancelled (не ошибка)', async () => {
+    const abortErr: any = new Error('Request was aborted');
+    abortErr.name = 'AbortError';
+    sandbox.stub(AgentOrchestrator.prototype, 'execute').rejects(abortErr);
+
+    const postMessage = sandbox.stub();
+    (provider as any).view = { webview: { postMessage }, show: sandbox.stub() };
+
+    const id1 = cm.session.getActive()!.meta.id;
+    await send('@orchestrate сделай модуль', 'agent', false, id1);
+
+    const types = postMessage.getCalls().map(c => c.args[0]?.type);
+    assert.ok(types.includes('cancelled'), 'должен быть cancelled');
+    assert.ok(!types.includes('error'), 'не должно быть error');
+    assert.strictEqual(history.getRuns()[0].status, 'cancelled');
+  });
+
+  test('агент: AbortError из createWithTools → cancelled', async () => {
+    mockLLM.createWithTools = sinon.stub().callsFake(async () => {
+      const e: any = new Error('Request was aborted');
+      e.name = 'AbortError';
+      throw e;
+    });
+
+    const postMessage = sandbox.stub();
+    (provider as any).view = { webview: { postMessage }, show: sandbox.stub() };
+
+    const id1 = cm.session.getActive()!.meta.id;
+    await send('сделай задачу', 'agent', false, id1);
+
+    const types = postMessage.getCalls().map(c => c.args[0]?.type);
+    assert.ok(types.includes('cancelled'), 'должен быть cancelled');
+    assert.ok(!types.includes('error'), 'не должно быть error');
+    assert.strictEqual(history.getRuns()[0].status, 'cancelled');
+  });
+
   // ===== F1: getTranscript + refreshSessionList =====
 
   test('getTranscript → sessionTranscript с текстом из session-log', async () => {

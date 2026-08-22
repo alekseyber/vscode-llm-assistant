@@ -189,6 +189,49 @@ suite('AgentOrchestrator', () => {
     assert.ok(result.summary.includes('broken ❌'), 'Сводка должна показывать ошибку broken');
   });
 
+  // Отмена: AbortError (в отличие от обычной ошибки) пробрасывается наверх
+  test('отмена: AbortError от воркера пробрасывается наверх', async () => {
+    const provider = {
+      createWithTools: sinon.stub().callsFake(async () => {
+        const e: any = new Error('Request was aborted');
+        e.name = 'AbortError';
+        throw e;
+      }),
+    };
+    const task: MultiAgentTask = {
+      id: 'abort-test',
+      goal: 'Задача',
+      roles: [makeRole('w1')],
+      strategy: 'sequential',
+    };
+
+    const orchestrator = new AgentOrchestrator();
+    let caught: any = null;
+    try { await orchestrator.execute(task, provider); } catch (e: any) { caught = e; }
+
+    assert.strictEqual(caught?.name, 'AbortError', 'AbortError должен проброситься (не изолироваться)');
+  });
+
+  // Отмена: aborted signal передаётся воркерам и останавливает execute
+  test('отмена: aborted signal останавливает execute до вызова LLM', async () => {
+    const provider = createMockProvider('OK');
+    const ac = new AbortController();
+    ac.abort();
+    const task: MultiAgentTask = {
+      id: 'abort-signal',
+      goal: 'Задача',
+      roles: [makeRole('w1')],
+      strategy: 'sequential',
+    };
+
+    const orchestrator = new AgentOrchestrator(undefined, undefined, undefined, { signal: ac.signal });
+    let caught: any = null;
+    try { await orchestrator.execute(task, provider); } catch (e: any) { caught = e; }
+
+    assert.strictEqual(caught?.name, 'AbortError', 'AbortError должен проброситься');
+    assert.strictEqual(provider.createWithTools.called, false, 'LLM не должен вызываться');
+  });
+
   // MA-2.3: sequential останавливается при ошибке
   test('MA-2.3: sequential прерывает цепочку при ошибке воркера', async () => {
     let callCount = 0;
