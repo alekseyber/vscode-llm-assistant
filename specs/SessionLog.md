@@ -66,8 +66,8 @@ status: planned
 | SL-6 | `replay()` восстанавливает путь агента (тулы+аргументы+результаты) | ✅ |
 | SL-7 | `fork()` создаёт сессию-копию | ✅ |
 | SL-8 | `RunHistoryStore` считает cost/steps из лога | ✅ |
-| SL-9 | миграция старых сессий без потери сообщений | planned |
-| SL-10 | unit-тесты: append/derive/replay/fork/migrate | planned |
+| SL-9 | миграция старых сессий без потери сообщений | ✅ |
+| SL-10 | unit-тесты: append/derive/replay/fork/migrate | ✅ |
 
 ## Связи
 
@@ -93,3 +93,4 @@ status: planned
 | 0.1.0 | 2026-08-22 | Этап 2: SL-3 — deriveMessages() + compact() + user/message-эмиссия |
 | 0.1.0 | 2026-08-22 | Этап 3: SL-6/SL-7/SL-8 — computeStats() + steps из лога в RunHistoryStore |
 | 0.1.0 | 2026-08-22 | Оптимизация: per-session ключи Memento (без SQLite) + легаси-миграция |
+| 0.1.0 | 2026-08-22 | SL-9: migrateLegacySessions() — {meta, messages[]} → события, однократно |

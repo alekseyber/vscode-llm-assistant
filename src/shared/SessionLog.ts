@@ -50,6 +50,14 @@ export interface SessionStats {
 
 const KEY_PREFIX = 'llmAssistant.sessionLog.';
 const LEGACY_KEY = 'llmAssistant.sessionLog';
+const MIGRATED_KEY = 'llmAssistant.sessionLog.migrated';
+const LEGACY_SESSIONS_KEY = 'llmAssistant.chat.sessions';
+
+/** Минимальный формат старой сессии SessionManager для миграции (SL-9) */
+interface LegacySession {
+  meta: { lastActiveAt: number };
+  messages: ChatMessage[];
+}
 
 /**
  * SessionLog — append-only журнал событий по сессиям.
@@ -62,6 +70,7 @@ export class SessionLog {
   constructor(storage: vscode.Memento) {
     this.storage = storage;
     this.load();
+    this.migrateLegacySessions();
   }
 
   /** Добавить событие в конец лога. Append-only — существующие события не мутирует. */
@@ -163,6 +172,42 @@ export class SessionLog {
       }
     }
     return stats;
+  }
+
+  /**
+   * Однократная миграция старого формата SessionManager ({meta, messages[]})
+   * в события session-log (SL-9). Не теряет сообщения: user/assistant → события.
+   */
+  migrateLegacySessions(): number {
+    try {
+      if (this.storage.get<string>(MIGRATED_KEY) === 'done') return 0;
+      const legacy = this.storage.get<Record<string, LegacySession>>(LEGACY_SESSIONS_KEY, {});
+      let migrated = 0;
+      for (const [id, session] of Object.entries(legacy)) {
+        if (!session?.messages?.length) continue;
+        if ((this.logs.get(id) ?? []).length > 0) continue; // уже есть события — не трогаем
+        const ts = session.meta?.lastActiveAt ?? Date.now();
+        const events: SessionEvent[] = [];
+        for (const msg of session.messages) {
+          if (msg.role === 'user') {
+            events.push({ sessionId: id, ts, type: 'user/message', content: msg.content });
+          } else if (msg.role === 'assistant') {
+            events.push({ sessionId: id, ts, type: 'assistant/message', content: msg.content });
+          }
+          // system и прочие роли — не часть диалога, пропускаем
+        }
+        if (events.length > 0) {
+          this.logs.set(id, events);
+          this.saveSession(id, events);
+          migrated++;
+        }
+      }
+      this.storage.update(MIGRATED_KEY, 'done');
+      return migrated;
+    } catch (err) {
+      console.error('[SessionLog] Ошибка миграции:', err);
+      return 0;
+    }
   }
 
   /** Обрезать сообщения по токенам: сохраняем summary (первое system) + самые свежие */

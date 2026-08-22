@@ -244,4 +244,91 @@ suite('SessionLog', () => {
     assert.strictEqual(loaded.length, 1);
     assert.strictEqual((loaded[0] as any).content, 'из per-session');
   });
+
+  // ===== SL-9: миграция старых сессий ({meta, messages[]} → события) =====
+
+  test('migrateLegacySessions(): {meta, messages[]} → user/message + assistant/message', () => {
+    const legacy = {
+      session_old: {
+        meta: { lastActiveAt: 100 },
+        messages: [
+          { role: 'user', content: 'привет' },
+          { role: 'assistant', content: 'привет!' },
+        ],
+      },
+    };
+    const storage2 = {
+      keys: sandbox.stub().returns([]),
+      get: sandbox.stub().callsFake((k: string, d: any) => {
+        if (k === 'llmAssistant.chat.sessions') return legacy;
+        if (k === 'llmAssistant.sessionLog.migrated') return undefined;
+        return d;
+      }),
+      update: sandbox.stub().returns(Promise.resolve()),
+      setKeysForSync: sandbox.stub(),
+    };
+    const log2 = new SessionLog(storage2);
+    const events = log2.getEvents('session_old');
+    assert.strictEqual(events.length, 2);
+    assert.strictEqual(events[0].type, 'user/message');
+    assert.strictEqual((events[0] as any).content, 'привет');
+    assert.strictEqual(events[1].type, 'assistant/message');
+    assert.strictEqual((events[1] as any).content, 'привет!');
+  });
+
+  test('migrateLegacySessions(): однократно + пропускает system', () => {
+    const legacy = {
+      session_old: {
+        meta: { lastActiveAt: 1 },
+        messages: [
+          { role: 'system', content: 'инструкция' },
+          { role: 'user', content: 'вопрос' },
+          { role: 'assistant', content: 'ответ' },
+        ],
+      },
+    };
+    let migratedFlag: string | undefined;
+    const storage2 = {
+      keys: sandbox.stub().returns([]),
+      get: sandbox.stub().callsFake((k: string, d: any) => {
+        if (k === 'llmAssistant.chat.sessions') return legacy;
+        if (k === 'llmAssistant.sessionLog.migrated') return migratedFlag;
+        return d;
+      }),
+      update: sandbox.stub().callsFake((k: string, v: any) => {
+        if (k === 'llmAssistant.sessionLog.migrated') migratedFlag = v;
+        return Promise.resolve();
+      }),
+      setKeysForSync: sandbox.stub(),
+    };
+    const log2 = new SessionLog(storage2);
+    const events = log2.getEvents('session_old');
+    assert.strictEqual(events.length, 2, 'system пропущен, user+assistant сохранены');
+    const again = log2.migrateLegacySessions();
+    assert.strictEqual(again, 0, 'повторная миграция вернёт 0 (флаг done)');
+    assert.strictEqual(log2.getEvents('session_old').length, 2, 'не дублирует');
+  });
+
+  test('migrateLegacySessions(): не трогает сессии с уже существующими событиями', () => {
+    const existingKey = 'llmAssistant.sessionLog.session_old';
+    const existingEvents = [{ sessionId: 'session_old', ts: 1, type: 'user/message', content: 'уже в логе' }];
+    const legacy = {
+      session_old: { meta: { lastActiveAt: 1 }, messages: [{ role: 'user', content: 'из старого стора' }] },
+    };
+    const storage2 = {
+      keys: sandbox.stub().returns([existingKey]),
+      get: sandbox.stub().callsFake((k: string, d: any) => {
+        if (k === existingKey) return existingEvents;
+        if (k === 'llmAssistant.chat.sessions') return legacy;
+        if (k === 'llmAssistant.sessionLog.migrated') return undefined;
+        return d;
+      }),
+      update: sandbox.stub().returns(Promise.resolve()),
+      setKeysForSync: sandbox.stub(),
+    };
+    const log2 = new SessionLog(storage2);
+    const events = log2.getEvents('session_old');
+    assert.strictEqual(events.length, 1, 'не дублирует: остаются существующие события');
+    assert.strictEqual((events[0] as any).content, 'уже в логе', 'существующие события не перезаписаны');
+  });
 });
