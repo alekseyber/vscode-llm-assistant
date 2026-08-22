@@ -140,7 +140,7 @@ export function registerCommands(deps: CommandDependencies): void {
   // ── 11. llmAssistant.clearAllSessions — удалить все сессии и логи ──
   context.subscriptions.push(
     vscode.commands.registerCommand('llmAssistant.clearAllSessions', () => {
-      clearAllSessions(conversationManager, refreshSessions);
+      clearAllSessions(conversationManager, runHistoryStore, historyViewProvider, refreshSessions);
     })
   );
 
@@ -536,7 +536,7 @@ function forkSession(conversationManager: ConversationManager, sessionLog: Sessi
 /**
  * Удалить все сессии и их логи (полная очистка). С подтверждением.
  */
-async function clearAllSessions(conversationManager: ConversationManager, refreshSessions?: () => void): Promise<void> {
+async function clearAllSessions(conversationManager: ConversationManager, runHistoryStore: RunHistoryStore, historyViewProvider: HistoryViewProvider, refreshSessions?: () => void): Promise<void> {
   const count = conversationManager.session.listSessions().length;
   const answer = await vscode.window.showWarningMessage(
     `Удалить все сессии (${count}) и их логи? Действие необратимо.`,
@@ -545,6 +545,9 @@ async function clearAllSessions(conversationManager: ConversationManager, refres
   );
   if (answer !== 'Удалить всё') return;
   conversationManager.clearAll();
+  // Все сессии удалены — история запусков ссылалась на них, очищаем
+  runHistoryStore.clearHistory();
+  historyViewProvider?.refresh();
   refreshSessions?.();
   vscode.window.showInformationMessage('Все сессии и логи удалены.');
 }

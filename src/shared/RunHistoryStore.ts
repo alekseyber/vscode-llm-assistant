@@ -128,6 +128,24 @@ export class RunHistoryStore {
   clearHistory(): void {
     this.globalState.update(STORAGE_KEY, []);
   }
+
+  /**
+   * Очистить sessionId у запусков, ссылающихся на удалённую сессию.
+   * Запуски остаются в истории, но теряют привязку к чату (двойной клик неактивен).
+   */
+  clearSessionReferences(sessionId: string): void {
+    const runs = this.getRuns();
+    let changed = false;
+    for (const run of runs) {
+      if (run.sessionId === sessionId) {
+        delete run.sessionId;
+        changed = true;
+      }
+    }
+    if (changed) {
+      this.globalState.update(STORAGE_KEY, runs);
+    }
+  }
 }
 
 /**

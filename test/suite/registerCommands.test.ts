@@ -38,7 +38,7 @@ suite('registerCommands', () => {
       },
       editController: { handleEditSelection: sandbox.stub() },
       autocompleteController: { toggleAutocomplete: sandbox.stub() },
-      runHistoryStore: { recordRun: sandbox.stub() },
+      runHistoryStore: { recordRun: sandbox.stub(), clearHistory: sandbox.stub() },
       historyViewProvider: { refresh: sandbox.stub() },
       reviewViewProvider: { showReview: sandbox.stub() },
       sessionLog: { toTranscript: sandbox.stub().returns(''), fork: sandbox.stub(), computeStats: sandbox.stub().returns({ steps: 0, toolCalls: 0, toolResults: 0, errors: 0, userMessages: 0, assistantMessages: 0, chunks: 0 }) },
@@ -97,6 +97,7 @@ suite('registerCommands', () => {
     await handler();
 
     assert.ok(deps.conversationManager.clearAll.calledOnce, 'clearAll вызван');
+    assert.ok(deps.runHistoryStore.clearHistory.calledOnce, 'история запусков очищена');
     assert.ok(deps.refreshSessions.calledOnce, 'refresh вызван');
   });
 

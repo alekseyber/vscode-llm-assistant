@@ -206,6 +206,19 @@ suite('RunHistoryStore', () => {
     assert.strictEqual(store.getRuns().length, 0);
   });
 
+  test('clearSessionReferences() очищает sessionId у запусков удалённой сессии', () => {
+    store.recordRun(makeEntry({ id: 'run-1', sessionId: 'session_deleted' }));
+    store.recordRun(makeEntry({ id: 'run-2', sessionId: 'session_kept' }));
+
+    store.clearSessionReferences('session_deleted');
+
+    const runs = store.getRuns();
+    const deletedRun = runs.find(r => r.id === 'run-1');
+    const keptRun = runs.find(r => r.id === 'run-2');
+    assert.strictEqual(deletedRun?.sessionId, undefined, 'привязка к удалённой сессии очищена');
+    assert.strictEqual(keptRun?.sessionId, 'session_kept', 'другая сессия не тронута');
+  });
+
   // --- Типы записей ---
 
   test('корректно сохраняет все поля RunEntry', () => {

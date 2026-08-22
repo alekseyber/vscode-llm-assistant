@@ -127,6 +127,9 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         if (message.sessionId) {
           this.conversationManager.session.deleteSession(message.sessionId);
           this.sessionLog?.deleteSession(message.sessionId);
+          // Очищаем привязку запусков истории к удалённой сессии (иначе двойной клик ведёт в «мёртвую» сессию)
+          this.runHistoryStore.clearSessionReferences(message.sessionId);
+          this.historyViewProvider?.refresh();
           this.sendHistoryToWebview();
           this.sendSessionListToWebview();
         }
@@ -149,7 +152,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
   /** Переключить активную сессию чата (вызывается из вкладки «История» по двойному клику) */
   public switchToSession(sessionId: string): void {
-    console.warn(`[LLM Assistant] switchToSession: ${sessionId?.slice(0, 16)}, существует=${this.conversationManager.session.listSessions().some(s => s.id === sessionId)}`);
+    const exists = this.conversationManager.session.listSessions().some(s => s.id === sessionId);
+    if (!exists) {
+      vscode.window.showWarningMessage('Эта сессия удалена — чат недоступен.');
+      return;
+    }
     this.conversationManager.session.switchTo(sessionId);
     this.sendHistoryToWebview();
     this.sendSessionListToWebview();
