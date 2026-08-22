@@ -48,6 +48,8 @@ export interface CommandDependencies {
   reviewViewProvider: ReviewViewProvider;
   /** Лог сессий (F1) — для экспорта транскрипции и fork */
   sessionLog: SessionLog;
+  /** Колбэк обновления списка сессий в WebView (для fork) */
+  refreshSessions?: () => void;
 }
 
 /**
@@ -58,7 +60,7 @@ export interface CommandDependencies {
  * @param deps - зависимости (контекст, менеджеры, контроллеры режимов)
  */
 export function registerCommands(deps: CommandDependencies): void {
-  const { context, providerManager, conversationManager, editController, autocompleteController, runHistoryStore, historyViewProvider, reviewViewProvider, sessionLog } = deps;
+  const { context, providerManager, conversationManager, editController, autocompleteController, runHistoryStore, historyViewProvider, reviewViewProvider, sessionLog, refreshSessions } = deps;
 
   // ── 1. llmAssistant.chat.focus (Ctrl+Shift+L) — открыть/сфокусировать чат ──
   context.subscriptions.push(
@@ -131,7 +133,7 @@ export function registerCommands(deps: CommandDependencies): void {
   // ── 10. llmAssistant.forkSession — копия активной сессии (fork/resume) ──
   context.subscriptions.push(
     vscode.commands.registerCommand('llmAssistant.forkSession', () => {
-      forkSession(conversationManager, sessionLog);
+      forkSession(conversationManager, sessionLog, refreshSessions);
     })
   );
 
@@ -507,7 +509,7 @@ async function exportSession(conversationManager: ConversationManager, sessionLo
 /**
  * Создать копию активной сессии (fork/resume): дублирует SessionManager + session-log.
  */
-function forkSession(conversationManager: ConversationManager, sessionLog: SessionLog): void {
+function forkSession(conversationManager: ConversationManager, sessionLog: SessionLog, refreshSessions?: () => void): void {
   const sourceId = conversationManager.session.getActive()?.meta.id;
   if (!sourceId) {
     vscode.window.showWarningMessage('Нет активной сессии.');
@@ -516,6 +518,7 @@ function forkSession(conversationManager: ConversationManager, sessionLog: Sessi
   const newId = conversationManager.session.duplicateSession(sourceId);
   if (newId) {
     sessionLog.fork(sourceId, newId);
+    refreshSessions?.();
     vscode.window.showInformationMessage('Сессия скопирована (fork) — можно продолжать с новой ветки.');
   }
 }

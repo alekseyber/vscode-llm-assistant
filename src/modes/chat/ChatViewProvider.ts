@@ -145,6 +145,13 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
           this.sendSessionListToWebview();
         }
         break;
+      case 'copySession': {
+        const sid = (message.sessionId as string) || this.conversationManager.session.getActive()?.meta.id;
+        if (sid && this.sessionLog) {
+          this.postMessage({ type: 'sessionTranscript', text: this.sessionLog.toTranscript(sid) });
+        }
+        break;
+      }
     }
   }
 
@@ -155,6 +162,12 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     this.sendSessionListToWebview();
     // Фокусируем вкладку чата (reveal) — иначе переключение сессии не видно
     this.view?.show(true);
+  }
+
+  /** Обновить список сессий + историю в WebView (для fork и внешних изменений) */
+  public refreshSessionList(): void {
+    this.sendHistoryToWebview();
+    this.sendSessionListToWebview();
   }
 
   private async handleSendMessage(text: string, mode = 'chat', providerName?: string, modelName?: string, planMode?: boolean, sessionId?: string): Promise<void> {

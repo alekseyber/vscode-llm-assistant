@@ -654,6 +654,17 @@
         slashItems = message.items || [];
         break;
 
+      case 'sessionTranscript':
+        navigator.clipboard.writeText(message.text || '').then(() => {
+          const btn = document.getElementById('btn-share');
+          if (btn) {
+            const orig = btn.textContent;
+            btn.textContent = '✅';
+            setTimeout(() => btn.textContent = orig, 1500);
+          }
+        });
+        break;
+
       case 'confirmAction':
         showConfirmDialog(message);
         break;
@@ -1111,16 +1122,11 @@
     postMessage({ type: 'cancelRequest', sessionId: sessionSelect?.value || '' });
   });
 
-  // Поделиться с Hermes
+  // Копировать сессию в буфер (транскрипция из session-log через extension)
   const shareButton = document.getElementById('btn-share');
   if (shareButton) {
     shareButton.addEventListener('click', () => {
-      const text = buildSessionText();
-      navigator.clipboard.writeText(text).then(() => {
-        const orig = shareButton.textContent;
-        shareButton.textContent = '✅';
-        setTimeout(() => shareButton.textContent = orig, 1500);
-      });
+      postMessage({ type: 'copySession', sessionId: sessionSelect?.value || '' });
     });
   }
 
