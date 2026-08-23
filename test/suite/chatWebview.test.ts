@@ -394,4 +394,70 @@ suite('ChatWebview (jsdom)', () => {
     const cancel = document.getElementById('btn-cancel') as HTMLElement;
     assert.ok(cancel.textContent!.includes('Остановить'), 'кнопка Остановить');
   });
+
+  test('input-toolbar: при загрузке активен Agent (AC P0-4.3)', () => {
+    const { document } = loadWebview();
+
+    const agent = document.querySelector('#input-toolbar [data-mode="agent"]') as HTMLElement;
+    assert.ok(agent.classList.contains('active'), 'Agent активен по умолчанию');
+
+    const others = [...document.querySelectorAll('#input-toolbar .mode-toggle:not([data-mode="agent"])')];
+    for (const b of others) {
+      assert.ok(!b.classList.contains('active'), `${(b as HTMLElement).dataset.mode} не активен`);
+    }
+  });
+
+  test('input-toolbar: клик переключает активный тумблер (AC P0-4.1)', () => {
+    const { document } = loadWebview();
+
+    const plan = document.querySelector('#input-toolbar [data-mode="plan"]') as HTMLElement;
+    plan.click();
+    assert.ok(plan.classList.contains('active'), 'План активен');
+    assert.ok(!(document.querySelector('#input-toolbar [data-mode="agent"]') as HTMLElement).classList.contains('active'), 'Agent деактивирован');
+
+    const ask = document.querySelector('#input-toolbar [data-mode="ask"]') as HTMLElement;
+    ask.click();
+    assert.ok(ask.classList.contains('active'), 'Ask активен');
+    assert.ok(!plan.classList.contains('active'), 'План деактивирован');
+  });
+
+  test('input-toolbar: Ask → sendMessage mode=chat (AC P0-4.2)', () => {
+    const { document, postedMessages } = loadWebview();
+
+    (document.querySelector('#input-toolbar [data-mode="ask"]') as HTMLElement).click();
+    (document.getElementById('message-input') as HTMLTextAreaElement).value = 'привет';
+    (document.getElementById('btn-send') as HTMLElement).click();
+
+    const msg = postedMessages.find((m) => m.type === 'sendMessage');
+    assert.ok(msg, 'sendMessage отправлен');
+    assert.strictEqual(msg.mode, 'chat', 'Ask → chat');
+    assert.strictEqual(msg.planMode, false, 'не plan');
+    assert.strictEqual(msg.text, 'привет', 'текст без префикса');
+  });
+
+  test('input-toolbar: План → sendMessage planMode=true (AC P0-4.1)', () => {
+    const { document, postedMessages } = loadWebview();
+
+    (document.querySelector('#input-toolbar [data-mode="plan"]') as HTMLElement).click();
+    (document.getElementById('message-input') as HTMLTextAreaElement).value = 'задача';
+    (document.getElementById('btn-send') as HTMLElement).click();
+
+    const msg = postedMessages.find((m) => m.type === 'sendMessage');
+    assert.strictEqual(msg.mode, 'agent', 'План → agent');
+    assert.strictEqual(msg.planMode, true, 'planMode=true');
+    assert.strictEqual(msg.text, 'задача', 'текст без изменений');
+  });
+
+  test('input-toolbar: Субагенты → sendMessage с @orchestrate-префиксом (AC P0-4.1)', () => {
+    const { document, postedMessages } = loadWebview();
+
+    (document.querySelector('#input-toolbar [data-mode="subagents"]') as HTMLElement).click();
+    (document.getElementById('message-input') as HTMLTextAreaElement).value = 'построй проект';
+    (document.getElementById('btn-send') as HTMLElement).click();
+
+    const msg = postedMessages.find((m) => m.type === 'sendMessage');
+    assert.strictEqual(msg.mode, 'agent', 'Субагенты → agent');
+    assert.strictEqual(msg.planMode, false, 'не plan');
+    assert.strictEqual(msg.text, '@orchestrate построй проект', 'префикс @orchestrate добавлен');
+  });
 });

@@ -571,13 +571,22 @@
     messageInput.value = '';
     addMessage('user', text);
 
-    const mode = document.getElementById('mode-select')?.value || 'agent';
     const provider = document.getElementById('provider-select')?.value || '';
     const model = document.getElementById('model-select')?.value || '';
-    // Plan Mode: добавляем флаг в сообщение
-    const planMode = document.getElementById('plan-mode-checkbox')?.checked || false;
 
-    postMessage({ type: 'sendMessage', text, mode, provider, model, planMode, sessionId: currentSessionId || '' });
+    // Режим из тумблеров (P0 Этап 4): ask → chat, plan → agent+planMode, subagents → @orchestrate
+    let mode = 'agent';
+    let planMode = false;
+    let sendText = text;
+    if (currentMode === 'ask') {
+      mode = 'chat';
+    } else if (currentMode === 'plan') {
+      planMode = true;
+    } else if (currentMode === 'subagents') {
+      sendText = '@orchestrate ' + text;
+    }
+
+    postMessage({ type: 'sendMessage', text: sendText, mode, provider, model, planMode, sessionId: currentSessionId || '' });
 
     streamingIndicator.classList.remove('hidden');
     sendButton.textContent = '⏹️';
@@ -1349,26 +1358,31 @@
     });
   }
 
-  // ---------- Plan Mode ----------
-
-  /** Текущий режим (agent/chat) */
-  let currentMode = 'agent';
+  // ---------- Mode Toggles (P0, Этап 4) ----------
 
   /**
-   * Показать/скрыть переключатель Plan Mode в зависимости от режима.
+   * Текущий режим ввода: 'ask' (чат) | 'agent' | 'plan' | 'subagents' (оркестратор).
+   * Синхронизируется с тумблерами при загрузке (AC P0-4.3) — дефолт 'agent'.
    */
-  function updatePlanModeToggle() {
-    const toggle = document.getElementById('plan-mode-toggle');
-    if (!toggle) return;
-    if (currentMode === 'agent') {
-      toggle.classList.remove('hidden');
-    } else {
-      toggle.classList.add('hidden');
-      // Сбрасываем Plan Mode при переключении в chat
-      const checkbox = document.getElementById('plan-mode-checkbox');
-      if (checkbox) checkbox.checked = false;
-    }
+  let currentMode = 'agent';
+
+  /** Установить режим + подсветить активный тумблер. */
+  function setMode(mode) {
+    currentMode = mode;
+    document.querySelectorAll('#input-toolbar .mode-toggle').forEach((btn) => {
+      btn.classList.toggle('active', btn.dataset.mode === mode);
+    });
   }
+
+  /** Инициализировать тумблеры режимов (Ask / Agent / План / Субагенты). */
+  function initModeToggles() {
+    document.querySelectorAll('#input-toolbar .mode-toggle').forEach((btn) => {
+      btn.addEventListener('click', () => setMode(btn.dataset.mode));
+    });
+    setMode('agent'); // синхронизация с дефолтным режимом при загрузке (AC P0-4.3)
+  }
+
+  initModeToggles();
 
   /**
    * Показать сгенерированный план.
@@ -1429,17 +1443,6 @@
     btnEdit.addEventListener('click', () => {
       hidePlan();
       addMessage('assistant', '_План отклонён. Уточни задачу и отправь снова._');
-    });
-  }
-
-  // Обработчик смены режима (agent ↔ chat) — показать/скрыть Plan Mode
-  const modeSelect = document.getElementById('mode-select');
-  if (modeSelect) {
-    currentMode = modeSelect.value; // синхронизируем начальное состояние
-    updatePlanModeToggle();         // показываем/скрываем при загрузке
-    modeSelect.addEventListener('change', () => {
-      currentMode = modeSelect.value;
-      updatePlanModeToggle();
     });
   }
 

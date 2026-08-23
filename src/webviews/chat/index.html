@@ -73,13 +73,12 @@
 
       <!-- Блок ввода сообщения -->
       <div id="input-container">
-        <!-- Переключатель Plan Mode (только для agent-режима) -->
-        <div id="plan-mode-toggle" class="plan-mode-toggle hidden">
-          <label class="toggle-label">
-            <input type="checkbox" id="plan-mode-checkbox" />
-            <span class="toggle-switch"></span>
-            <span class="toggle-text">📋 Plan</span>
-          </label>
+        <!-- Тумблеры режимов (P0, Этап 4): Ask / Agent / План / Субагенты -->
+        <div id="input-toolbar" class="input-toolbar">
+          <button class="mode-toggle ask-toggle" data-mode="ask" title="Ask — простой вопрос (чат)">💬 Ask <span class="ask-chevron">▾</span></button>
+          <button class="mode-toggle" data-mode="agent" title="Агент — ReAct с инструментами">🤖 Agent</button>
+          <button class="mode-toggle" data-mode="plan" title="План — Plan Mode">📋 План</button>
+          <button class="mode-toggle" data-mode="subagents" title="Субагенты — оркестратор">👥 Субагенты</button>
         </div>
         <!-- Автокомплит слэш-команд -->
         <div id="slash-autocomplete" class="slash-autocomplete hidden"></div>
@@ -89,10 +88,6 @@
         <div id="input-controls">
           <input type="file" id="file-input" multiple style="display:none" />
           <button id="btn-attach" class="icon-btn" title="Прикрепить файлы">📎</button>
-          <select id="mode-select" class="input-select" title="Режим">
-            <option value="agent" selected>🤖 Агент</option>
-            <option value="chat">💬 Чат</option>
-          </select>
           <select id="provider-select" class="input-select" title="Провайдер"></select>
           <select id="model-select" class="input-select" title="Модель"></select>
           <button id="btn-send" class="send-btn" title="Отправить">➤</button>
