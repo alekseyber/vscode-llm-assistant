@@ -50,7 +50,7 @@ code --install-extension alekseyber.vscode-llm-assistant
 
 **Из `.vsix` (ручная установка):**
 ```bash
-code --install-extension vscode-llm-assistant-0.11.2.vsix
+code --install-extension vscode-llm-assistant-0.13.0.vsix
 ```
 
 **Быстрый старт:**
@@ -340,17 +340,17 @@ code --install-extension vscode-llm-assistant-0.11.2.vsix
 ## Разработка
 
 - **Стек:** TypeScript, VS Code Extension API, WebView, Webpack
-- **Тесты:** Mocha + Sinon (335 mocked), E2E в реальном VS Code (20 тестов), GitHub Actions CI
-- **SDD:** 36 spec-файлов (`specs/`), валидатор, pre-commit + CI
+- **Тесты:** Mocha + Sinon (449 mocked), E2E в реальном VS Code (22 теста), GitHub Actions CI
+- **SDD:** 41 spec-файлов (`specs/`), валидатор, pre-commit + CI
 - **Репозиторий:** github.com/alekseyber/vscode-llm-assistant
-- **Спецификации:** [specs/](https://github.com/alekseyber/vscode-llm-assistant/tree/main/specs) — 36 компонентов, интерфейсы, контракты, AC
+- **Спецификации:** [specs/](https://github.com/alekseyber/vscode-llm-assistant/tree/main/specs) — 38 компонентов (+3 мета-документа), интерфейсы, контракты, AC
 - **Changelog:** [CHANGELOG.md](CHANGELOG.md)
 
 ```bash
 npm install
 npm run compile        # Сборка
 npm run lint           # Линтер
-npm run test:mocked    # Тесты без VS Code (335 шт.)
+npm run test:mocked    # Тесты без VS Code (449 шт.)
 node scripts/spec-validate.js  # Проверка SDD
 ```
 
@@ -359,7 +359,7 @@ node scripts/spec-validate.js  # Проверка SDD
 **Установка локальной сборки:**
 ```bash
 rm -rf ~/.vscode-server/extensions/alekseyber.vscode-llm-assistant-*
-code --install-extension vscode-llm-assistant-0.11.2.vsix
+code --install-extension vscode-llm-assistant-0.13.0.vsix
 ```
 
 ## Лицензия
