@@ -444,4 +444,36 @@ suite('ChatViewProvider.handleSendMessage', () => {
     assert.ok(executeCommand.calledOnce, 'executeCommand вызван один раз');
     assert.ok(executeCommand.calledWith('llmAssistant.clearAllSessions'), 'с правильным именем команды');
   });
+
+  test('toggleFavorite: переключает избранное и пересылает sessionList', async () => {
+    const postMessage = sandbox.stub();
+    (provider as any).view = { webview: { postMessage } };
+
+    const sid = cm.session.getActive()!.meta.id;
+    await (provider as any).handleWebviewMessage({ type: 'toggleFavorite', sessionId: sid });
+
+    assert.strictEqual(cm.session.getActive()!.meta.favorite, true, 'избранное включено');
+
+    const msg = postMessage.getCalls().map((c: any) => c.args[0]).find((m: any) => m.type === 'sessionList');
+    assert.ok(msg, 'sessionList переслан');
+    const s = msg.sessions.find((x: any) => x.id === sid);
+    assert.strictEqual(s.favorite, true, 'favorite проставлен в sessionList');
+  });
+
+  test('sendSessionListToWebview: обогащает сессии превью из session-log', () => {
+    const postMessage = sandbox.stub();
+    (provider as any).view = { webview: { postMessage } };
+
+    const sid = cm.session.getActive()!.meta.id;
+    const sessionLog = new SessionLog(storage);
+    sessionLog.append({ sessionId: sid, ts: 1, type: 'user/message', content: 'Как написать юнит-тест?' });
+    (provider as any).sessionLog = sessionLog;
+
+    (provider as any).sendSessionListToWebview();
+
+    const msg = postMessage.getCall(0).args[0];
+    const s = msg.sessions.find((x: any) => x.id === sid);
+    assert.ok(s, 'сессия в sessionList');
+    assert.strictEqual(s.preview, 'Как написать юнит-тест?', 'превью из последнего сообщения');
+  });
 });

@@ -180,4 +180,23 @@ suite('SessionManager', () => {
     const sm = new SessionManager(storage);
     assert.strictEqual(sm.duplicateSession('нет_такой'), undefined);
   });
+
+  test('toggleFavorite(): переключает избранное и возвращает состояние', () => {
+    const sm = new SessionManager(storage);
+    const id = sm.getActive()!.meta.id;
+    assert.strictEqual(sm.getActive()!.meta.favorite, false, 'по умолчанию не избранная');
+
+    const on = sm.toggleFavorite(id);
+    assert.strictEqual(on, true, 'вернул true');
+    assert.strictEqual(sm.getActive()!.meta.favorite, true, 'стала избранной');
+
+    const off = sm.toggleFavorite(id);
+    assert.strictEqual(off, false, 'вернул false');
+    assert.strictEqual(sm.getActive()!.meta.favorite, false, 'снята');
+  });
+
+  test('toggleFavorite(): для несуществующей сессии → false', () => {
+    const sm = new SessionManager(storage);
+    assert.strictEqual(sm.toggleFavorite('нет_такой'), false);
+  });
 });

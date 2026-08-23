@@ -145,6 +145,12 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
           this.sendSessionListToWebview();
         }
         break;
+      case 'toggleFavorite':
+        if (message.sessionId) {
+          this.conversationManager.session.toggleFavorite(message.sessionId);
+          this.sendSessionListToWebview();
+        }
+        break;
       case 'getTranscript': {
         const sid = (message.sessionId as string) || this.conversationManager.session.getActive()?.meta.id;
         if (sid && this.sessionLog) {
@@ -950,7 +956,24 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   }
   private sendSessionListToWebview(): void {
     if (!this.view) return;
-    this.postMessage({ type: 'sessionList', sessions: this.conversationManager.session.listSessions(), activeId: this.conversationManager.session.getActive()?.meta.id });
+    const sessions = this.conversationManager.session.listSessions().map(s => ({
+      ...s,
+      preview: this.getSessionPreview(s.id),
+    }));
+    this.postMessage({ type: 'sessionList', sessions, activeId: this.conversationManager.session.getActive()?.meta.id });
+  }
+
+  /** Превью сессии для сайдбара (P0 Этап 2): последнее сообщение из session-log. */
+  private getSessionPreview(sessionId: string): string {
+    const events = this.sessionLog?.getEvents(sessionId) ?? [];
+    for (let i = events.length - 1; i >= 0; i--) {
+      const e = events[i];
+      if (e.type === 'user/message' || e.type === 'assistant/message') {
+        const text = e.content.replace(/\s+/g, ' ').trim();
+        return text.length > 80 ? text.slice(0, 80) + '…' : text;
+      }
+    }
+    return '';
   }
   private sendProviderListToWebview(): void {
     if (!this.view) return;

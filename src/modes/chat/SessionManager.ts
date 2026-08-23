@@ -11,6 +11,8 @@ export interface SessionMeta {
   createdAt: number;
   lastActiveAt: number;
   messageCount: number;
+  /** Избранная сессия (сайдбар, P0 Этап 2) — опционально для обратной совместимости */
+  favorite?: boolean;
 }
 
 /** Полные данные сессии */
@@ -102,6 +104,7 @@ export class SessionManager {
         createdAt: Date.now(),
         lastActiveAt: Date.now(),
         messageCount: 0,
+        favorite: false,
       },
       messages: [],
     };
@@ -124,6 +127,7 @@ export class SessionManager {
         createdAt: Date.now(),
         lastActiveAt: Date.now(),
         messageCount: messageCount ?? source.messages.length,
+        favorite: false,
       },
       messages: [...source.messages],
     };
@@ -138,6 +142,15 @@ export class SessionManager {
   renameSession(id: string, name: string): void {
     const s = this.sessions.get(id);
     if (s) { s.meta.name = name; this.save(); }
+  }
+
+  /** Переключить избранное сессии (сайдбар, P0 Этап 2). Возвращает новое состояние. */
+  toggleFavorite(id: string): boolean {
+    const s = this.sessions.get(id);
+    if (!s) return false;
+    s.meta.favorite = !s.meta.favorite;
+    this.save();
+    return s.meta.favorite;
   }
 
   /** Авто-имя из первого сообщения пользователя (контент передаётся извне — F1 5d) */

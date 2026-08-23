@@ -27,7 +27,7 @@ since: 0.1.0
 | `sendMessage` | Отправка сообщения (text, mode, provider, model) |
 | `cancelRequest` | Отмена запроса |
 | `ready` | WebView загружен |
-| `newSession` / `switchSession` / `deleteSession` / `renameSession` | Управление сессиями |
+| `newSession` / `switchSession` / `deleteSession` / `renameSession` / `toggleFavorite` | Управление сессиями |
 | `clearAllSessions` | Удалить все сессии и логи (кнопка в ⋮-меню тулбара) |
 | `attachFile` | Прикрепление файла (text или image) |
 | `confirmResponse` | Ответ на диалог подтверждения |
@@ -64,7 +64,7 @@ since: 0.1.0
 - **IIFE:** весь код в `(function() { 'use strict'; ... })()`
 - **Markdown:** `marked.parse()` с `{ breaks: true, gfm: true }`. Экранирование HTML до рендера, восстановление ссылок после.
 - **Стриминг:** буферизация чанков в `streamBuffer`. При `done` — финальный рендер + `streamingMessage = null`.
-- **Сессии:** рендерятся в `#session-list`. Активная выделяется классом `active`. Двойной клик для переименования.
+- **Сессии:** рендерятся в `#session-list` (левый сайдбар, P0 Этап 2 — вместо dropdown). Группировка по датам: Сегодня / Вчера / 7 дней / Ранее. Элемент: имя (⭐ если избранная) + превью + время + hover-действия (избранное/переименовать/удалить). Активная выделяется классом `active`. Переключение — клик по элементу.
 - **Подсветка кода:** ручная (не highlight.js) — regex-правила для 8 языков. Добавляется `hljs-keyword`, `hljs-string`, `hljs-comment`, `hljs-number`, `hljs-title`.
 - **Confirmation:** модальное окно с `requestId`. Ответ через `confirmResponse`.
 - **Провайдеры:** селектор `<select id="provider-select">`, модели обновляются при смене провайдера.
@@ -90,7 +90,7 @@ since: 0.1.0
 ```json
 {
   "type": "sessionList",
-  "sessions": [{"id": "...", "name": "...", "createdAt": 123, "lastActiveAt": 123, "messageCount": 5}],
+  "sessions": [{"id": "...", "name": "...", "createdAt": 123, "lastActiveAt": 123, "messageCount": 5, "favorite": false, "preview": "..."}],
   "activeId": "..."
 }
 ```
@@ -118,5 +118,6 @@ since: 0.1.0
 
 | Версия | Дата | Изменения |
 |--------|------|-----------|
+| 0.13.0 | 2026-08-22 | P0 Этап 2: левый сайдбар сессий (группировка, превью, избранное/переименовать/удалить) вместо dropdown |
 | 0.13.0 | 2026-08-22 | P0 Этап 1: тулбар ⋮ — реестр `TOOLBAR_ACTIONS` (`toolbar.js`), primary-иконки + ⋮-меню, «Удалить все сессии» (`clearAllSessions`) |
 | 0.1.0 | 2026-08-04 | Базовая реализация |

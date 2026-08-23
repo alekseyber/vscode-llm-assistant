@@ -23,7 +23,7 @@ since: 0.1.0
 | `cancelRequest` | `handleCancelRequest()` |
 | `clearHistory` | `conversationManager.clearHistory()` |
 | `clearAllSessions` | `commands.executeCommand('llmAssistant.clearAllSessions')` (модальный флоу) |
-| `newSession` / `switchSession` / `deleteSession` / `renameSession` | Делегирование в `SessionManager` |
+| `newSession` / `switchSession` / `deleteSession` / `renameSession` / `toggleFavorite` | Делегирование в `SessionManager` |
 
 ### `handleSendMessage(text, mode, provider?, model?)`
 
@@ -95,6 +95,7 @@ since: 0.1.0
 - **Session-log (F1):** конструктор принимает опциональный `sessionLog`. В `runAgentLoop` в `AgentWorker` передаются `sessionId` + `onEvent: e => sessionLog.append(e)` (персист `tool/call`, `tool/result`, `assistant/message`). В стриминговых ветках (chat + vision) `logStreamChunk`/`finalizeStream` пишут `assistant/chunk` (троттлинг по ~200 симв.) и `assistant/message`. `logUserMessage` пишет `user/message` при добавлении пользовательского сообщения (chat + vision). `resolveSessionId` разрешает активную сессию при `sessionId === undefined`.
 - **Копирование/экспорт сессии (F1):** кнопки «Копировать сессию в буфер» (`btn-share`) и «Экспорт в Markdown» (`btn-export`) шлют `getTranscript` (с `action: 'copy' | 'download'`) → ChatViewProvider отвечает `toTranscript()` → `sessionTranscript` → WebView копирует в clipboard или скачивает `.md`. Источник — session-log, не DOM (DOM-костыль `buildSessionText` удалён). `refreshSessionList()` — публичный метод обновления списка сессий + истории (вызывается из команды fork).
 - **Тулбар ⋮ + «Удалить все» (P0, Этап 1):** WebView шлёт `clearAllSessions` → ChatViewProvider делегирует в команду `llmAssistant.clearAllSessions` через `executeCommand` (модальный флоу подтверждения уже там — без дублирования логики). Кнопки тулбара рендерятся из декларативного реестра `TOOLBAR_ACTIONS` (webview-ресурс `toolbar.js`), `getHtmlForWebview` инжектит его через `{{TOOLBAR}}`.
+- **Сайдбар сессий + превью (P0, Этап 2):** `sendSessionListToWebview` обогащает каждую сессию полем `preview` (последнее `user/message`/`assistant/message` из session-log, до 80 символов, через `getSessionPreview`). `toggleFavorite` → `SessionManager.toggleFavorite(id)` → пересылка `sessionList`.
 - **Оркестратор → session-log (F1 5a):** воркеры оркестратора создаются с `sessionId` + `onEvent: e => sessionLog.append(e)` (через workerOptions) — tool-события оркестратора пишутся в лог, экспорт/копия оркестратор-сессии стали полными (🔧-шаги). User-сообщение `@orchestrate` пишется в лог в **начале** оркестрации (до раннего return) — иначе список сообщений пуст при переключении чата.
 - **Plan Mode → session-log (F1 5a, 0.12.1):** `handlePlanMode`/`handleImplementPlan` создают `PlanModeManager(workspacePath, resolveSessionId(sessionId), e => sessionLog.append(e))` — tool-события Plan Mode (PlannerAgent/оркестратор/ReviewerAgent/coderFixer) пишутся в лог, экспорт/копия plan-сессий полные.
 - **restoreTokenIndicator:** при `ready`/`switchSession`/`switchToSession` индикатор 📊 подтягивает токены последнего запуска активной сессии из `RunHistoryStore` — решает «0+0 ≈ $0.0000 / 0/4096» у исходника после переключения/загрузки.
@@ -115,6 +116,7 @@ since: 0.1.0
 | Версия | Дата | Изменения |
 |--------|------|-----------|
 | 0.13.0 | 2026-08-22 | P0 Этап 1: тулбар ⋮ + «Удалить все» — WebView шлёт `clearAllSessions` → `executeCommand('llmAssistant.clearAllSessions')`; `getHtmlForWebview` инжектит `toolbar.js` (`{{TOOLBAR}}`) |
+| 0.13.0 | 2026-08-22 | P0 Этап 2: сайдбар сессий — `sessionList` с `preview` (getSessionPreview) + обработчик `toggleFavorite` |
 | 0.12.1 | 2026-08-22 | Plan Mode → session-log: PlanModeManager получает sessionId + onEvent (tool-события planner/оркестратора/ревьюера в лог) |
 | 0.12.0 | 2026-08-22 | isAbortError; user-msg оркестратора в лог сразу; restoreTokenIndicator; maxTokens в индикатор (getMaxContextTokens); limitExceeded → finalizeRun + maxIterations 20; onEvent+sessionId воркерам оркестратора (F1 5a) |
 | 0.10.0 | 2026-08-20 | Фикс: результат Plan Mode персистится в сессию + кнопка «Имплементировать» шлёт исходную sessionId (не текущую) — результат не теряется при переключении чатов |

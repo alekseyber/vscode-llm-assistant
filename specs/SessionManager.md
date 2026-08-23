@@ -27,6 +27,8 @@ since: 0.1.0
 
 ### `renameSession(id, name)` / `autoNameSession(id)` / `clearActive()`
 
+### `toggleFavorite(id) → boolean` — переключить избранное сессии (сайдбар, P0 Этап 2), возвращает новое состояние
+
 ### `duplicateSession(sourceId, messageCount?) → newId | undefined` — копия сессии (fork/resume), переключает активную
 
 ### `touchSession(sessionId, messageCount)` — обновить meta (lastActiveAt + messageCount) без хранения messages (F1 5d)
@@ -70,7 +72,7 @@ since: 0.1.0
 ### Session
 ```json
 {
-  "meta": { "id": "session_<uuid>", "name": "...", "createdAt": 123, "lastActiveAt": 123, "messageCount": 0 },
+  "meta": { "id": "session_<uuid>", "name": "...", "createdAt": 123, "lastActiveAt": 123, "messageCount": 0, "favorite": false },
   "messages": [{ "role": "user", "content": "..." }, ...]
 }
 ```
@@ -89,6 +91,7 @@ since: 0.1.0
 
 | Версия | Дата | Изменения |
 |--------|------|-----------|
+| 0.13.0 | 2026-08-22 | P0 Этап 2: `favorite` в SessionMeta + `toggleFavorite(id)` (сайдбар сессий) |
 | 0.7.0 | 2026-08-05 | crypto.randomUUID вместо Date.now |
 | 0.1.0 | 2026-08-04 | Базовая реализация |
 | 0.10.0 | 2026-08-20 | `addMessageTo(sessionId)` — сессионная маршрутизация сообщений |

@@ -9,86 +9,95 @@
   <style>{{STYLES}}</style>
 </head>
 <body>
-  <!-- Шапка -->
-  <header id="chat-header">
-    <span id="header-title">Чат</span>
-    <div id="token-indicator" class="token-indicator">
-      <span class="token-text">📊 0+0 ≈ $0.0000</span>
-      <div class="token-bar">
-        <div class="token-bar-fill" style="width:0%"></div>
+  <div id="app">
+    <!-- Сайдбар сессий (P0, Этап 2) -->
+    <aside id="session-sidebar" class="session-sidebar">
+      <div class="session-sidebar-header">
+        <span class="session-sidebar-title">Сессии</span>
       </div>
-      <span class="token-limit">0/4096</span>
-    </div>
-    <div id="header-bottom">
-      <div id="session-controls">
-        <select id="session-select" class="session-select"></select>
+      <div id="session-list" class="session-list"></div>
+    </aside>
+
+    <main id="chat-main">
+      <!-- Шапка -->
+      <header id="chat-header">
+        <span id="header-title">Чат</span>
+        <div id="token-indicator" class="token-indicator">
+          <span class="token-text">📊 0+0 ≈ $0.0000</span>
+          <div class="token-bar">
+            <div class="token-bar-fill" style="width:0%"></div>
+          </div>
+          <span class="token-limit">0/4096</span>
+        </div>
+        <div id="header-bottom">
+          <div id="header-actions">
+            <!-- Кнопки рендерятся из TOOLBAR_ACTIONS (toolbar.js) в main.js:
+                 primary → видимая иконка, остальные → ⋮-меню (AC P0-1.2) -->
+          </div>
+        </div>
+      </header>
+
+      <!-- Быстрые действия для выделенного кода -->
+      <div id="quick-actions" class="quick-actions" style="display:none">
+        <button data-action="fix" title="Исправить (Ctrl+Shift+F)">🔧 Исправить</button>
+        <button data-action="explain" title="Объяснить (Ctrl+Shift+E)">💡 Объяснить</button>
+        <button data-action="optimize" title="Оптимизировать (Ctrl+Shift+O)">⚡ Оптимизировать</button>
       </div>
-      <div id="header-actions">
-        <!-- Кнопки рендерятся из TOOLBAR_ACTIONS (toolbar.js) в main.js:
-             primary → видимая иконка, остальные → ⋮-меню (AC P0-1.2) -->
+
+      <!-- Контейнер сообщений -->
+      <div id="messages-container">
+        <div id="welcome-message" class="message assistant-message">
+          <div class="message-content">
+            <p>👋 Привет! Я — LLM Assistant.</p>
+            <p>Задай мне вопрос или попроси помочь с кодом.</p>
+            <p><em>Совет: выдели код в редакторе и используй команду "Добавить выделение в контекст" (Ctrl+Shift+L).</em></p>
+          </div>
+        </div>
       </div>
-    </div>
-  </header>
 
-  <!-- Быстрые действия для выделенного кода -->
-  <div id="quick-actions" class="quick-actions" style="display:none">
-    <button data-action="fix" title="Исправить (Ctrl+Shift+F)">🔧 Исправить</button>
-    <button data-action="explain" title="Объяснить (Ctrl+Shift+E)">💡 Объяснить</button>
-    <button data-action="optimize" title="Оптимизировать (Ctrl+Shift+O)">⚡ Оптимизировать</button>
-  </div>
-
-  <!-- Контейнер сообщений -->
-  <div id="messages-container">
-    <div id="welcome-message" class="message assistant-message">
-      <div class="message-content">
-        <p>👋 Привет! Я — LLM Assistant.</p>
-        <p>Задай мне вопрос или попроси помочь с кодом.</p>
-        <p><em>Совет: выдели код в редакторе и используй команду "Добавить выделение в контекст" (Ctrl+Shift+L).</em></p>
+      <!-- Индикатор стриминга (появляется во время получения ответа) -->
+      <div id="streaming-indicator" class="hidden">
+        <span class="loading-dots">LLM печатает</span>
+        <button id="btn-cancel" class="icon-btn" title="Отменить">⏹️</button>
       </div>
-    </div>
-  </div>
 
-  <!-- Индикатор стриминга (появляется во время получения ответа) -->
-  <div id="streaming-indicator" class="hidden">
-    <span class="loading-dots">LLM печатает</span>
-    <button id="btn-cancel" class="icon-btn" title="Отменить">⏹️</button>
-  </div>
+      <!-- Отображение плана (Plan Mode) -->
+      <div id="plan-container" class="plan-container hidden">
+        <div id="plan-content" class="plan-content"></div>
+        <div id="plan-actions" class="plan-actions">
+          <button id="btn-implement-plan" class="plan-btn plan-btn-yes">✅ Имплементировать</button>
+          <button id="btn-edit-plan" class="plan-btn plan-btn-edit">✏️ Исправить</button>
+        </div>
+      </div>
 
-  <!-- Отображение плана (Plan Mode) -->
-  <div id="plan-container" class="plan-container hidden">
-    <div id="plan-content" class="plan-content"></div>
-    <div id="plan-actions" class="plan-actions">
-      <button id="btn-implement-plan" class="plan-btn plan-btn-yes">✅ Имплементировать</button>
-      <button id="btn-edit-plan" class="plan-btn plan-btn-edit">✏️ Исправить</button>
-    </div>
-  </div>
-
-  <!-- Блок ввода сообщения -->
-  <div id="input-container">
-    <!-- Переключатель Plan Mode (только для agent-режима) -->
-    <div id="plan-mode-toggle" class="plan-mode-toggle hidden">
-      <label class="toggle-label">
-        <input type="checkbox" id="plan-mode-checkbox" />
-        <span class="toggle-switch"></span>
-        <span class="toggle-text">📋 Plan</span>
-      </label>
-    </div>
-    <!-- Автокомплит слэш-команд -->
-    <div id="slash-autocomplete" class="slash-autocomplete hidden"></div>
-    <textarea id="message-input"
-              placeholder="Напиши сообщение... (Enter — отправить, Shift+Enter — новая строка)"
-              rows="3"></textarea>
-    <div id="input-controls">
-      <input type="file" id="file-input" multiple style="display:none" />
-      <button id="btn-attach" class="icon-btn" title="Прикрепить файлы">📎</button>
-      <select id="mode-select" class="input-select" title="Режим">
-        <option value="agent" selected>🤖 Агент</option>
-        <option value="chat">💬 Чат</option>
-      </select>
-      <select id="provider-select" class="input-select" title="Провайдер"></select>
-      <select id="model-select" class="input-select" title="Модель"></select>
-      <button id="btn-send" class="send-btn" title="Отправить">➤</button>
-    </div>
+      <!-- Блок ввода сообщения -->
+      <div id="input-container">
+        <!-- Переключатель Plan Mode (только для agent-режима) -->
+        <div id="plan-mode-toggle" class="plan-mode-toggle hidden">
+          <label class="toggle-label">
+            <input type="checkbox" id="plan-mode-checkbox" />
+            <span class="toggle-switch"></span>
+            <span class="toggle-text">📋 Plan</span>
+          </label>
+        </div>
+        <!-- Автокомплит слэш-команд -->
+        <div id="slash-autocomplete" class="slash-autocomplete hidden"></div>
+        <textarea id="message-input"
+                  placeholder="Напиши сообщение... (Enter — отправить, Shift+Enter — новая строка)"
+                  rows="3"></textarea>
+        <div id="input-controls">
+          <input type="file" id="file-input" multiple style="display:none" />
+          <button id="btn-attach" class="icon-btn" title="Прикрепить файлы">📎</button>
+          <select id="mode-select" class="input-select" title="Режим">
+            <option value="agent" selected>🤖 Агент</option>
+            <option value="chat">💬 Чат</option>
+          </select>
+          <select id="provider-select" class="input-select" title="Провайдер"></select>
+          <select id="model-select" class="input-select" title="Модель"></select>
+          <button id="btn-send" class="send-btn" title="Отправить">➤</button>
+        </div>
+      </div>
+    </main>
   </div>
 
   <!-- Подключаем библиотеки и основной скрипт -->

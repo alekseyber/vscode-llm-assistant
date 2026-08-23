@@ -550,7 +550,7 @@
     // Plan Mode: добавляем флаг в сообщение
     const planMode = document.getElementById('plan-mode-checkbox')?.checked || false;
 
-    postMessage({ type: 'sendMessage', text, mode, provider, model, planMode, sessionId: sessionSelect?.value || '' });
+    postMessage({ type: 'sendMessage', text, mode, provider, model, planMode, sessionId: currentSessionId || '' });
 
     streamingIndicator.classList.remove('hidden');
     sendButton.textContent = '⏹️';
@@ -732,46 +732,126 @@
     addCodeToggles(messagesContainer);
   }
 
-  // ---------- Session Management ----------
+  // ---------- Session Sidebar (P0, Этап 2) ----------
 
-  const sessionSelect = document.getElementById('session-select');
+  /**
+   * Сгруппировать сессии по датам: Сегодня / Вчера / 7 дней / Ранее (AC P0-2.3).
+   * Сортировка уже от новых к старым (lastActiveAt desc) — из SessionManager.listSessions.
+   */
+  function groupSessionsByDate(sessions) {
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const startOfYesterday = startOfToday - 86400000;
+    const startOfWeek = startOfToday - 6 * 86400000;
+    const groups = [];
+    const buckets = { today: [], yesterday: [], week: [], older: [] };
+    for (const s of sessions) {
+      const t = s.lastActiveAt || s.createdAt;
+      if (t >= startOfToday) buckets.today.push(s);
+      else if (t >= startOfYesterday) buckets.yesterday.push(s);
+      else if (t >= startOfWeek) buckets.week.push(s);
+      else buckets.older.push(s);
+    }
+    if (buckets.today.length) groups.push({ label: 'Сегодня', items: buckets.today });
+    if (buckets.yesterday.length) groups.push({ label: 'Вчера', items: buckets.yesterday });
+    if (buckets.week.length) groups.push({ label: '7 дней', items: buckets.week });
+    if (buckets.older.length) groups.push({ label: 'Ранее', items: buckets.older });
+    return groups;
+  }
 
-  let updatingSessionList = false;
+  /** Форматировать время сессии: сегодня — HH:MM, иначе — ДД.ММ. */
+  function formatSessionTime(ts) {
+    if (!ts) return '';
+    const d = new Date(ts);
+    const now = new Date();
+    if (d.toDateString() === now.toDateString()) {
+      return d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+    }
+    return d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
+  }
 
+  /** Создать элемент сессии: имя + превью + время + действия (AC P0-2.2, P0-2.4). */
+  function createSessionItem(s, isActive) {
+    const item = document.createElement('div');
+    item.className = 'session-item' + (isActive ? ' active' : '');
+    item.dataset.sessionId = s.id;
+
+    const row = document.createElement('div');
+    row.className = 'session-item-row';
+
+    const name = document.createElement('div');
+    name.className = 'session-item-name';
+    name.textContent = (s.favorite ? '⭐ ' : '') + s.name;
+    name.title = s.name;
+    row.appendChild(name);
+
+    const time = document.createElement('span');
+    time.className = 'session-item-time';
+    time.textContent = formatSessionTime(s.lastActiveAt);
+    row.appendChild(time);
+
+    item.appendChild(row);
+
+    if (s.preview) {
+      const preview = document.createElement('div');
+      preview.className = 'session-item-preview';
+      preview.textContent = s.preview;
+      item.appendChild(preview);
+    }
+
+    // Действия: избранное / переименовать / удалить (показываются при наведении)
+    const actions = document.createElement('div');
+    actions.className = 'session-item-actions';
+    const favBtn = document.createElement('button');
+    favBtn.className = 'session-action';
+    favBtn.title = s.favorite ? 'Убрать из избранного' : 'В избранное';
+    favBtn.textContent = s.favorite ? '★' : '☆';
+    const renameBtn = document.createElement('button');
+    renameBtn.className = 'session-action';
+    renameBtn.title = 'Переименовать';
+    renameBtn.textContent = '✏️';
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'session-action danger';
+    deleteBtn.title = 'Удалить';
+    deleteBtn.textContent = '🗑️';
+    actions.append(favBtn, renameBtn, deleteBtn);
+    item.appendChild(actions);
+
+    // Клик по сессии — переключение (клики по действиям не переключают)
+    item.addEventListener('click', (e) => {
+      if (e.target.closest('.session-action')) return;
+      if (s.id !== currentSessionId) postMessage({ type: 'switchSession', sessionId: s.id });
+    });
+
+    favBtn.addEventListener('click', () => postMessage({ type: 'toggleFavorite', sessionId: s.id }));
+    renameBtn.addEventListener('click', () => {
+      const newName = prompt('Новое имя сессии:', s.name);
+      if (newName && newName.trim()) postMessage({ type: 'renameSession', sessionId: s.id, name: newName.trim() });
+    });
+    deleteBtn.addEventListener('click', () => postMessage({ type: 'deleteSession', sessionId: s.id }));
+
+    return item;
+  }
+
+  /** Рендер сайдбара сессий (вместо dropdown) — AC P0-2.1. */
   function updateSessionList(sessions, activeId) {
-    if (!sessionSelect || !sessions) return;
+    const list = document.getElementById('session-list');
+    if (!list || !sessions) return;
     currentSessionId = activeId || '';
     // Синхронизируем индикатор «в работе» с текущей сессией
     if (runningSessions.has(currentSessionId)) showRunningIndicator();
     else hideRunningIndicator();
-    updatingSessionList = true;
-    sessionSelect.innerHTML = '';
-    for (const s of sessions) {
-      const opt = document.createElement('option');
-      opt.value = s.id;
-      const date = new Date(s.createdAt).toLocaleString('ru-RU', { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' });
-      opt.textContent = s.name + (s.messageCount > 0 ? ` (${s.messageCount})` : '');
-      opt.title = `Создана: ${date} | Двойной клик — переименовать`;
-      if (s.id === activeId) opt.selected = true;
-      sessionSelect.appendChild(opt);
-    }
-    updatingSessionList = false;
-  }
 
-  if (sessionSelect) {
-    sessionSelect.addEventListener('change', () => {
-      if (updatingSessionList) return;
-      postMessage({ type: 'switchSession', sessionId: sessionSelect.value });
-    });
-    // Двойной клик — переименовать
-    sessionSelect.addEventListener('dblclick', () => {
-      const id = sessionSelect.value;
-      const currentName = sessionSelect.options[sessionSelect.selectedIndex]?.textContent?.replace(/\s*\(\d+\)\s*$/, '') || '';
-      const newName = prompt('Новое имя сессии:', currentName);
-      if (newName && newName.trim()) {
-        postMessage({ type: 'renameSession', sessionId: id, name: newName.trim() });
+    list.innerHTML = '';
+    for (const group of groupSessionsByDate(sessions)) {
+      const header = document.createElement('div');
+      header.className = 'session-group-label';
+      header.textContent = group.label;
+      list.appendChild(header);
+      for (const s of group.items) {
+        list.appendChild(createSessionItem(s, s.id === activeId));
       }
-    });
+    }
   }
 
   // ---------- Toolbar (P0, Этап 1) ----------
@@ -795,10 +875,10 @@
   /** Строковый action → обработчик (клики по кнопкам тулбара). */
   const TOOLBAR_HANDLERS = {
     newSession: () => postMessage({ type: 'newSession' }),
-    share: () => postMessage({ type: 'getTranscript', sessionId: sessionSelect?.value || '', action: 'copy' }),
-    export: () => postMessage({ type: 'getTranscript', sessionId: sessionSelect?.value || '', action: 'download' }),
+    share: () => postMessage({ type: 'getTranscript', sessionId: currentSessionId || '', action: 'copy' }),
+    export: () => postMessage({ type: 'getTranscript', sessionId: currentSessionId || '', action: 'download' }),
     clearHistory,
-    deleteSession: () => postMessage({ type: 'deleteSession', sessionId: sessionSelect?.value || '' }),
+    deleteSession: () => postMessage({ type: 'deleteSession', sessionId: currentSessionId || '' }),
     deleteAll: () => postMessage({ type: 'clearAllSessions' }),
   };
 
@@ -1184,7 +1264,7 @@
   // Отправка / отмена по кнопке: ➤ отправляет, ⏹️ отменяет
   sendButton.addEventListener('click', () => {
     if (isStreaming) {
-      postMessage({ type: 'cancelRequest', sessionId: sessionSelect?.value || '' });
+      postMessage({ type: 'cancelRequest', sessionId: currentSessionId || '' });
     } else {
       sendUserMessage();
     }
@@ -1192,7 +1272,7 @@
 
   // Отмена запроса
   cancelButton.addEventListener('click', () => {
-    postMessage({ type: 'cancelRequest', sessionId: sessionSelect?.value || '' });
+    postMessage({ type: 'cancelRequest', sessionId: currentSessionId || '' });
   });
 
   // Авто-изменение высоты textarea
@@ -1311,7 +1391,7 @@
       const container = document.getElementById('plan-container');
       const planPath = container?.dataset.planPath;
       if (planPath) {
-        postMessage({ type: 'implementPlan', planPath, sessionId: container?.dataset.sessionId || sessionSelect?.value || '' });
+        postMessage({ type: 'implementPlan', planPath, sessionId: container?.dataset.sessionId || currentSessionId || '' });
       }
     });
   }

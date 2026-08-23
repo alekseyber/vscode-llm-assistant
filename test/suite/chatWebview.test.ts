@@ -258,4 +258,90 @@ suite('ChatWebview (jsdom)', () => {
     moreBtn.click();
     assert.ok(menu.classList.contains('hidden'), 'повторный клик — скрыто');
   });
+
+  test('сайдбар сессий: рендер + активная подсвечена + превью + ⭐ (AC P0-2.1, P0-2.2)', () => {
+    const { dispatch, document, postedMessages } = loadWebview();
+
+    dispatch({
+      type: 'sessionList',
+      sessions: [
+        { id: 's1', name: 'Первая', lastActiveAt: Date.now(), createdAt: Date.now(), messageCount: 1, favorite: false, preview: 'превью первой' },
+        { id: 's2', name: 'Вторая', lastActiveAt: Date.now(), createdAt: Date.now(), messageCount: 0, favorite: true, preview: '' },
+      ],
+      activeId: 's1',
+    });
+
+    const items = [...document.querySelectorAll('#session-list .session-item')];
+    assert.strictEqual(items.length, 2, '2 сессии в сайдбаре');
+
+    const active = document.querySelector('#session-list .session-item.active') as HTMLElement;
+    assert.ok(active, 'активная сессия есть');
+    assert.strictEqual(active.dataset.sessionId, 's1', 'активная = s1');
+
+    const fav = document.querySelector('#session-list [data-session-id="s2"] .session-item-name') as HTMLElement;
+    assert.ok(fav.textContent!.includes('⭐'), 'избранная сессия с ⭐');
+
+    const p1 = document.querySelector('#session-list [data-session-id="s1"] .session-item-preview') as HTMLElement;
+    assert.strictEqual(p1.textContent, 'превью первой', 'превью отрисовано');
+
+    // Клик по неактивной сессии → switchSession
+    (document.querySelector('#session-list [data-session-id="s2"]') as HTMLElement).click();
+    const sw = postedMessages.find((m) => m.type === 'switchSession');
+    assert.ok(sw, 'switchSession отправлен');
+    assert.strictEqual(sw.sessionId, 's2');
+  });
+
+  test('сайдбар: группировка Сегодня/Вчера/7 дней/Ранее (AC P0-2.3)', () => {
+    const { dispatch, document } = loadWebview();
+    const now = Date.now();
+    const day = 86400000;
+
+    dispatch({
+      type: 'sessionList',
+      sessions: [
+        { id: 't', name: 'Сегодняшняя', lastActiveAt: now, createdAt: now, messageCount: 0, favorite: false, preview: '' },
+        { id: 'y', name: 'Вчерашняя', lastActiveAt: now - day, createdAt: now - day, messageCount: 0, favorite: false, preview: '' },
+        { id: 'w', name: 'Недельная', lastActiveAt: now - 3 * day, createdAt: now - 3 * day, messageCount: 0, favorite: false, preview: '' },
+        { id: 'o', name: 'Старая', lastActiveAt: now - 30 * day, createdAt: now - 30 * day, messageCount: 0, favorite: false, preview: '' },
+      ],
+      activeId: 't',
+    });
+
+    const labels = [...document.querySelectorAll('#session-list .session-group-label')].map((e) => e.textContent);
+    assert.ok(labels.includes('Сегодня'), 'группа Сегодня');
+    assert.ok(labels.includes('Вчера'), 'группа Вчера');
+    assert.ok(labels.includes('7 дней'), 'группа 7 дней');
+    assert.ok(labels.includes('Ранее'), 'группа Ранее');
+  });
+
+  test('сайдбар: действия избранное/переименовать/удалить (AC P0-2.4)', () => {
+    const { dispatch, document, postedMessages, window } = loadWebview();
+    (window as any).prompt = () => 'Новое имя';
+
+    dispatch({
+      type: 'sessionList',
+      sessions: [
+        { id: 's1', name: 'Первая', lastActiveAt: Date.now(), createdAt: Date.now(), messageCount: 1, favorite: false, preview: '' },
+      ],
+      activeId: 's1',
+    });
+
+    const item = document.querySelector('#session-list [data-session-id="s1"]') as HTMLElement;
+
+    (item.querySelector('.session-action[title="В избранное"]') as HTMLElement).click();
+    const fav = postedMessages.find((m) => m.type === 'toggleFavorite');
+    assert.ok(fav, 'toggleFavorite отправлен');
+    assert.strictEqual(fav.sessionId, 's1');
+
+    (item.querySelector('.session-action[title="Переименовать"]') as HTMLElement).click();
+    const ren = postedMessages.find((m) => m.type === 'renameSession');
+    assert.ok(ren, 'renameSession отправлен');
+    assert.strictEqual(ren.sessionId, 's1');
+    assert.strictEqual(ren.name, 'Новое имя');
+
+    (item.querySelector('.session-action.danger') as HTMLElement).click();
+    const del = postedMessages.find((m) => m.type === 'deleteSession');
+    assert.ok(del, 'deleteSession отправлен');
+    assert.strictEqual(del.sessionId, 's1');
+  });
 });
