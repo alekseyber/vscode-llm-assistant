@@ -38,6 +38,8 @@ export interface CompletionOptions {
   maxTokens?: number;
   /** Включить стриминг (по умолчанию true) */
   stream?: boolean;
+  /** Дополнительные поля тела запроса (например, `{ thinking: { type: 'disabled' } }` для DeepSeek) */
+  extraBody?: Record<string, any>;
 }
 
 /**

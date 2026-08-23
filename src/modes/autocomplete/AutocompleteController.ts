@@ -132,10 +132,14 @@ ${context.suffix}
     ];
 
     try {
+      // DeepSeek-модели по умолчанию в режиме размышлений (reasoning) — тратят maxTokens
+      // на reasoning_content и оставляют content пустым. Отключаем thinking для автокомплита.
+      const extraBody = /deepseek/i.test(model) ? { thinking: { type: 'disabled' as const } } : undefined;
+
       // Отправляем запрос (провайдер всегда стримит, собираем полный ответ)
       const stream = provider.chat(
         messages,
-        { model, stream: true, temperature: 0.3, maxTokens: 128 },
+        { model, stream: true, temperature: 0.3, maxTokens: 128, extraBody },
         signal,
       );
 

@@ -69,6 +69,7 @@ export class OpenAIProvider extends BaseProvider {
                 temperature: options.temperature ?? 0.7,
                 max_tokens: options.maxTokens ?? 4096,
                 stream: true,
+                ...(options.extraBody ?? {}),
               },
               { signal: retrySignal },
             ),
@@ -86,6 +87,7 @@ export class OpenAIProvider extends BaseProvider {
             temperature: options.temperature ?? 0.7,
             max_tokens: options.maxTokens ?? 4096,
             stream: true,
+            ...(options.extraBody ?? {}),
           },
           { signal },
         );
