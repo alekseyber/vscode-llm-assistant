@@ -124,6 +124,7 @@ since: 0.1.0
 | 0.13.0 | 2026-08-23 | Фикс подтверждения: `content` пробрасывает `args.command` (run_terminal не показывал команду в диалоге) |
 | 0.13.0 | 2026-08-23 | `sendHistoryToWebview` → упорядоченные items (user/assistant+steps) из session-log — трейс шагов в истории |
 | 0.13.0 | 2026-08-23 | Отмена персистится: `markCancelled` добавляет `_Запрос отменён._` в session-log (не исчезает при переключении сессий) |
+| 0.13.0 | 2026-08-23 | `done` перед `reflectReport` — финализация стрима до показа отчёта («Имплементирую план…» не остаётся «в работе») |
 | 0.12.1 | 2026-08-22 | Plan Mode → session-log: PlanModeManager получает sessionId + onEvent (tool-события planner/оркестратора/ревьюера в лог) |
 | 0.12.0 | 2026-08-22 | isAbortError; user-msg оркестратора в лог сразу; restoreTokenIndicator; maxTokens в индикатор (getMaxContextTokens); limitExceeded → finalizeRun + maxIterations 20; onEvent+sessionId воркерам оркестратора (F1 5a) |
 | 0.10.0 | 2026-08-20 | Фикс: результат Plan Mode персистится в сессию + кнопка «Имплементировать» шлёт исходную sessionId (не текущую) — результат не теряется при переключении чатов |

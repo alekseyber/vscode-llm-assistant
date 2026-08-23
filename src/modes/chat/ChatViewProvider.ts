@@ -657,6 +657,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         }
       }, signal);
 
+      // Финализируем стрим ПЕРЕД показом отчёта: showReflectReport вызывает addMessage(),
+      // который сбрасывает ссылки на стрим-элемент — иначе «Имплементирую план…» не завершится.
+      this.postMessage({ type: 'done' }, sessionId);
+
       this.postMessage({
         type: 'reflectReport',
         report: reflectResult.report,
@@ -667,7 +671,6 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       const reportPrefix = reflectResult.allPassed ? '🎉 **Рефлексия пройдена:**' : '⚠️ **Рефлексия — есть замечания:**';
       this.conversationManager.addMessageTo(sessionId, { role: 'assistant', content: `${reportPrefix}\n\n${reflectResult.report}` });
 
-      this.postMessage({ type: 'done' }, sessionId);
       this.finalizeRun(implRunId, implStartTime, model, 'plan-mode', 0, 0, 1, 'success');
     } catch (err: any) {
       if (isAbortError(err)) {
