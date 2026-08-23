@@ -13,23 +13,31 @@
 
 **Чат-панель** — сайдбар сессий, тулбар, тумблеры режимов (Ask/Agent/План/Субагенты):
 
-![Чат-панель](media/chat.png)
+![Чат-панель](media/chat.jpg)
+
+**Сайдбар сессий** — поиск, группировка «Сегодня», избранное:
+
+![Сайдбар сессий](media/sessions.jpg)
 
 **Агентный режим** — дружелюбные шаги + свёрнутый трейс «🔧 Выполнено N шагов»:
 
-![Агентный режим](media/agent.png)
+![Агентный режим](media/agent.jpg)
+
+**Подтверждение операций** — инлайн-дифф перед записью файла:
+
+![Подтверждение операций](media/confirm.jpg)
 
 **Edit** — инлайн-дифф предложения правки:
 
-![Edit-режим](media/edit.png)
+![Edit-режим](media/edit.jpg)
 
 **Autocomplete** — ghost text по мере ввода:
 
-![Autocomplete](media/autocomplete.png)
+![Autocomplete](media/autocomplete.jpg)
 
 **Субагенты (`@orchestrate`)** — экспорт с группировкой tool-шагов по воркерам:
 
-![Субагенты](media/subagents.png)
+![Субагенты](media/subagents.jpg)
 
 ## Установка
 
