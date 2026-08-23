@@ -1,6 +1,6 @@
 ---
 component: ProviderManager
-version: 0.8.0
+version: 0.13.0
 status: stable
 since: 0.1.0
 ---
@@ -19,7 +19,7 @@ since: 0.1.0
 
 ### `providerManager.getDefault() → LLMProvider | undefined`
 
-Использует `llmAssistant.defaultProvider`, fallback на `'openai'`.
+Использует `llmAssistant.defaultProvider`, fallback на первый настроенный провайдер.
 
 ### `providerManager.getAllProviders() → Map<string, LLMProvider>`
 
@@ -65,7 +65,7 @@ since: 0.1.0
 | Ситуация | Поведение |
 |----------|-----------|
 | Провайдер не найден | `getProvider()` → `undefined` |
-| `defaultProvider` не задан | `getDefault()` → `'openai'` |
+| `defaultProvider` не задан | `getDefault()` → первый настроенный провайдер |
 | `models` отсутствует | `[]` |
 | `apiKey` содержит `${VAR}` | Подстановка из `process.env` |
 | Переменная не найдена | Остаётся `${VAR}` как есть |
@@ -109,5 +109,6 @@ since: 0.1.0
 
 | Версия | Дата | Изменения |
 |--------|------|-----------|
+| 0.13.0 | 2026-08-23 | getDefault() fallback на первый настроенный провайдер |
 | 0.8.0 | 2026-08-06 | ModelEntry, pricingMap, calculateCost |
 | 0.1.0 | 2026-08-04 | Базовая реализация |

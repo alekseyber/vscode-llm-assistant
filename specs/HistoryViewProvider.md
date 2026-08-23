@@ -1,6 +1,6 @@
 ---
 component: HistoryViewProvider
-version: 0.8.0
+version: 0.13.0
 status: stable
 since: 0.7.0
 ---

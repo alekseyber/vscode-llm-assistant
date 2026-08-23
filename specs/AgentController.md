@@ -1,6 +1,6 @@
 ---
 component: AgentController
-version: 0.8.0
+version: 0.13.0
 status: beta
 since: 0.1.0
 ---
@@ -88,4 +88,5 @@ ReAct-агент для **Apply Mode** (отдельная команда, не 
 
 | Версия | Дата | Изменения |
 |--------|------|-----------|
+| 0.13.0 | 2026-08-23 | extraBody (thinking disabled для deepseek) |
 | 0.1.0 | 2026-08-04 | Базовая реализация |

@@ -1,6 +1,6 @@
 ---
 component: AutocompleteController
-version: 0.8.0
+version: 0.13.0
 status: beta
 since: 0.1.0
 ---

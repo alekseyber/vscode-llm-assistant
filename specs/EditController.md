@@ -1,6 +1,6 @@
 ---
 component: EditController
-version: 0.8.0
+version: 0.13.0
 status: beta
 since: 0.1.0
 ---
@@ -79,5 +79,6 @@ since: 0.1.0
 
 | Версия | Дата | Изменения |
 |--------|------|-----------|
+| 0.13.0 | 2026-08-23 | extraBody (thinking disabled для deepseek) |
 | 0.10.0 | 2026-08-20 | `cleanLlmResponse` вынесена в shared (убрано дублирование с AutocompleteController) |
 | 0.1.0 | 2026-08-04 | Базовая реализация |

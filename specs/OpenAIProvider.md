@@ -1,6 +1,6 @@
 ---
 component: OpenAIProvider
-version: 0.8.0
+version: 0.13.0
 status: stable
 since: 0.1.0
 ---
@@ -61,6 +61,7 @@ Vision-запрос с изображениями.
 - **chat():** стриминг с withRetry
 - **createWithTools():** нестриминг, `tool_choice: 'auto'`, с withRetry
 - **chatComplete():** `stream: false`, temperature 0.3, maxTokens 2048
+- **extraBody:** `options.extraBody` спредится в тело запроса (для `thinking:{type:'disabled'}` у deepseek)
 - **Vision:** content-массив `[{type:'text'},{type:'image_url'}]`
 
 
@@ -75,4 +76,5 @@ Vision-запрос с изображениями.
 
 | Версия | Дата | Изменения |
 |--------|------|-----------|
+| 0.13.0 | 2026-08-23 | extraBody в теле запроса (thinking disabled) |
 | 0.1.0 | 2026-08-04 | Базовая реализация |

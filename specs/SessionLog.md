@@ -1,7 +1,7 @@
 ---
 component: SessionLog
-version: 0.1.0
-status: planned
+version: 0.13.0
+status: stable
 ---
 
 ## Назначение

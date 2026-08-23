@@ -1,6 +1,6 @@
 ---
 document: ARCHITECTURE
-version: 0.8.0
+version: 0.13.0
 status: living
 ---
 
@@ -15,18 +15,20 @@ extension.ts (вход)
 ├── activation/registerCommands.ts (регистрация команд и вкладок)
 │
 ├── ПРОВАЙДЕРЫ
-│   ├── ProviderManager          [spec ✅] — управление LLM-провайдерами
-│   ├── OpenAIProvider            [spec ✅] — OpenAI-совместимый API
+│   ├── ProviderManager          [spec ✅] — управление LLM-провайдерами (fallback на первый настроенный)
+│   ├── OpenAIProvider            [spec ✅] — OpenAI-совместимый API (+ extraBody в тело запроса)
 │   ├── BaseProvider              [spec ✅] — абстрактный класс
-│   └── types.ts (частично ✅)   — ModelPricing, calculateCost
+│   └── types.ts (частично ✅)   — ModelPricing, calculateCost, CompletionOptions.extraBody
 │
 ├── РЕЖИМЫ
 │   ├── 💬 Чат
-│   │   ├── ChatViewProvider      [spec ✅] — главный WebView-хаб (569 строк)
+│   │   ├── ChatViewProvider      [spec ✅] — главный WebView-хаб (сайдбар, toolbar, activity-feed, тумблеры)
 │   │   ├── ConversationManager   [spec ✅] — история + контекст + summary
 │   │   ├── SessionManager        [spec ✅] — мульти-сессии (crypto.randomUUID)
-│   │   ├── ChatAgentTools        [spec ✅] — 9 инструментов (read/write/search/terminal/delegate/web_fetch/ask_user)
-│   │   ├── AskUserTool            [spec ✅ ← 0.9.0] — уточняющие вопросы (QuickPick/InputBox)
+│   │   ├── SessionLog            [spec ✅] — append-only лог (единственный источник правды, F1)
+│   │   ├── ChatAgentTools        [spec ✅] — инструменты чат-агента (read/write/replace/list/search/terminal/delegate)
+│   │   ├── AskUserTool            [spec ✅] — уточняющие вопросы (QuickPick/InputBox)
+│   │   └── PlanModeManager        [spec ✅] — Plan Mode (план → имплементация → рефлексия)
 │   │
 │   ├── 🤖 Агент (ReAct через чат)
 │   │   ├── AgentWorker           [spec ✅] — общий ReAct-движок
@@ -38,43 +40,47 @@ extension.ts (вход)
 │   ├── 🔧 Apply Mode (отдельная команда)
 │   │   ├── AgentController       [spec ✅] — JSON-парсинг, без function calling
 │   │   ├── ToolSystem            [spec ✅] — реестр инструментов (не ChatAgentTools!)
-│   │   └── ToolDefinitions       [spec ✅] — createTools() (5 инструментов)
+│   │   └── ToolDefinitions       [spec ✅] — createTools() (read/write/patch/search/terminal/web_fetch)
 │   │
 │   ├── ✏️ Edit Mode (Ctrl+I)
 │   │   └── EditController        [spec ✅] — inline diff
 │   │
-│   ├── 💡 Code Actions (0.9.0)
+│   ├── 💡 Code Actions
 │   │   └── CodeActionsProvider   [spec ✅] — лампочка: «Объясни», «Почини», «Спроси»
 │   │
-│   ├── 🔍 Ревью (0.11.0)
+│   ├── 🔍 Ревью
 │   │   ├── CodeReviewer          [spec ✅] — standalone AI-ревью (reviewFile/reviewCode через ReviewerAgent)
 │   │   ├── ReviewViewProvider    [spec ✅] — вкладка «Ревью» (компактная сводка)
 │   │   └── ReviewPanel           [spec ✅] — широкое окно полного отчёта
 │   │
 │   └── 👻 Автокомплит
-│       └── AutocompleteController [spec ✅] — ghost text (ContextBuilder + GhostTextManager)
+│       └── AutocompleteController [spec ✅] — ghost text (async-провайдер + ContextBuilder + GhostTextManager)
 │
 ├── ИСТОРИЯ
 │   ├── RunHistoryStore           [spec ✅] — FIFO-хранилище запусков (100 записей)
-│   └── HistoryViewProvider       [spec ✅] — вкладка «📊 История»
+│   └── HistoryViewProvider       [spec ✅] — вкладка «📊 История» (клик/двойной клик)
 │
 ├── SHARED
 │   ├── ContextSummarizer         [spec ✅] — сжатие истории в summary
-│   ├── DiagnosticsProvider       [spec ✅ ← 0.9.0] — автосбор ошибок как контекст
-│   ├── StatusBarIndicator        [spec ✅ ← 0.9.0] — индикатор в статус-баре
-│   ├── DecorationsManager        [spec ✅ ← 0.9.0] — подсветка изменённых строк
+│   ├── DiagnosticsProvider       [spec ✅] — автосбор ошибок как контекст
+│   ├── StatusBarIndicator        [spec ✅] — индикатор в статус-баре
+│   ├── DecorationsManager        [spec ✅] — подсветка изменённых строк
 │   ├── RetryHandler              [spec ✅] — exponential backoff + jitter
 │   ├── AgentsMdLoader            [spec ✅] — загрузка .llma/main.md
 │   ├── RoleAgentsMdLoader        [spec ✅] — .llma/agents/{role}.md + @orchestrate роли
-│   ├── SkillsLoader              [spec ✅ ← 0.9.0] — загрузка .llma/skills/*.md
+│   ├── SkillsLoader              [spec ✅] — загрузка .llma/skills/*.md
 │   ├── ToolAllowList             [spec ✅] — фильтрация инструментов
 │   ├── streaming.ts              [spec ✅] — SSE-парсинг
-│   └── logger.ts                 [spec ✅] — логирование
+│   ├── thinking.ts               [spec ✅] — отключение reasoning у deepseek (extraBody)
+│   └── logger.ts                 [spec ✅] — логирование (Output Channel)
 │
 │   └── WEBVIEW
-│       ├── index.html            — разметка чата
-│       ├── main.js               — логика (912 строк)
-│       ├── styles.css            — стили
+│       ├── index.html            — разметка чата (сайдбар, toolbar, input-toolbar)
+│       ├── main.js               — логика (1605 строк)
+│       ├── styles.css            — стили (оверлей-дроверы, activity-feed)
+│       ├── toolbar.js            — data-driven toolbar (⋮ overflow)
+│       ├── toolActivity.js       — activity-feed (френдли-шаги)
+│       ├── lineDiff.js           — LCS-диф для подтверждений
 │       └── WebView                [spec ✅] — полная спецификация
 ```
 
@@ -82,9 +88,9 @@ extension.ts (вход)
 
 | Статус | Компоненты |
 |--------|-----------|
-|| ✅ Есть spec | **34 компонента** |
+| ✅ Есть spec | **38 компонентов** (+3 мета-документа: ARCHITECTURE, TRACEABILITY, TEMPLATE) |
 
-**Покрытие: 34/34 (100%)**
+**Покрытие: 38/38 (100%)**
 
 ## Потоки данных
 
@@ -94,13 +100,13 @@ extension.ts (вход)
 Пользователь → WebView (main.js)
   → postMessage('sendMessage')
   → ChatViewProvider.handleSendMessage()
-    → ConversationManager.addMessage(user)
+    → SessionLog.addMessage(user)          // append-only лог
     → ConversationManager.getMessagesForRequest()
       → buildHistoryWithTrimmed()  // учёт токенов
       → [summary] если обрезано > 256 токенов
-    → provider.chat(messages, stream)
+    → provider.chat(messages, stream, {extraBody})   // thinking disabled по настройке
     → WebView: streamChunk → renderMarkdown
-    → ConversationManager.addMessage(assistant)
+    → SessionLog.addMessage(assistant)
 ```
 
 ### 🤖 Агент
@@ -111,12 +117,24 @@ extension.ts (вход)
     → проверка createWithTools
     → MCP-подключение
     → AgentWorker.run(task, messages)
-      → ReAct-цикл (max 5)
+      → ReAct-цикл (max 20)
         → createWithTools → tool_calls
         → onConfirm (write_file/terminal)
-        → tool.execute()
+        → tool.execute() → tool/call + tool/result в SessionLog
       → финальный ответ
-    → WebView: streamChunk + done
+    → WebView: activity-feed (френдли-шаги) + done + свёрнутый трейс
+```
+
+### 📋 Plan Mode
+
+```
+Пользователь → WebView → тумблер «План»
+  → PlanModeManager.start()
+    → планирование (план в .llma/plans/)
+    → имплементация (AgentOrchestrator: architect → coder)
+    → рефлексия (ReviewerAgent проверяет AC)
+    → результат персистится в SessionLog
+  → WebView: done перед reflectReport (стрим корректно финализируется)
 ```
 
 ### 🎭 @orchestrate
@@ -150,10 +168,11 @@ extension.ts (вход)
 ChatViewProvider
   ├── ProviderManager          (провайдеры)
   ├── ConversationManager      (история)
+  ├── SessionLog               (append-only лог)
   ├── AgentWorker              (ReAct-агент)
   ├── AgentOrchestrator        (оркестратор)
+  ├── PlanModeManager          (Plan Mode)
   ├── McpClient                (MCP)
-  ├── ContextSummarizer        (было, убрано в 0.8.0)
   ├── AgentsMdLoader           (правила)
   └── SkillsLoader             (скилы)
 
@@ -191,15 +210,14 @@ AgentController (Apply Mode)
 
 | Компонент | Строк | Ответственность |
 |-----------|-------|----------------|
-| ChatViewProvider.ts | 569 | Главный хаб: чат, агент, оркестратор, vision |
-| AgentController.ts | 443 | Apply Mode: свой ReAct + JSON-парсинг |
-| AgentWorker.ts | 282 | Общий ReAct-движок |
-| AgentOrchestrator.ts | 255 | Multi-agent оркестрация |
-| ChatAgentTools.ts | 235 | 6 инструментов |
-| ConversationManager.ts | 209 | История, контекст, summary |
-| OpenAIProvider.ts | 230 | API-клиент + ретраи |
-| RetryHandler.ts | ~200 | Exponential backoff |
-| registerCommands.ts | 386 | Регистрация всех команд |
+| ChatViewProvider.ts | 1062 | Главный хаб: чат, агент, оркестратор, plan mode, vision |
+| AgentController.ts | 445 | Apply Mode: свой ReAct + JSON-парсинг |
+| AgentWorker.ts | 356 | Общий ReAct-движок |
+| ChatAgentTools.ts | 337 | Инструменты чат-агента |
+| AgentOrchestrator.ts | 301 | Multi-agent оркестрация |
+| openai.ts | 232 | API-клиент + ретраи + extraBody |
+| registerCommands.ts | 556 | Регистрация всех команд |
+| main.js | 1605 | Логика WebView (сайдбар, toolbar, activity-feed) |
 
 ## Долг (технический)
 
@@ -207,8 +225,9 @@ AgentController (Apply Mode)
 |----------|-----------|
 | AgentController — дублирующийся ReAct (JSON-парсинг вместо function calling) | Средний |
 | ToolSystem и ChatAgentTools — два реестра инструментов | Средний |
-| ChatViewProvider 569 строк — кандидат на разделение | Низкий |
-| MA-6 (делегирование), MA-7 (cost tracking per agent) — сделаны в v0.8.1 |
+| ChatViewProvider 1062 строк — кандидат на разделение | Средний |
+| P3 — частичное принятие автокомплита (Tab=слово) не реализовано | Средний |
+| Регрессионный прогон §6 ручного теста — на будущие релизы | Низкий |
 
 ## Инфраструктура (файлы без spec)
 
@@ -220,7 +239,7 @@ AgentController (Apply Mode)
 | `tsconfig.json` | Компиляция src | `strict: true`, `module: commonjs`, `target: ES2020` |
 | `tsconfig.test.json` | Компиляция тестов | `rootDir: .`, `include: ["test/**/*.ts"]` |
 | `webpack.config.js` | Бандл расширения | `target: node`, `entry: ./src/extension.ts` |
-| `jest.config.js` | Конфиг тестов | `testMatch: src/**/*.test.ts`, `preset: ts-jest` |
+| `test/run-mocked.js` | Mocked-тесты | Подменяет `vscode` на `test/mocks/vscode/`, Mocha |
 | `.vscode/launch.json` | F5-dev запуск | `Run Extension` (preLaunch: compile), `Extension Tests` |
 | `AGENTS.md` | Инструкции для LLM | Ссылка на specs/, TEMPLATE, язык, SDD-процесс |
 | `.llma/` | Агенты для @orchestrate | `agents/*.md`: префиксы → цепочка, без → делегирование |
@@ -229,4 +248,5 @@ AgentController (Apply Mode)
 
 | Версия | Дата | Изменения |
 |--------|------|-----------|
+| 0.13.0 | 2026-08-23 | +thinking.ts, SessionLog, PlanModeManager, SlashCommands, HistoryViewProvider в карту; сайдбар/toolbar/activity-feed/тумблеры; autocomplete async + thinking; 38 компонентов; убран jest.config.js (Mocha); agent max 20 |
 | 0.8.0 | 2026-08-06 | Первая версия мастер-спецификации |

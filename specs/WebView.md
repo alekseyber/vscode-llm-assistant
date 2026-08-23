@@ -1,6 +1,6 @@
 ---
 component: WebView
-version: 0.8.0
+version: 0.13.0
 status: stable
 since: 0.1.0
 ---
@@ -14,7 +14,7 @@ since: 0.1.0
 | Файл | Назначение | Строк |
 |------|-----------|-------|
 | `index.html` | Разметка: messagesContainer, input, sidebar | ~150 |
-| `main.js` | Логика: сообщения, стриминг, сессии, провайдеры, тулбар | 912 |
+| `main.js` | Логика: сообщения, стриминг, сессии, провайдеры, тулбар, сайдбар | 1605 |
 | `toolbar.js` | Декларативный реестр `TOOLBAR_ACTIONS` (P0) | ~30 |
 | `toolActivity.js` | Маппинг `tool_name → {label, icon}` + описание вызова (P0) | ~80 |
 | `styles.css` | Стили: чат, кнопки, контекст-бар | ~500 |
