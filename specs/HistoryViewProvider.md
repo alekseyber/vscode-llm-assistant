@@ -44,11 +44,12 @@ WebView-вкладка «📊 История» в Activity Bar. Отобража
 
 ## Тесты
 
-- `historyViewProvider.test.ts` — openSession → onOpenSession (двойной клик), getDetails → runDetails, clearHistory (подтверждение «Да» / отказ)
+- `historyViewProvider.test.ts` — openSession → onOpenSession (одиночный клик), getDetails → runDetails (двойной клик), clearHistory (подтверждение «Да» / отказ), getHtmlContent (оверлей-дровер деталей)
 
 ## История изменений
 
 | Версия | Дата | Изменения |
 |--------|------|-----------|
+| 0.13.0 | 2026-08-23 | Одиночный клик → переход в чат (openSession), двойной → детали; детали в оверлей-дровере (`.detail-overlay` + подложка + ✕) вместо зарезервированной панели |
 | 0.10.0 | 2026-08-20 | Прямые юнит-тесты (мок WebviewView + RunHistoryStore) |
 | 0.7.0 | 2026-08-05 | Базовая реализация |

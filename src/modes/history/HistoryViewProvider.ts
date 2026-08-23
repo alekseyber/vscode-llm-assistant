@@ -16,7 +16,7 @@ export class HistoryViewProvider implements vscode.WebviewViewProvider {
   private view?: vscode.WebviewView;
   private readonly store: RunHistoryStore;
 
-  /** Колбэк перехода к сессии чата (двойной клик по строке истории) */
+  /** Колбэк перехода к сессии чата (одиночный клик по строке истории) */
   onOpenSession?: (sessionId: string) => void;
 
   constructor(store: RunHistoryStore) {
@@ -65,7 +65,7 @@ export class HistoryViewProvider implements vscode.WebviewViewProvider {
         break;
 
       case 'getDetails':
-        // Получаем детали запуска по ID
+        // Двойной клик по строке — получаем детали запуска по ID
         if (message.runId) {
           const runs = this.store.getRuns();
           const entry = runs.find((r) => r.id === message.runId);
@@ -76,7 +76,7 @@ export class HistoryViewProvider implements vscode.WebviewViewProvider {
         break;
 
       case 'openSession':
-        // Двойной клик по строке — переходим в чат этой сессии
+        // Одиночный клик по строке — переходим в чат этой сессии
         if (message.sessionId) {
           this.onOpenSession?.(message.sessionId);
         }
@@ -125,6 +125,7 @@ export class HistoryViewProvider implements vscode.WebviewViewProvider {
     body {
       padding: 0;
       margin: 0;
+      position: relative;
       display: flex;
       flex-direction: column;
       height: 100vh;
@@ -228,29 +229,56 @@ export class HistoryViewProvider implements vscode.WebviewViewProvider {
       font-style: italic;
       font-size: 13px;
     }
-    .detail-panel {
-      padding: 12px;
+    .detail-overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 10;
+    }
+    .detail-backdrop {
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.45);
+    }
+    .detail-drawer {
+      position: absolute;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      width: 88%;
       background: var(--bg-secondary);
-      border-top: 1px solid var(--border);
+      border-left: 1px solid var(--border);
+      box-shadow: -4px 0 14px rgba(0, 0, 0, 0.5);
+      display: flex;
+      flex-direction: column;
+    }
+    .detail-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--border);
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+    .detail-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px;
       font-size: 12px;
       line-height: 1.6;
-      flex-shrink: 0;
-      max-height: 40vh;
-      overflow-y: auto;
     }
-    .detail-panel .label {
+    .detail-body .label {
       color: var(--text-secondary);
       font-weight: 600;
     }
-    .detail-panel .close-btn {
-      float: right;
+    .close-btn {
       background: none;
       border: none;
       color: var(--text-secondary);
       cursor: pointer;
       font-size: 16px;
     }
-    .detail-panel .close-btn:hover {
+    .close-btn:hover {
       color: var(--text-primary);
     }
     ::-webkit-scrollbar { width: 6px; }
@@ -285,7 +313,16 @@ export class HistoryViewProvider implements vscode.WebviewViewProvider {
       <tbody id="table-body"></tbody>
     </table>
   </div>
-  <div class="detail-panel" id="detail-panel" style="display:none"></div>
+  <div class="detail-overlay" id="detail-overlay" style="display:none">
+    <div class="detail-backdrop" id="detail-backdrop"></div>
+    <div class="detail-drawer">
+      <div class="detail-header">
+        <span>Детали запуска</span>
+        <button class="close-btn" id="detail-close">✕</button>
+      </div>
+      <div class="detail-body" id="detail-body"></div>
+    </div>
+  </div>
 
   <script>
     (function() {
@@ -298,7 +335,11 @@ export class HistoryViewProvider implements vscode.WebviewViewProvider {
       const emptyState = document.getElementById('empty-state');
       const modeFilter = document.getElementById('mode-filter');
       const btnClear = document.getElementById('btn-clear');
-      const detailPanel = document.getElementById('detail-panel');
+      const detailOverlay = document.getElementById('detail-overlay');
+      const detailBody = document.getElementById('detail-body');
+      const detailClose = document.getElementById('detail-close');
+      const detailBackdrop = document.getElementById('detail-backdrop');
+      let clickTimer = null;
 
       // --- Отправка сообщений в extension ---
       function post(msg) { vscode.postMessage(msg); }
@@ -333,10 +374,26 @@ export class HistoryViewProvider implements vscode.WebviewViewProvider {
 
           filtered.forEach(function(run) {
             var tr = document.createElement('tr');
-            tr.addEventListener('click', function() { showDetails(run.id); });
-            tr.addEventListener('dblclick', function() {
-              if (run.sessionId) post({ type: 'openSession', sessionId: run.sessionId });
-            });
+            tr.addEventListener('click', (function(runRef) {
+              return function() {
+                if (clickTimer) {
+                  // Двойной клик — детали
+                  clearTimeout(clickTimer);
+                  clickTimer = null;
+                  showDetails(runRef.id);
+                } else {
+                  // Одиночный клик — переход в чат (если есть сессия)
+                  clickTimer = setTimeout(function() {
+                    clickTimer = null;
+                    if (runRef.sessionId) {
+                      post({ type: 'openSession', sessionId: runRef.sessionId });
+                    } else {
+                      showDetails(runRef.id);
+                    }
+                  }, 250);
+                }
+              };
+            })(run));
 
             var date = new Date(run.timestamp).toLocaleString('ru-RU', {
               month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'
@@ -387,9 +444,8 @@ export class HistoryViewProvider implements vscode.WebviewViewProvider {
           : entry.status === 'cancelled' ? 'Отменён'
           : 'Превышен лимит';
 
-        detailPanel.innerHTML =
-          '<button class="close-btn" onclick="document.getElementById(\\'detail-panel\\').style.display=\\'none\\'">✕</button>' +
-          '<div><span class="label">ID:</span> ' + entry.id + '</div>' +
+        detailBody.innerHTML =
+          '<div><span class="label">ID:</span> ' + escapeHtml(entry.id) + '</div>' +
           '<div><span class="label">Дата:</span> ' + date + '</div>' +
           '<div><span class="label">Режим:</span> ' + modeLabel + '</div>' +
           '<div><span class="label">Провайдер:</span> ' + entry.provider + '</div>' +
@@ -402,8 +458,14 @@ export class HistoryViewProvider implements vscode.WebviewViewProvider {
           '<div><span class="label">Статус:</span> ' + statusLabel + '</div>' +
           (entry.error ? '<div><span class="label">Ошибка:</span> ' + escapeHtml(entry.error) + '</div>' : '');
 
-        detailPanel.style.display = '';
+        detailOverlay.style.display = '';
       }
+
+      function closeDetails() {
+        detailOverlay.style.display = 'none';
+      }
+      detailClose.addEventListener('click', closeDetails);
+      detailBackdrop.addEventListener('click', closeDetails);
 
       // --- Обработка сообщений от extension ---
       window.addEventListener('message', function(event) {

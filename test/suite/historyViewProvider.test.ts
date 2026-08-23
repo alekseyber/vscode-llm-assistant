@@ -1,4 +1,4 @@
-// Тесты HistoryViewProvider — двойной клик (openSession → onOpenSession), getDetails, clearHistory
+// Тесты HistoryViewProvider — одиночный клик (openSession → onOpenSession), двойной клик (getDetails), clearHistory
 
 import 'mocha';
 import * as sinon from 'sinon';
@@ -71,7 +71,7 @@ suite('HistoryViewProvider', () => {
     return (provider as any).handleMessage(msg);
   }
 
-  test('openSession вызывает onOpenSession с sessionId (двойной клик)', async () => {
+  test('openSession вызывает onOpenSession с sessionId (одиночный клик)', async () => {
     const onOpen = sandbox.spy();
     provider.onOpenSession = onOpen;
 
@@ -125,5 +125,13 @@ suite('HistoryViewProvider', () => {
     await handle({ type: 'clearHistory' });
 
     assert.strictEqual(store.getRuns().length, 1);
+  });
+
+  test('getHtmlContent: детали — оверлей-дровер, не зарезервированная панель', () => {
+    const html = (provider as any).getHtmlContent();
+    assert.ok(html.includes('detail-overlay'), 'оверлей деталей есть');
+    assert.ok(html.includes('detail-backdrop'), 'подложка есть');
+    assert.ok(html.includes('id="detail-close"'), 'кнопка ✕ есть');
+    assert.ok(!html.includes('detail-panel'), 'старая зарезервированная панель удалена');
   });
 });
