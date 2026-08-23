@@ -26,8 +26,8 @@ export type SessionEvent =
   | (SessionEventBase & { type: 'assistant/chunk'; delta: string })
   | (SessionEventBase & { type: 'assistant/message'; content: string })
   | (SessionEventBase & { type: 'step/start'; stepId: StepId })
-  | (SessionEventBase & { type: 'tool/call'; stepId: StepId; name: string; args: Record<string, unknown> })
-  | (SessionEventBase & { type: 'tool/result'; stepId: StepId; name: string; result: string; error?: string })
+  | (SessionEventBase & { type: 'tool/call'; stepId: StepId; name: string; args: Record<string, unknown>; role?: string })
+  | (SessionEventBase & { type: 'tool/result'; stepId: StepId; name: string; result: string; error?: string; role?: string })
   | (SessionEventBase & { type: 'step/end'; stepId: StepId })
   | (SessionEventBase & { type: 'confirm'; toolName: string; accepted: boolean })
   | (SessionEventBase & { type: 'summary'; content: string; replacedRange: [number, number] })
@@ -98,18 +98,36 @@ export class SessionLog {
    */
   toTranscript(sessionId: string): string {
     const lines: string[] = [`# Сессия: ${sessionId}`, ''];
+    // Группировка tool-шагов по воркерам (P0 Этап 5): роль → заголовок `### 01-architect`
+    const workerIndex = new Map<string, number>();
+    let activeWorker: string | null = null;
+
+    const ensureWorkerHeader = (role?: string): void => {
+      const r = role || 'agent';
+      if (r !== activeWorker) {
+        if (!workerIndex.has(r)) workerIndex.set(r, workerIndex.size + 1);
+        const idx = String(workerIndex.get(r)!).padStart(2, '0');
+        lines.push(`### ${idx}-${r}`, '');
+        activeWorker = r;
+      }
+    };
+
     for (const e of this.getEvents(sessionId)) {
       switch (e.type) {
         case 'user/message':
+          activeWorker = null;
           lines.push('## 👤 Пользователь', '', e.content, '');
           break;
         case 'assistant/message':
+          activeWorker = null;
           lines.push('## 🤖 Ассистент', '', e.content, '');
           break;
         case 'tool/call':
-          lines.push(`### 🔧 ${e.name}`, '', '```json', JSON.stringify(e.args, null, 2), '```', '');
+          ensureWorkerHeader(e.role);
+          lines.push(`🔧 ${e.name}`, '', '```json', JSON.stringify(e.args, null, 2), '```', '');
           break;
         case 'tool/result':
+          ensureWorkerHeader(e.role);
           lines.push('**Результат:**', '', '```', e.result, '```', '');
           break;
         case 'error':

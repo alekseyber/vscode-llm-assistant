@@ -305,20 +305,20 @@ export class AgentWorker {
           }
 
           emit({ iteration: i, type: 'tool_call', message: `🔧 ${toolName}`, toolName, args });
-          emitEvent('tool/call', { stepId: `step_${i}`, name: toolName, args });
+          emitEvent('tool/call', { stepId: `step_${i}`, name: toolName, args, role: this.role.name });
 
           try {
             const result = await tool.execute(args);
             messages.push({ role: 'tool', tool_call_id: tc.id, content: result });
             emit({ iteration: i, type: 'tool_result', message: result.slice(0, 200), toolName, toolResult: result });
-            emitEvent('tool/result', { stepId: `step_${i}`, name: toolName, result });
+            emitEvent('tool/result', { stepId: `step_${i}`, name: toolName, result, role: this.role.name });
           } catch (e: any) {
             messages.push({
               role: 'tool', tool_call_id: tc.id,
               content: `Ошибка: ${e.message}`,
             });
             emit({ iteration: i, type: 'error', message: `Ошибка ${toolName}: ${e.message}` });
-            emitEvent('tool/result', { stepId: `step_${i}`, name: toolName, result: `Ошибка: ${e.message}`, error: e.message });
+            emitEvent('tool/result', { stepId: `step_${i}`, name: toolName, result: `Ошибка: ${e.message}`, error: e.message, role: this.role.name });
           }
         }
 

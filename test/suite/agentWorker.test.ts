@@ -351,10 +351,12 @@ suite('AgentWorker', () => {
     assert.strictEqual(toolCall.name, 'read_file');
     assert.strictEqual(toolCall.sessionId, 'session_1');
     assert.deepStrictEqual(toolCall.args, { path: 'test.txt' });
+    assert.strictEqual(toolCall.role, 'tool-user', 'role проброшен в tool/call (P0-5.1)');
 
     const toolResult = events.find(e => e.type === 'tool/result');
     assert.strictEqual(toolResult.name, 'read_file');
     assert.ok(typeof toolResult.result === 'string', 'tool/result.result должен быть строкой');
+    assert.strictEqual(toolResult.role, 'tool-user', 'role проброшен в tool/result (P0-5.1)');
   });
 
   // F1 SL-4: без onEvent/sessionId события не эмитятся (гард)

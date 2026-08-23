@@ -24,8 +24,8 @@ status: planned
 | `assistant/chunk` | `sessionId`, `delta` | OpenAIProvider (стриминг) |
 | `assistant/message` | `sessionId`, `content` | ChatViewProvider (по завершении) |
 | `step/start` | `sessionId`, `stepId` | AgentWorker |
-| `tool/call` | `sessionId`, `stepId`, `name`, `args` | AgentWorker |
-| `tool/result` | `sessionId`, `stepId`, `name`, `result`, `error?` | AgentWorker |
+| `tool/call` | `sessionId`, `stepId`, `name`, `args`, `role?` | AgentWorker |
+| `tool/result` | `sessionId`, `stepId`, `name`, `result`, `error?`, `role?` | AgentWorker |
 | `step/end` | `sessionId`, `stepId` | AgentWorker |
 | `confirm` | `sessionId`, `toolName`, `accepted` | ChatViewProvider |
 | `summary` | `sessionId`, `content`, `replacedRange` | ContextSummarizer |
@@ -47,7 +47,7 @@ status: planned
 - `truncate(sessionId, summary, keepMessagesCount)` — обрезка старых событий: summary-маркер + последние keepMessagesCount сообщений (storage-гигиена)
 - `compact(sessionId, summary)` — вставляет `summary`-событие, старые события НЕ удаляет
 - `computeStats(sessionId) → SessionStats` — производные метрики (steps/toolCalls/errors) для RunHistoryStore
-- `toTranscript(sessionId) → string` — markdown-транскрипция (экспорт + реплей: путь агента виден в тексте)
+- `toTranscript(sessionId) → string` — markdown-транскрипция (экспорт + реплей). **P0 Этап 5:** tool-шаги (`tool/call` + `tool/result`) группируются под заголовком воркера `### 01-{role}` (индекс по порядку появления, повторный блок той же роли сохраняет индекс). Роль по умолчанию — `agent`.
 
 ## Контракты
 
@@ -104,3 +104,4 @@ status: planned
 | 0.1.0 | 2026-08-22 | UI-хвост: toTranscript() + fork(targetId) + команды exportSession/forkSession |
 | 0.1.0 | 2026-08-22 | Stage 5 (5b/5c/5d): deriveMessagesWithTrimmed() + clearSession(); лог подключён к getMessagesForRequest и UI |
 | 0.1.0 | 2026-08-22 | deleteSession/pruneUnknown/clearAll/truncate — полный жизненный цикл лога (удаление, ре-консиляция сирот, обрезка старых событий) |
+| 0.13.0 | 2026-08-22 | P0 Этап 5: `role?` в tool/call+tool/result; toTranscript группирует 🔧-шаги по воркерам (`### 01-{role}`) |
