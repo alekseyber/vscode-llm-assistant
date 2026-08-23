@@ -36,7 +36,7 @@ status: planned
 - `new SessionLog(storage: Memento)`
 - `append(event)` — append-only, добавляет в конец, не мутирует
 - `getEvents(sessionId, since?) → SessionEvent[]`
-- `deriveMessages(sessionId, options?) → ChatMessage[]` — **чистая проекция** лога в модельный контекст (compaction-маркер + обрезка по `maxContextTokens`)
+- `deriveMessages(sessionId, options?) → ChatMessage[]` — **чистая проекция** лога в модельный контекст (compaction-маркер + обрезка по `maxContextTokens`). `options.includeContext: false` — без подмешивания `pendingContext` (для отображения в WebView); по умолчанию `true` (для LLM).
 - `deriveMessagesWithTrimmed(sessionId, maxContextTokens) → { messages, trimmed }` — проекция + разделение на включённые/обрезанные (для `getMessagesForRequest`)
 - `replay(sessionId) → SessionEvent[]` — полный путь агента (тулы + аргументы + результаты)
 - `fork(sourceId, targetId?) → newSessionId` — копия лога до точки (targetId — для согласования с SessionManager)
@@ -105,3 +105,4 @@ status: planned
 | 0.1.0 | 2026-08-22 | Stage 5 (5b/5c/5d): deriveMessagesWithTrimmed() + clearSession(); лог подключён к getMessagesForRequest и UI |
 | 0.1.0 | 2026-08-22 | deleteSession/pruneUnknown/clearAll/truncate — полный жизненный цикл лога (удаление, ре-консиляция сирот, обрезка старых событий) |
 | 0.13.0 | 2026-08-22 | P0 Этап 5: `role?` в tool/call+tool/result; toTranscript группирует 🔧-шаги по воркерам (`### 01-{role}`) |
+| 0.13.0 | 2026-08-23 | `deriveMessages({includeContext:false})` — чистая проекция без pendingContext (фикс загрязнения промпта в WebView) |

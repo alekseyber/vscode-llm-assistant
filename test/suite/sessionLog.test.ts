@@ -184,6 +184,12 @@ suite('SessionLog', () => {
     assert.strictEqual(messages[0].content, 'контекст кода\nтекст');
   });
 
+  test('deriveMessages({includeContext:false}): чистый промпт без pendingContext (P0-fix)', () => {
+    log.append(ev('user/message', { content: 'текст', pendingContext: 'контекст кода' }));
+    const messages = log.deriveMessages(sid, { includeContext: false });
+    assert.strictEqual(messages[0].content, 'текст', 'чистый контент без контекста кода');
+  });
+
   test('compact(): вставляет summary-маркер, история не удаляется', () => {
     log.append(ev('user/message', { content: 'q' }));
     log.append(ev('assistant/message', { content: 'a' }));

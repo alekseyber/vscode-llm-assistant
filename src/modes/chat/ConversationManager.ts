@@ -45,7 +45,7 @@ export class ConversationManager {
     // F1 5c: при наличии лога — проекция из него (fallback на SessionManager.messages)
     const sessionId = this.sessionManager.getActive()?.meta.id;
     if (this.sessionLog && sessionId) {
-      return this.sessionLog.deriveMessages(sessionId) as ContextMessage[];
+      return this.sessionLog.deriveMessages(sessionId, { includeContext: false }) as ContextMessage[];
     }
     return this.sessionManager.getMessages();
   }

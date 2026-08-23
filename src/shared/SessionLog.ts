@@ -223,7 +223,7 @@ export class SessionLog {
    * Не мутирует лог: отбрасывает события до последнего summary-маркера,
    * проецирует user/message + assistant/message, обрезает по токенам (сохраняя summary).
    */
-  deriveMessages(sessionId: string, options?: { maxContextTokens?: number }): ChatMessage[] {
+  deriveMessages(sessionId: string, options?: { maxContextTokens?: number; includeContext?: boolean }): ChatMessage[] {
     const events = this.getEvents(sessionId);
     const messages: ChatMessage[] = [];
 
@@ -243,7 +243,9 @@ export class SessionLog {
     for (let i = lastSummaryIdx + 1; i < events.length; i++) {
       const e = events[i];
       if (e.type === 'user/message') {
-        messages.push({ role: 'user', content: e.pendingContext ? `${e.pendingContext}\n${e.content}` : e.content });
+        // includeContext:false — для отображения в WebView (чистый промпт без авто-контекста)
+        const withContext = options?.includeContext !== false && !!e.pendingContext;
+        messages.push({ role: 'user', content: withContext ? `${e.pendingContext}\n${e.content}` : e.content });
       } else if (e.type === 'assistant/message') {
         messages.push({ role: 'assistant', content: e.content });
       }
