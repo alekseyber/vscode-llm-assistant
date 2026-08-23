@@ -347,6 +347,27 @@ suite('ChatWebview (jsdom)', () => {
     assert.strictEqual(del.sessionId, 's1');
   });
 
+  test('сайдбар: дровер — ☰ открывает / подложка закрывает (P0.2-fix)', () => {
+    const { document } = loadWebview();
+    const sidebar = document.getElementById('session-sidebar') as HTMLElement;
+    const backdrop = document.getElementById('sidebar-backdrop') as HTMLElement;
+    const toggle = document.getElementById('btn-toggle-sidebar') as HTMLElement;
+
+    // По умолчанию закрыт (не резервирует ширину)
+    assert.ok(!sidebar.classList.contains('open'), 'изначально закрыт');
+    assert.ok(!backdrop.classList.contains('visible'), 'подложка скрыта');
+
+    // ☰ открывает
+    toggle.click();
+    assert.ok(sidebar.classList.contains('open'), 'открыт после клика ☰');
+    assert.ok(backdrop.classList.contains('visible'), 'подложка видима');
+
+    // Клик по подложке закрывает
+    backdrop.click();
+    assert.ok(!sidebar.classList.contains('open'), 'закрыт кликом по подложке');
+    assert.ok(!backdrop.classList.contains('visible'), 'подложка скрыта');
+  });
+
   test('activity-feed: tool_call рендерится дружелюбно (AC P0-3.1, P0-3.2)', () => {
     const { dispatch, document } = loadWebview();
     dispatch({ type: 'toolActivity', activity: { kind: 'start', toolName: 'run_terminal', args: { command: 'npm test' } } });

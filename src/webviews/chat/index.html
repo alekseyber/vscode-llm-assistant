@@ -21,7 +21,10 @@
     <main id="chat-main">
       <!-- Шапка -->
       <header id="chat-header">
-        <span id="header-title">Чат</span>
+        <div id="header-top">
+          <button id="btn-toggle-sidebar" class="icon-btn" title="Сессии (показать/скрыть сайдбар)">☰</button>
+          <span id="header-title">Чат</span>
+        </div>
         <div id="token-indicator" class="token-indicator">
           <span class="token-text">📊 0+0 ≈ $0.0000</span>
           <div class="token-bar">
@@ -94,6 +97,8 @@
         </div>
       </div>
     </main>
+    <!-- Подложка дровера (клик — закрыть сайдбар) -->
+    <div id="sidebar-backdrop"></div>
   </div>
 
   <!-- Подключаем библиотеки и основной скрипт -->

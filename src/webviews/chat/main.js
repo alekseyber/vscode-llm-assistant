@@ -1131,6 +1131,19 @@
 
   window.addEventListener('message', handleMessage);
 
+  // Дровер сайдбара сессий (P0.2-fix): выезжает/уезжает, не резервирует ширину
+  function toggleSidebar(force) {
+    const sidebar = document.getElementById('session-sidebar');
+    const backdrop = document.getElementById('sidebar-backdrop');
+    if (!sidebar) return;
+    const open = typeof force === 'boolean' ? force : !sidebar.classList.contains('open');
+    sidebar.classList.toggle('open', open);
+    if (backdrop) backdrop.classList.toggle('visible', open);
+  }
+
+  document.getElementById('btn-toggle-sidebar')?.addEventListener('click', () => toggleSidebar());
+  document.getElementById('sidebar-backdrop')?.addEventListener('click', () => toggleSidebar(false));
+
   // Прикрепление файлов (общая функция)
   async function processAttachedFile(file) {
     const isImage = file.type.startsWith('image/');
