@@ -61,7 +61,7 @@ code --install-extension vscode-llm-assistant-0.13.0.vsix
 ## Возможности
 
 ### 🤖 Агентный кодинг
-- **ReAct-агент** с инструментами: `read_file`, `write_file`, `replace_in_file`, `list_files`, `search_files`, `run_terminal`, `web_fetch`, `ask_user`, `delegate_to_agent`
+- **ReAct-агент** с инструментами: `read_file`, `write_file`, `replace_in_file`, `patch_file`, `list_files`, `search_files`, `run_terminal`, `web_fetch`, `ask_user`, `delegate_to_agent`
 - **Подтверждение операций** перед записью/изменением файлов (с git-diff `+N −M`)
 - **Allow-list инструментов** через настройки или `.vscode/llm-assistant.json`
 - **Ход выполнения**: структурированные сворачиваемые шаги по тулам
@@ -196,7 +196,7 @@ code --install-extension vscode-llm-assistant-0.13.0.vsix
 | `apply.maxIterations` | number | `20` | Максимум шагов агента |
 | `apply.requireConfirmation` | string[] | `["write_file","replace_in_file","run_terminal"]` | Инструменты, требующие подтверждения |
 
-**Инструменты агента:** `read_file`, `write_file`, `replace_in_file`, `list_files`, `search_files`, `run_terminal`, `web_fetch`, `ask_user`, `delegate_to_agent`.
+**Инструменты агента:** `read_file`, `write_file`, `replace_in_file`, `patch_file`, `list_files`, `search_files`, `run_terminal`, `web_fetch`, `ask_user`, `delegate_to_agent`.
 
 **Приоритет конфигурации:** `.vscode/llm-assistant.json` (workspace) > глобальные настройки VS Code.
 
