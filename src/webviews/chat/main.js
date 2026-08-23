@@ -1143,6 +1143,7 @@
 
   document.getElementById('btn-toggle-sidebar')?.addEventListener('click', () => toggleSidebar());
   document.getElementById('sidebar-backdrop')?.addEventListener('click', () => toggleSidebar(false));
+  document.getElementById('btn-close-sidebar')?.addEventListener('click', () => toggleSidebar(false));
 
   // Прикрепление файлов (общая функция)
   async function processAttachedFile(file) {

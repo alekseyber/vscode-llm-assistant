@@ -347,11 +347,12 @@ suite('ChatWebview (jsdom)', () => {
     assert.strictEqual(del.sessionId, 's1');
   });
 
-  test('сайдбар: дровер — ☰ открывает / подложка закрывает (P0.2-fix)', () => {
+  test('сайдбар: дровер — ☰ открывает / ✕ и подложка закрывают (P0.2-fix)', () => {
     const { document } = loadWebview();
     const sidebar = document.getElementById('session-sidebar') as HTMLElement;
     const backdrop = document.getElementById('sidebar-backdrop') as HTMLElement;
     const toggle = document.getElementById('btn-toggle-sidebar') as HTMLElement;
+    const close = document.getElementById('btn-close-sidebar') as HTMLElement;
 
     // По умолчанию закрыт (не резервирует ширину)
     assert.ok(!sidebar.classList.contains('open'), 'изначально закрыт');
@@ -362,7 +363,13 @@ suite('ChatWebview (jsdom)', () => {
     assert.ok(sidebar.classList.contains('open'), 'открыт после клика ☰');
     assert.ok(backdrop.classList.contains('visible'), 'подложка видима');
 
-    // Клик по подложке закрывает
+    // ✕ закрывает
+    close.click();
+    assert.ok(!sidebar.classList.contains('open'), 'закрыт кликом ✕');
+    assert.ok(!backdrop.classList.contains('visible'), 'подложка скрыта');
+
+    // Подложка закрывает
+    toggle.click();
     backdrop.click();
     assert.ok(!sidebar.classList.contains('open'), 'закрыт кликом по подложке');
     assert.ok(!backdrop.classList.contains('visible'), 'подложка скрыта');
