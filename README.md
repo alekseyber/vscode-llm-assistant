@@ -1,5 +1,12 @@
 # VS Code LLM Assistant
 
+![Test](https://github.com/alekseyber/vscode-llm-assistant/actions/workflows/test.yml/badge.svg)
+![SDD Check](https://github.com/alekseyber/vscode-llm-assistant/actions/workflows/sdd-check.yml/badge.svg)
+![Publish](https://github.com/alekseyber/vscode-llm-assistant/actions/workflows/publish.yml/badge.svg)
+![VS Marketplace Version](https://img.shields.io/visual-studio-marketplace/v/alekseyber.vscode-llm-assistant)
+![Installs](https://img.shields.io/visual-studio-marketplace/i/alekseyber.vscode-llm-assistant)
+![License](https://img.shields.io/badge/license-MIT-blue)
+
 **AI-ассистент для VS Code** — многорежимный агент с LLM через любые OpenAI-совместимые API. Самый дешёвый и приватный агент не в облаке: твои ключи, твои модели, локальный код.
 
 | Режим | Клавиши | Назначение |
