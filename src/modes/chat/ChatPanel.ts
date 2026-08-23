@@ -11,6 +11,12 @@ import { ChatMessage } from '../../providers/types';
 /**
  * ChatPanel — управляет отдельной вкладкой (WebviewPanel) для чата с LLM.
  *
+ * @deprecated (0.13.0) — легаси-дубль чата. Основной чат — сайдбар `ChatViewProvider`
+ * (`llmAssistant.chat` WebviewView). `llmAssistant.chat.focus` теперь reveal'ит сайдбар,
+ * а не создаёт эту панель. Панель не имеет сессий/агента/Plan Mode/orchestrator/session-log
+ * и не инжектит webview-ресурсы `lineDiff.js`/`toolbar.js`/`toolActivity.js` — не расширять,
+ * планируется удаление после подтверждения, что отдельная вкладка не нужна.
+ *
  * В отличие от ChatViewProvider (боковая панель), этот класс создаёт
  * полноценную вкладку в редакторе. Используется для команды llmAssistant.chat.focus.
  *

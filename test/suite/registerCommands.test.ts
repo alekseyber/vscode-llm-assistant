@@ -74,6 +74,20 @@ suite('registerCommands', () => {
     assert.strictEqual(deps.context.subscriptions.push.callCount, 11);
   });
 
+  test('chat.focus: reveal контейнера + revealChat (вместо легаси ChatPanel)', async () => {
+    const deps = makeDeps();
+    deps.revealChat = sandbox.stub();
+    const executeCommand = sandbox.stub(vscode.commands, 'executeCommand').resolves(undefined);
+    registerCommands(deps);
+
+    const handler = registerSpy.getCalls().find(c => c.args[0] === 'llmAssistant.chat.focus')?.args[1];
+    assert.ok(handler, 'chat.focus зарегистрирован');
+    await handler();
+
+    assert.ok(executeCommand.calledWith('workbench.view.extension.llmAssistant'), 'показывает контейнер сайдбара');
+    assert.ok(deps.revealChat.calledOnce, 'revealChat вызван (фокус вкладки чата)');
+  });
+
   test('forkSession: duplicateSession + fork + refreshSessions', async () => {
     const deps = makeDeps();
     registerCommands(deps);

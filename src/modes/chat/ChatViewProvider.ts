@@ -182,6 +182,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     this.sendSessionListToWebview();
   }
 
+  /** Показать/сфокусировать вкладку чата (для llmAssistant.chat.focus — вместо легаси ChatPanel) */
+  public reveal(): void {
+    this.view?.show(true);
+  }
+
   private async handleSendMessage(text: string, mode = 'chat', providerName?: string, modelName?: string, planMode?: boolean, sessionId?: string): Promise<void> {
     const config = vscode.workspace.getConfiguration('llmAssistant');
     const isVision = !!this.pendingImage;

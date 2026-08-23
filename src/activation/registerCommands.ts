@@ -11,7 +11,6 @@
 
 import * as vscode from 'vscode';
 import { ProviderManager } from '../providers/manager';
-import { ChatPanel } from '../modes/chat/ChatPanel';
 import { ConversationManager } from '../modes/chat/ConversationManager';
 import { EditController } from '../modes/edit/EditController';
 import { AutocompleteController } from '../modes/autocomplete/AutocompleteController';
@@ -50,6 +49,8 @@ export interface CommandDependencies {
   sessionLog: SessionLog;
   /** Колбэк обновления списка сессий в WebView (для fork) */
   refreshSessions?: () => void;
+  /** Колбэк показа/фокуса вкладки чата (для llmAssistant.chat.focus) */
+  revealChat?: () => void;
 }
 
 /**
@@ -60,13 +61,15 @@ export interface CommandDependencies {
  * @param deps - зависимости (контекст, менеджеры, контроллеры режимов)
  */
 export function registerCommands(deps: CommandDependencies): void {
-  const { context, providerManager, conversationManager, editController, autocompleteController, runHistoryStore, historyViewProvider, reviewViewProvider, sessionLog, refreshSessions } = deps;
+  const { context, providerManager, conversationManager, editController, autocompleteController, runHistoryStore, historyViewProvider, reviewViewProvider, sessionLog, refreshSessions, revealChat } = deps;
 
   // ── 1. llmAssistant.chat.focus (Ctrl+Shift+L) — открыть/сфокусировать чат ──
   context.subscriptions.push(
-    vscode.commands.registerCommand('llmAssistant.chat.focus', () => {
-      // Создаём WebviewPanel чата (или показываем существующую)
-      ChatPanel.createOrShow(context, providerManager, conversationManager);
+    vscode.commands.registerCommand('llmAssistant.chat.focus', async () => {
+      // Показываем контейнер сайдбара (резолвит WebView чата, если он ещё не создан)
+      await vscode.commands.executeCommand('workbench.view.extension.llmAssistant');
+      // Фокусируем вкладку чата (вместо легаси ChatPanel — один чат-поверхность)
+      revealChat?.();
     })
   );
 
