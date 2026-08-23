@@ -99,7 +99,7 @@ suite('ContextBuilder', () => {
 
     // Курсор на строке 3 (0-indexed), символ 12
     const editor = createMockEditor(content, 3, 12);
-    const context = builder.build(editor);
+    const context = builder.build(editor.document, editor.selection.active);
 
     assert.ok(context, 'Контекст должен быть создан');
     assert.strictEqual(context!.filePath, '/test/file.ts');
@@ -115,7 +115,7 @@ suite('ContextBuilder', () => {
     // Курсор на 3-й строке (0-indexed: 2), 3-м символе
     // prefix = строки 0-2, текст до позиции 3
     // Ожидаем: "line1\nline2\nlin" (первые 3 символа строки 2)
-    const context = builder.build(editor);
+    const context = builder.build(editor.document, editor.selection.active);
 
     const expectedPrefix = 'line1\nline2\nlin';
     assert.strictEqual(context!.prefix, expectedPrefix);
@@ -127,7 +127,7 @@ suite('ContextBuilder', () => {
 
     // Курсор на 2-й строке (0-indexed: 1), 3-м символе
     // suffix = строка 1 от позиции 3 + строка 2 + строка 3
-    const context = builder.build(editor);
+    const context = builder.build(editor.document, editor.selection.active);
 
     const expectedSuffix = 'e2\nline3\nline4\n';
     assert.strictEqual(context!.suffix, expectedSuffix);
@@ -157,7 +157,7 @@ suite('ContextBuilder', () => {
     const lastLineLength = lines[249].length;
     const editor = createMockEditor(content, 249, lastLineLength);
 
-    const context = builder.build(editor);
+    const context = builder.build(editor.document, editor.selection.active);
 
     // Префикс должен быть обрезан (не может содержать все 250 строк)
     assert.ok(context!.prefix.length < content.length, 'Префикс должен быть короче всего текста');
@@ -172,7 +172,7 @@ suite('ContextBuilder', () => {
 
     // prefix = "hel" (первые 3 символа строки 0)
     // suffix = "lo\nworld\n" (остаток строки 0 + строки 1+)
-    const context = builder.build(editor);
+    const context = builder.build(editor.document, editor.selection.active);
 
     assert.strictEqual(context!.prefix, 'hel');
     assert.strictEqual(context!.suffix, 'lo\nworld\n');
@@ -184,7 +184,7 @@ suite('ContextBuilder', () => {
 
     // prefix = "line1\nline2\nline3" (весь текст до курсора, 6 символов на строке 2)
     // suffix = "" (после курсора ничего нет)
-    const context = builder.build(editor);
+    const context = builder.build(editor.document, editor.selection.active);
 
     assert.strictEqual(context!.prefix, 'line1\nline2\nline3');
     assert.strictEqual(context!.suffix, '');
@@ -196,7 +196,7 @@ suite('ContextBuilder', () => {
     const longContent = 'a\n'.repeat(5000);
     const editor = createMockEditor(longContent, 4999, 1);
 
-    const context = builder.build(editor);
+    const context = builder.build(editor.document, editor.selection.active);
 
     // Префикс не должен быть пустым, но должен быть обрезан
     assert.ok(context!.prefix.length > 0, 'Префикс не должен быть пустым');

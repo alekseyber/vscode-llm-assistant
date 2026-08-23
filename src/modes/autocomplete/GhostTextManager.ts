@@ -1,133 +1,116 @@
 // GhostTextManager — управление ghost text (InlineCompletionItemProvider)
-// Показывает предложение автокомплита, принимает (Tab) или отклоняет (Escape)
-// Кэш: не предлагает то же самое 2 раза подряд
+// Async-провайдер: VS Code вызывает provideInlineCompletionItems при паузе ввода,
+// провайдер сам собирает контекст, шлёт LLM-запрос и возвращает InlineCompletionItem.
+// Кэш: не предлагает то же самое 2 раза подряд.
 
 import * as vscode from 'vscode';
-
-/** Запись кэша: URI файла + текст предложения */
-interface CacheEntry {
-  uri: string;
-  suggestion: string;
-}
+import { ContextBuilder, AutocompleteContext } from './ContextBuilder';
 
 /**
  * GhostTextManager — реализует InlineCompletionItemProvider для VS Code.
  *
  * Отвечает за:
- * - Регистрацию провайдера inline-завершений
- * - Показ ghost text (предложений автокомплита)
+ * - Сбор контекста (ContextBuilder) и LLM-запрос прямо в провайдере
+ * - Показ ghost text (InlineCompletionItem)
  * - Кэш: не дублировать одинаковые предложения
- * - Очистку предложения при изменении документа
+ * - Отмену запроса при изменении документа (CancellationToken → AbortSignal)
  */
 export class GhostTextManager implements vscode.InlineCompletionItemProvider {
-  /** Текущее предложение */
-  private currentSuggestion: string | null = null;
-  /** Диапазон, на который рассчитано предложение */
-  private currentRange: vscode.Range | null = null;
-  /** URI документа, для которого сделано предложение */
-  private currentDocumentUri: string | null = null;
-  /** Кэш: последнее показанное предложение (URI + текст) */
-  private lastCacheEntry: CacheEntry | null = null;
-  /** Подписки для очистки */
+  private readonly contextBuilder = new ContextBuilder();
+  private readonly requestCompletion: (ctx: AutocompleteContext, signal?: AbortSignal) => Promise<string | null>;
+  private readonly isEnabled: () => boolean;
   private disposables: vscode.Disposable[] = [];
 
-  constructor() {
+  /** Кэш: последнее показанное предложение (URI + текст) */
+  private lastSuggestion: string | null = null;
+  private lastUri: string | null = null;
+
+  constructor(
+    requestCompletion: (ctx: AutocompleteContext, signal?: AbortSignal) => Promise<string | null>,
+    isEnabled: () => boolean,
+  ) {
+    this.requestCompletion = requestCompletion;
+    this.isEnabled = isEnabled;
+
     // Регистрируем себя как провайдер для всех текстовых документов
     const providerDisposable = vscode.languages.registerInlineCompletionItemProvider(
       { pattern: '**' },
-      this
+      this,
     );
     this.disposables.push(providerDisposable);
-
-    // Подписываемся на изменение документа, чтобы очищать устаревшие предложения
-    const changeDisposable = vscode.workspace.onDidChangeTextDocument((e) => {
-      if (this.currentDocumentUri && e.document.uri.toString() === this.currentDocumentUri) {
-        this.clearSuggestion();
-      }
-    });
-    this.disposables.push(changeDisposable);
   }
 
   /**
-   * Реализация InlineCompletionItemProvider.
+   * Реализация InlineCompletionItemProvider (async).
    * Вызывается VS Code, когда нужно показать inline-завершение.
-   * Возвращает текущее предложение, если оно соответствует позиции курсора.
+   * Собирает контекст и асинхронно запрашивает LLM — VS Code ждёт Promise.
    *
    * @param document - документ, в котором происходит редактирование
    * @param position - позиция курсора
    * @param context - контекст завершения
-   * @param token - токен отмены
+   * @param token - токен отмены (прерывается при продолжении ввода)
    * @returns список inline-завершений или null
    */
-  public provideInlineCompletionItems(
+  public async provideInlineCompletionItems(
     document: vscode.TextDocument,
     position: vscode.Position,
-    context: vscode.InlineCompletionContext,
-    token: vscode.CancellationToken
-  ): vscode.ProviderResult<vscode.InlineCompletionList> {
-    // Если нет активного предложения — ничего не показываем
-    if (!this.currentSuggestion || !this.currentRange) {
+    _context: vscode.InlineCompletionContext,
+    token: vscode.CancellationToken,
+  ): Promise<vscode.InlineCompletionList | null> {
+    // Автокомплит выключен — молчим
+    if (!this.isEnabled()) {
       return null;
     }
 
-    // Проверяем, что документ совпадает
-    const currentUri = document.uri.toString();
-    if (currentUri !== this.currentDocumentUri) {
+    // Работаем только с реальными файлами (не output/terminal/diff)
+    if (document.uri.scheme !== 'file') {
       return null;
     }
 
-    // Если курсор ушёл из зоны предложения — очищаем и не показываем
-    if (!this.currentRange.contains(position)) {
-      this.clearSuggestion();
+    if (token.isCancellationRequested) {
       return null;
     }
 
-    // Создаём InlineCompletionItem
-    const item = new vscode.InlineCompletionItem(
-      this.currentSuggestion,
-      this.currentRange
-    );
+    // Собираем контекст
+    const ctx = this.contextBuilder.build(document, position);
+    if (!ctx || (!ctx.prefix && !ctx.suffix)) {
+      return null;
+    }
 
-    return new vscode.InlineCompletionList([item]);
+    // Токен отмены VS Code → AbortSignal для LLM-запроса
+    const { signal, dispose } = this.createSignal(token);
+    try {
+      const suggestion = await this.requestCompletion(ctx, signal);
+      if (!suggestion || suggestion.trim().length === 0) {
+        return null;
+      }
+
+      // Кэш: не предлагать то же самое 2 раза подряд
+      const uri = document.uri.toString();
+      if (this.lastSuggestion === suggestion && this.lastUri === uri) {
+        return null;
+      }
+      this.lastSuggestion = suggestion;
+      this.lastUri = uri;
+
+      // Диапазон вставки — от текущей позиции курсора
+      const range = new vscode.Range(position, position);
+      return new vscode.InlineCompletionList([
+        new vscode.InlineCompletionItem(suggestion, range),
+      ]);
+    } catch {
+      return null;
+    } finally {
+      dispose();
+    }
   }
 
   /**
-   * Установить новое предложение автокомплита.
-   * Проверяет кэш: если предложение совпадает с предыдущим, не показывает.
-   *
-   * @param suggestion - текст предложения
-   * @param range - диапазон, который будет заменён предложением
-   * @param documentUri - URI документа
-   * @returns true, если предложение установлено, false — если заблокировано кэшем
-   */
-  public setSuggestion(suggestion: string, range: vscode.Range, documentUri: string): boolean {
-    // Проверяем кэш: не предлагать то же самое 2 раза подряд
-    if (
-      this.lastCacheEntry &&
-      this.lastCacheEntry.uri === documentUri &&
-      this.lastCacheEntry.suggestion === suggestion
-    ) {
-      return false;
-    }
-
-    // Сохраняем предложение
-    this.currentSuggestion = suggestion;
-    this.currentRange = range;
-    this.currentDocumentUri = documentUri;
-    this.lastCacheEntry = { uri: documentUri, suggestion };
-
-    return true;
-  }
-
-  /**
-   * Очистить текущее предложение (например, при Escape).
-   * VS Code сам скрывает ghost text, но мы также сбрасываем состояние.
+   * Очистить кэш предложения (при Escape / отключении автокомплита).
    */
   public clearSuggestion(): void {
-    this.currentSuggestion = null;
-    this.currentRange = null;
-    this.currentDocumentUri = null;
-    // Не очищаем кэш — он нужен для предотвращения дублирования
+    this.lastSuggestion = null;
+    this.lastUri = null;
   }
 
   /**
@@ -139,6 +122,16 @@ export class GhostTextManager implements vscode.InlineCompletionItemProvider {
     }
     this.disposables = [];
     this.clearSuggestion();
-    this.lastCacheEntry = null;
+  }
+
+  /** Преобразовать CancellationToken в AbortSignal (+ disposer подписки). */
+  private createSignal(token: vscode.CancellationToken): { signal: AbortSignal; dispose: () => void } {
+    const controller = new AbortController();
+    if (token.isCancellationRequested) {
+      controller.abort();
+      return { signal: controller.signal, dispose: () => {} };
+    }
+    const sub = token.onCancellationRequested(() => controller.abort());
+    return { signal: controller.signal, dispose: () => sub.dispose() };
   }
 }

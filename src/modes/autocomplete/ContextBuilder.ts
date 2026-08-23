@@ -39,14 +39,13 @@ export class ContextBuilder {
   private static readonly MAX_SUFFIX_TOKENS = 500;
 
   /**
-   * Собрать контекст из активного редактора.
+   * Собрать контекст из документа и позиции курсора.
    *
-   * @param editor - активный текстовый редактор
-   * @returns AutocompleteContext или null, если редактор недоступен
+   * @param document - текстовый документ
+   * @param position - позиция курсора
+   * @returns AutocompleteContext или null, если документ недоступен
    */
-  public build(editor: vscode.TextEditor): AutocompleteContext | null {
-    const document = editor.document;
-    const position = editor.selection.active;
+  public build(document: vscode.TextDocument, position: vscode.Position): AutocompleteContext | null {
 
     // Получаем текст до курсора
     const prefixStartLine = Math.max(0, position.line - ContextBuilder.MAX_PREFIX_LINES);

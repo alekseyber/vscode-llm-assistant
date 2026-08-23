@@ -32,12 +32,7 @@ suite('ContextBuilder', () => {
         return 'const b = 2;\nconst c = 3;';
       },
     };
-    const editor = {
-      document,
-      selection: { active: new vscode.Position(1, 0) },
-    };
-
-    const ctx = b.build(editor as any)!;
+    const ctx = b.build(document as any, new vscode.Position(1, 0))!;
     assert.ok(ctx, 'контекст должен быть собран');
     assert.strictEqual(ctx.filePath, '/tmp/test.ts');
     assert.strictEqual(ctx.languageId, 'typescript');

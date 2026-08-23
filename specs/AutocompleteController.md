@@ -13,15 +13,15 @@ Ghost text автокомплит: контекст из редактора → 
 
 ### AutocompleteController
 
-Управляет логикой: подписка на `onDidChangeTextDocument`, debounce, запрос к LLM, отображение через GhostTextManager.
+Держит настройки (`enabled`), тумблер вкл/выкл, команды accept/dismiss. Передаёт колбэки `requestCompletion` и `isEnabled` в GhostTextManager.
 
 ### ContextBuilder
 
-Строит контекст: prefix (до курсора, ≤200 строк, ≤1500 токенов) + suffix (после курсора, ≤50 строк, ≤500 токенов).
+Строит контекст из `(document, position)`: prefix (до курсора, ≤200 строк, ≤1500 токенов) + suffix (после курсора, ≤50 строк, ≤500 токенов).
 
 ### GhostTextManager
 
-Реализует `InlineCompletionItemProvider`. Показывает ghost text, кэширует предложения.
+Реализует `InlineCompletionItemProvider` как **async-провайдер**: сам собирает контекст, шлёт LLM-запрос и возвращает `InlineCompletionItem`. Кэширует предложения.
 
 ## Интерфейс
 
@@ -35,25 +35,22 @@ Ghost text автокомплит: контекст из редактора → 
 
 | Ситуация | Поведение |
 |----------|-----------|
-| Пользователь печатает | Debounce 500ms → запрос |
-| Новый ввод до истечения debounce | Таймер сбрасывается, старый запрос отменяется |
+| Пользователь печатает (пауза) | VS Code (своим debounce) вызывает `provideInlineCompletionItems` → async LLM-запрос |
+| Продолжение ввода | VS Code отменяет через `CancellationToken` → `AbortSignal` (запрос прерывается) |
 | Не файловый документ (output) | Игнорируется |
-| Неактивный редактор | Игнорируется |
 | Одинаковое предложение 2 раза | Кэш блокирует повтор |
-| Escape | Очистка ghost text, отмена запроса |
+| Escape | Очистка кэша (VS Code сам скрывает ghost text) |
 | Tab | Принятие (VS Code сам применяет InlineCompletionItem) |
 
 ## Детали реализации
 
 ### AutocompleteController
 
-- **Debounce:** `setTimeout(fn, debounceMs)`, при новом вводе — `clearTimeout` + `abortController.abort()`
-- **Настройки:** `llmAssistant.autocomplete.enabled` (bool), `llmAssistant.autocomplete.debounceMs` (int, default 500)
-- **Запрос:** `provider.chat({stream:true, temperature:0.3, maxTokens:128})`, сборка полного ответа
+- **Настройки:** `llmAssistant.autocomplete.enabled` (bool). `debounceMs` больше не используется — VS Code сам дебаунсит провайдера.
+- **Запрос:** `requestCompletion(ctx, signal)` → `provider.chat({stream:true, temperature:0.3, maxTokens:128})`, сборка полного ответа
 - **Лимит:** 1024 символа для автокомплита
 - **Очистка ответа:** `cleanLlmResponse()` — regex для ```code``` и одинарных ```
-- **Ghost text:** `ghostTextManager.setSuggestion(text, range, uri)` → если false (кэш) — не показываем
-- **Отмена:** AbortController, `isRequestInFlight` флаг
+- **Отмена:** `isAbortError()`; сигнал приходит из `CancellationToken` VS Code (через GhostTextManager)
 - **Команды:** `llmAssistant.autocomplete.accept`, `llmAssistant.autocomplete.dismiss`
 
 ### ContextBuilder
@@ -69,9 +66,9 @@ Ghost text автокомплит: контекст из редактора → 
 ### GhostTextManager
 
 - **Регистрация:** `vscode.languages.registerInlineCompletionItemProvider({pattern:'**'}, this)`
-- **provideInlineCompletionItems:** проверка совпадения документа, позиции в range → `InlineCompletionList([item])`
-- **Кэш:** `lastCacheEntry = {uri, suggestion}` — блокирует дублирование
-- **Очистка:** `onDidChangeTextDocument` того же документа → `clearSuggestion()` (но не кэш)
+- **provideInlineCompletionItems (async):** сбор контекста → `requestCompletion(ctx, signal)` → `InlineCompletionList([item])`
+- **Кэш:** `lastSuggestion + lastUri` — блокирует дублирование
+- **Отмена:** `token.onCancellationRequested()` → `AbortController` (подписка диспоузится после запроса)
 
 ## Промпты
 
@@ -118,5 +115,6 @@ Ghost text автокомплит: контекст из редактора → 
 
 | Версия | Дата | Изменения |
 |--------|------|-----------|
+| 0.13.0 | 2026-08-23 | Async-провайдер: LLM-запрос в `provideInlineCompletionItems` (фикс «ghost text не появлялся» — подсказка ставилась после запроса VS Code и не перечитывалась) |
 | 0.8.0 | 2026-08-07 | Полные алгоритмические детали |
 | 0.1.0 | 2026-08-04 | Базовая реализация |
