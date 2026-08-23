@@ -164,6 +164,7 @@ code --install-extension vscode-llm-assistant-0.11.2.vsix
 | `llmAssistant.defaultProvider` | string | `"openai"` | Провайдер по умолчанию |
 | `llmAssistant.defaultModel` | string | `"gpt-4o"` | Модель по умолчанию |
 | `llmAssistant.debug` | boolean | `false` | Дебаг-логирование в Output Channel `LLM Assistant` |
+| `llmAssistant.disableThinking` | boolean | `false` | Отключить режим размышлений (thinking) для deepseek-моделей в чате/агенте/редактировании. Экономит токены и ускоряет ответ |
 
 ### Чат (`llmAssistant.chat`)
 
@@ -243,7 +244,6 @@ code --install-extension vscode-llm-assistant-0.11.2.vsix
 | Ключ | Тип | По умолчанию | Описание |
 |------|-----|-------------|----------|
 | `autocomplete.enabled` | boolean | `true` | Включить автокомплит |
-| `autocomplete.debounceMs` | number | `500` | Задержка перед запросом (мс) |
 
 ---
 

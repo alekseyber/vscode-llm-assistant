@@ -3,7 +3,7 @@
   "displayName": "VS Code LLM Assistant",
   "description": "AI-ассистент: чат, редактирование, автокомплит, агентный кодинг",
   "publisher": "alekseyber",
-  "version": "0.13.0-rc19",
+  "version": "0.13.0-rc20",
   "icon": "media/icon.png",
   "repository": {
     "type": "git",
@@ -131,11 +131,6 @@
           "type": "boolean",
           "default": true,
           "description": "Включить автокомплит"
-        },
-        "llmAssistant.autocomplete.debounceMs": {
-          "type": "number",
-          "default": 500,
-          "description": "Задержка перед запросом автокомплита (ms)"
         },
         "llmAssistant.disableThinking": {
           "type": "boolean",
