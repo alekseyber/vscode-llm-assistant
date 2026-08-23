@@ -59,11 +59,14 @@ export class GhostTextManager implements vscode.InlineCompletionItemProvider {
   ): Promise<vscode.InlineCompletionList | null> {
     // Автокомплит выключен — молчим
     if (!this.isEnabled()) {
+      console.log('[Autocomplete] Пропуск: автокомплит выключен');
       return null;
     }
 
-    // Работаем только с реальными файлами (не output/terminal/diff)
-    if (document.uri.scheme !== 'file') {
+    // Работаем только с реальными/удалёнными/новыми файлами (не output/terminal/diff)
+    const scheme = document.uri.scheme;
+    if (scheme !== 'file' && scheme !== 'untitled' && scheme !== 'vscode-remote') {
+      console.log(`[Autocomplete] Пропуск: scheme=${scheme}`);
       return null;
     }
 
@@ -74,6 +77,7 @@ export class GhostTextManager implements vscode.InlineCompletionItemProvider {
     // Собираем контекст
     const ctx = this.contextBuilder.build(document, position);
     if (!ctx || (!ctx.prefix && !ctx.suffix)) {
+      console.log('[Autocomplete] Пропуск: пустой контекст');
       return null;
     }
 
@@ -82,6 +86,7 @@ export class GhostTextManager implements vscode.InlineCompletionItemProvider {
     try {
       const suggestion = await this.requestCompletion(ctx, signal);
       if (!suggestion || suggestion.trim().length === 0) {
+        console.log('[Autocomplete] Пустой ответ от LLM — пропускаем');
         return null;
       }
 
@@ -95,6 +100,7 @@ export class GhostTextManager implements vscode.InlineCompletionItemProvider {
 
       // Диапазон вставки — от текущей позиции курсора
       const range = new vscode.Range(position, position);
+      console.log(`[Autocomplete] Ghost text показан (${suggestion.length} симв.)`);
       return new vscode.InlineCompletionList([
         new vscode.InlineCompletionItem(suggestion, range),
       ]);

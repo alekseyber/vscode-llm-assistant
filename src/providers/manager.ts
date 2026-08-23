@@ -103,14 +103,19 @@ export class ProviderManager {
   /**
    * Получить провайдера по умолчанию.
    * Использует значение настройки llmAssistant.defaultProvider.
-   * Если настройка не задана, возвращается провайдер 'openai'.
+   * Если провайдер по умолчанию не задан или не найден — берётся первый настроенный.
    * 
-   * @returns LLMProvider по умолчанию или undefined, если не найден
+   * @returns LLMProvider по умолчанию или undefined, если провайдеров нет
    */
   getDefault(): LLMProvider | undefined {
     const config = vscode.workspace.getConfiguration('llmAssistant');
     const defaultProviderName = config.get<string>('defaultProvider') ?? 'openai';
-    return this.getProvider(defaultProviderName);
+    const provider = this.getProvider(defaultProviderName);
+    if (provider) {
+      return provider;
+    }
+    // Fallback: первый настроенный провайдер (если defaultProvider не сконфигурирован)
+    return this.providers.values().next().value;
   }
 
   /**

@@ -45,6 +45,9 @@ export interface CompletionOptions {
  * Все провайдеры должны реализовать этот интерфейс
  */
 export interface LLMProvider {
+  /** Название провайдера (например, 'openai', 'deepseek') */
+  readonly name: string;
+
   /**
    * Отправить сообщения в чат и получить стриминг ответа
    * @param messages - история сообщений

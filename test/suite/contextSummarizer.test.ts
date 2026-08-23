@@ -27,6 +27,7 @@ function createMockProvider(
   chatImpl?: (messages: ChatMessage[], options: CompletionOptions, signal?: AbortSignal) => AsyncIterable<string>,
 ): LLMProvider {
   return {
+    name: 'test-provider',
     chat: chatImpl ?? ((_messages, _options, signal) => mockChatStream(['ответ'], signal)),
     chatComplete: chatCompleteImpl ?? (async () => 'Это краткое summary диалога.'),
     models: async () => ['gpt-4o'],
@@ -307,6 +308,7 @@ suite('ContextSummarizer', () => {
   test('fallback: summarizeMessages работает через chat() если chatComplete отсутствует', async () => {
     // Провайдер БЕЗ chatComplete — используем chat() (стрим)
     const provider: LLMProvider = {
+      name: 'test-provider',
       chat: (_messages, _options, signal) => mockChatStream(['Fallback ', 'summary ', 'текст.'], signal),
       models: async () => ['gpt-4o'],
       // chatComplete отсутствует

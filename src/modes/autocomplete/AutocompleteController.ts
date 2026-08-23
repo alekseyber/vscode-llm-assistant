@@ -84,11 +84,24 @@ export class AutocompleteController {
   private async requestCompletion(context: AutocompleteContext, signal?: AbortSignal): Promise<string | null> {
     const provider = this.providerManager.getDefault();
     if (!provider) {
+      console.log('[AutocompleteController] Провайдер по умолчанию не найден — пропускаем');
       return null;
     }
 
     const config = vscode.workspace.getConfiguration('llmAssistant');
-    const model = config.get<string>('defaultModel') ?? 'gpt-4o';
+    const configuredModel = config.get<string>('defaultModel');
+
+    // Резолвим модель: если defaultModel не задан или отсутствует у провайдера — берём первую доступную
+    let model = configuredModel || 'gpt-4o';
+    try {
+      const models = await provider.models();
+      if (models.length > 0 && !models.includes(model)) {
+        model = models[0];
+      }
+    } catch {
+      // Оставляем configuredModel как fallback
+    }
+    console.log(`[AutocompleteController] Запрос: provider=${provider.name}, model=${model}`);
 
     // Формируем промпт для автокомплита
     const systemPrompt = `Ты — автокомплит для кода в VS Code.
