@@ -1,6 +1,6 @@
 ---
 component: AgentOrchestrator
-version: 0.8.0
+version: 0.12.0
 status: beta
 since: 0.7.0
 ---

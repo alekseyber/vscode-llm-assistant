@@ -46,7 +46,7 @@ extension.ts (вход)
 │   │   └── EditController        [spec ✅] — inline diff
 │   │
 │   ├── 💡 Code Actions
-│   │   └── CodeActionsProvider   [spec ✅] — лампочка: «Объясни», «Почини», «Спроси»
+│   │   └── CodeActionsProvider   [spec ⏳ planned] — лампочка (запланировано, не реализовано)
 │   │
 │   ├── 🔍 Ревью
 │   │   ├── CodeReviewer          [spec ✅] — standalone AI-ревью (reviewFile/reviewCode через ReviewerAgent)
@@ -62,9 +62,9 @@ extension.ts (вход)
 │
 ├── SHARED
 │   ├── ContextSummarizer         [spec ✅] — сжатие истории в summary
-│   ├── DiagnosticsProvider       [spec ✅] — автосбор ошибок как контекст
-│   ├── StatusBarIndicator        [spec ✅] — индикатор в статус-баре
-│   ├── DecorationsManager        [spec ✅] — подсветка изменённых строк
+│   ├── DiagnosticsProvider       [spec ⏳ planned] — автосбор ошибок (запланировано)
+│   ├── StatusBarIndicator        [spec ⏳ planned] — индикатор в статус-баре (запланировано)
+│   ├── DecorationsManager        [spec ⏳ planned] — подсветка изменённых строк (частично в diff.ts)
 │   ├── RetryHandler              [spec ✅] — exponential backoff + jitter
 │   ├── AgentsMdLoader            [spec ✅] — загрузка .llma/main.md
 │   ├── RoleAgentsMdLoader        [spec ✅] — .llma/agents/{role}.md + @orchestrate роли
@@ -88,9 +88,10 @@ extension.ts (вход)
 
 | Статус | Компоненты |
 |--------|-----------|
-| ✅ Есть spec | **38 компонентов** (+3 мета-документа: ARCHITECTURE, TRACEABILITY, TEMPLATE) |
+| ✅ Реализован + spec | **34 компонента** |
+| ⏳ Запланирован (spec без кода) | 4: CodeActionsProvider, DecorationsManager, DiagnosticsProvider, StatusBarIndicator |
 
-**Покрытие: 38/38 (100%)**
+**Покрытие реализованного кода: 34/34 (100%).** Мета-документы: ARCHITECTURE, TRACEABILITY, TEMPLATE.
 
 ## Потоки данных
 

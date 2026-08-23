@@ -1,6 +1,6 @@
 ---
 component: ChatAgentTools
-version: 0.8.21
+version: 0.9.0
 status: stable
 since: 0.1.0
 ---

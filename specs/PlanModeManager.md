@@ -1,7 +1,7 @@
 ---
 component: PlanModeManager
-version: 0.1.0
-status: planned
+version: 0.12.1
+status: stable
 since: 0.9.0
 ---
 
