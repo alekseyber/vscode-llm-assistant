@@ -18,6 +18,7 @@ const testModules: string[] = [
   './e2e/allowList.e2e',
   './e2e/planModeSession.e2e',
   './e2e/review.e2e',
+  './e2e/p0Webview.e2e',
 ];
 
 /**

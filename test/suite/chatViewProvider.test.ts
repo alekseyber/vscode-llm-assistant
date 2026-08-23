@@ -5,6 +5,7 @@ import 'mocha';
 import * as sinon from 'sinon';
 import * as vscode from 'vscode';
 import * as assert from 'assert';
+import * as path from 'path';
 import { ChatViewProvider } from '../../src/modes/chat/ChatViewProvider';
 import { ConversationManager } from '../../src/modes/chat/ConversationManager';
 import { RunHistoryStore } from '../../src/shared/RunHistoryStore';
@@ -475,5 +476,20 @@ suite('ChatViewProvider.handleSendMessage', () => {
     const s = msg.sessions.find((x: any) => x.id === sid);
     assert.ok(s, 'сессия в sessionList');
     assert.strictEqual(s.preview, 'Как написать юнит-тест?', 'превью из последнего сообщения');
+  });
+
+  test('getHtmlForWebview: инжектит webview-ресурсы без незаменённых плейсхолдеров (P0-6.1)', () => {
+    // Указываем реальный корень репо, чтобы getHtmlForWebview читал настоящие файлы webview
+    const realRoot = path.resolve(__dirname, '../../..');
+    (provider as any).context.extensionUri = vscode.Uri.file(realRoot);
+
+    const html = (provider as any).getHtmlForWebview();
+
+    assert.ok(!html.includes('{{'), 'нет незаменённых {{...}}-плейсхолдеров');
+    assert.ok(html.includes('TOOLBAR_ACTIONS'), 'toolbar.js инжектирован ({{TOOLBAR}})');
+    assert.ok(html.includes('TOOL_ACTIVITY'), 'toolActivity.js инжектирован ({{TOOLACTIVITY}})');
+    assert.ok(html.includes('id="session-sidebar"'), 'сайдбар сессий в разметке (P0-2)');
+    assert.ok(html.includes('id="input-toolbar"'), 'input-toolbar в разметке (P0-4)');
+    assert.ok(html.includes('id="header-actions"'), 'header-actions в разметке (P0-1)');
   });
 });
