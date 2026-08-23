@@ -899,24 +899,57 @@
   }
 
   /** Рендер сайдбара сессий (вместо dropdown) — AC P0-2.1. */
-  function updateSessionList(sessions, activeId) {
-    const list = document.getElementById('session-list');
-    if (!list || !sessions) return;
-    currentSessionId = activeId || '';
-    // Синхронизируем индикатор «в работе» с текущей сессией
-    if (runningSessions.has(currentSessionId)) showRunningIndicator();
-    else hideRunningIndicator();
+  let lastSessions = [];
+  let lastActiveId = '';
+  let sessionFilterQuery = '';
+  let sessionFilterFavOnly = false;
 
+  /** Применить фильтр (поиск + только избранные) к списку сессий. */
+  function applySessionFilters(sessions) {
+    return sessions.filter((s) => {
+      if (sessionFilterFavOnly && !s.favorite) return false;
+      if (sessionFilterQuery) {
+        const q = sessionFilterQuery.toLowerCase();
+        const hay = ((s.name || '') + ' ' + (s.preview || '')).toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+  }
+
+  /** Перерисовать список сессий с учётом фильтров. */
+  function renderSessionList() {
+    const list = document.getElementById('session-list');
+    if (!list) return;
     list.innerHTML = '';
-    for (const group of groupSessionsByDate(sessions)) {
+    const filtered = applySessionFilters(lastSessions);
+    if (filtered.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'session-empty';
+      empty.textContent = 'Ничего не найдено';
+      list.appendChild(empty);
+      return;
+    }
+    for (const group of groupSessionsByDate(filtered)) {
       const header = document.createElement('div');
       header.className = 'session-group-label';
       header.textContent = group.label;
       list.appendChild(header);
       for (const s of group.items) {
-        list.appendChild(createSessionItem(s, s.id === activeId));
+        list.appendChild(createSessionItem(s, s.id === lastActiveId));
       }
     }
+  }
+
+  function updateSessionList(sessions, activeId) {
+    if (!sessions) return;
+    lastSessions = sessions;
+    lastActiveId = activeId || '';
+    currentSessionId = lastActiveId;
+    // Синхронизируем индикатор «в работе» с текущей сессией
+    if (runningSessions.has(currentSessionId)) showRunningIndicator();
+    else hideRunningIndicator();
+    renderSessionList();
   }
 
   // ---------- Toolbar (P0, Этап 1) ----------
@@ -1173,6 +1206,18 @@
   document.getElementById('btn-toggle-sidebar')?.addEventListener('click', () => toggleSidebar());
   document.getElementById('sidebar-backdrop')?.addEventListener('click', () => toggleSidebar(false));
   document.getElementById('btn-close-sidebar')?.addEventListener('click', () => toggleSidebar(false));
+
+  // Фильтр сессий: поиск + «только избранные»
+  const sessionSearch = document.getElementById('session-search');
+  sessionSearch?.addEventListener('input', () => {
+    sessionFilterQuery = sessionSearch.value;
+    renderSessionList();
+  });
+  const sessionFavOnly = document.getElementById('session-fav-only');
+  sessionFavOnly?.addEventListener('change', () => {
+    sessionFilterFavOnly = sessionFavOnly.checked;
+    renderSessionList();
+  });
 
   // Прикрепление файлов (общая функция)
   async function processAttachedFile(file) {

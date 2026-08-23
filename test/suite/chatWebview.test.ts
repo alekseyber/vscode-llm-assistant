@@ -379,6 +379,67 @@ suite('ChatWebview (jsdom)', () => {
     assert.ok(!backdrop.classList.contains('visible'), 'подложка скрыта');
   });
 
+  test('сайдбар: фильтр — поиск по имени (P0.2-fix)', () => {
+    const { dispatch, document, window } = loadWebview();
+    const now = Date.now();
+    dispatch({
+      type: 'sessionList',
+      sessions: [
+        { id: 'a', name: 'Проект Hercules', lastActiveAt: now, createdAt: now, messageCount: 0, favorite: false, preview: '' },
+        { id: 'b', name: 'Проект Zeus', lastActiveAt: now, createdAt: now, messageCount: 0, favorite: false, preview: '' },
+        { id: 'c', name: 'Проект Athena', lastActiveAt: now, createdAt: now, messageCount: 0, favorite: true, preview: '' },
+      ],
+      activeId: 'a',
+    });
+
+    const search = document.getElementById('session-search') as HTMLInputElement;
+    search.value = 'hercules';
+    search.dispatchEvent(new (window as any).Event('input', { bubbles: true }));
+
+    const names = [...document.querySelectorAll('#session-list .session-item-name')].map((e) => e.textContent);
+    assert.deepStrictEqual(names, ['Проект Hercules'], 'осталась только совпавшая сессия');
+  });
+
+  test('сайдбар: фильтр — только избранные (P0.2-fix)', () => {
+    const { dispatch, document, window } = loadWebview();
+    const now = Date.now();
+    dispatch({
+      type: 'sessionList',
+      sessions: [
+        { id: 'a', name: 'Обычная', lastActiveAt: now, createdAt: now, messageCount: 0, favorite: false, preview: '' },
+        { id: 'b', name: 'Избранная', lastActiveAt: now, createdAt: now, messageCount: 0, favorite: true, preview: '' },
+      ],
+      activeId: 'a',
+    });
+
+    const favOnly = document.getElementById('session-fav-only') as HTMLInputElement;
+    favOnly.checked = true;
+    favOnly.dispatchEvent(new (window as any).Event('change', { bubbles: true }));
+
+    const names = [...document.querySelectorAll('#session-list .session-item-name')].map((e) => e.textContent);
+    assert.deepStrictEqual(names, ['⭐ Избранная'], 'осталась только избранная');
+  });
+
+  test('сайдбар: фильтр — пустой результат (P0.2-fix)', () => {
+    const { dispatch, document, window } = loadWebview();
+    const now = Date.now();
+    dispatch({
+      type: 'sessionList',
+      sessions: [
+        { id: 'a', name: 'Одна', lastActiveAt: now, createdAt: now, messageCount: 0, favorite: false, preview: '' },
+      ],
+      activeId: 'a',
+    });
+
+    const search = document.getElementById('session-search') as HTMLInputElement;
+    search.value = 'несуществующее';
+    search.dispatchEvent(new (window as any).Event('input', { bubbles: true }));
+
+    const empty = document.querySelector('#session-list .session-empty') as HTMLElement;
+    assert.ok(empty, 'пустое состояние показано');
+    assert.strictEqual(empty.textContent, 'Ничего не найдено');
+  });
+
   test('activity-feed: tool_call рендерится дружелюбно (AC P0-3.1, P0-3.2)', () => {
     const { dispatch, document } = loadWebview();
     dispatch({ type: 'toolActivity', activity: { kind: 'start', toolName: 'run_terminal', args: { command: 'npm test' } } });

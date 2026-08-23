@@ -120,6 +120,57 @@ body {
   padding: 6px;
 }
 
+/* Фильтр сессий: поиск + «только избранные» */
+.session-filter {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.session-search {
+  width: 100%;
+  box-sizing: border-box;
+  font-size: 12px;
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 5px 8px;
+  outline: none;
+}
+
+.session-search:focus {
+  border-color: var(--accent);
+}
+
+.session-fav-filter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.session-fav-filter input[type="checkbox"] {
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+/* Пустой результат фильтра */
+.session-empty {
+  padding: 12px 8px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
 .session-group-label {
   font-size: 10px;
   text-transform: uppercase;
