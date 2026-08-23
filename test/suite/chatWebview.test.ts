@@ -318,7 +318,6 @@ suite('ChatWebview (jsdom)', () => {
 
   test('сайдбар: действия избранное/переименовать/удалить (AC P0-2.4)', () => {
     const { dispatch, document, postedMessages, window } = loadWebview();
-    (window as any).prompt = () => 'Новое имя';
 
     dispatch({
       type: 'sessionList',
@@ -335,7 +334,12 @@ suite('ChatWebview (jsdom)', () => {
     assert.ok(fav, 'toggleFavorite отправлен');
     assert.strictEqual(fav.sessionId, 's1');
 
+    // Переименование — инлайн-инпут (не window.prompt, которого нет в WebView)
     (item.querySelector('.session-action[title="Переименовать"]') as HTMLElement).click();
+    const input = item.querySelector('.session-rename-input') as HTMLInputElement;
+    assert.ok(input, 'инлайн-инпут переименования появился');
+    input.value = 'Новое имя';
+    input.dispatchEvent(new (window as any).KeyboardEvent('keydown', { key: 'Enter' }));
     const ren = postedMessages.find((m) => m.type === 'renameSession');
     assert.ok(ren, 'renameSession отправлен');
     assert.strictEqual(ren.sessionId, 's1');

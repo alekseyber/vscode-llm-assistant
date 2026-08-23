@@ -861,8 +861,37 @@
 
     favBtn.addEventListener('click', () => postMessage({ type: 'toggleFavorite', sessionId: s.id }));
     renameBtn.addEventListener('click', () => {
-      const newName = prompt('Новое имя сессии:', s.name);
-      if (newName && newName.trim()) postMessage({ type: 'renameSession', sessionId: s.id, name: newName.trim() });
+      // Инлайн-переименование (window.prompt не работает в VS Code WebView)
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.className = 'session-rename-input';
+      input.value = s.name;
+      input.maxLength = 80;
+
+      let done = false;
+      const finish = (commit) => {
+        if (done) return;
+        done = true;
+        if (commit) {
+          const v = input.value.trim();
+          if (v && v !== s.name) postMessage({ type: 'renameSession', sessionId: s.id, name: v });
+        }
+        name.style.display = '';
+        input.remove();
+      };
+
+      input.addEventListener('keydown', (e) => {
+        e.stopPropagation();
+        if (e.key === 'Enter') finish(true);
+        else if (e.key === 'Escape') finish(false);
+      });
+      input.addEventListener('blur', () => finish(true));
+      input.addEventListener('click', (e) => e.stopPropagation());
+
+      name.style.display = 'none';
+      name.parentNode.insertBefore(input, name);
+      input.focus();
+      input.select();
     });
     deleteBtn.addEventListener('click', () => postMessage({ type: 'deleteSession', sessionId: s.id }));
 
