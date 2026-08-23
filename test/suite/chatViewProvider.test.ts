@@ -504,6 +504,22 @@ suite('ChatViewProvider.handleSendMessage', () => {
     assert.strictEqual(items[1].steps[0].result, 'содержимое');
   });
 
+  test('markCancelled: персистит «Запрос отменён» в session-log (P0-fix)', () => {
+    const postMessage = sandbox.stub();
+    (provider as any).view = { webview: { postMessage } };
+
+    const sid = cm.session.getActive()!.meta.id;
+    const sessionLog = new SessionLog(storage);
+    (cm as any).sessionLog = sessionLog;
+
+    (provider as any).markCancelled(sid);
+
+    const events = sessionLog.getEvents(sid);
+    const assistant = events.find((e: any) => e.type === 'assistant/message') as any;
+    assert.ok(assistant, 'маркер отмены в логе');
+    assert.strictEqual(assistant.content, '_Запрос отменён._');
+  });
+
   test('getHtmlForWebview: инжектит webview-ресурсы без незаменённых плейсхолдеров (P0-6.1)', () => {
     // Указываем реальный корень репо, чтобы getHtmlForWebview читал настоящие файлы webview
     const realRoot = path.resolve(__dirname, '../../..');

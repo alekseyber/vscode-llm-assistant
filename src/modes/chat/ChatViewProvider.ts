@@ -389,7 +389,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     } catch (error: any) {
       const duration = Date.now() - startTime;
       if (isAbortError(error)) {
-        this.postMessage({ type: 'cancelled' }, sessionId);
+        this.markCancelled(sessionId);
         this.finalizeRun(runId, startTime, model, providerDisplayName, inTokens, 0, 0, 'cancelled');
       } else {
         this.postMessage({ type: 'error', text: `Ошибка: ${error.message}` }, sessionId);
@@ -428,6 +428,15 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     this.runHistoryStore.recordRun(entry);
     this.historyViewProvider?.refresh();
     this.broadcastRunState(sessionId, true);
+  }
+
+  /**
+   * Отмена по AbortSignal: уведомить WebView + персистить маркер «Запрос отменён» в session-log,
+   * чтобы он не исчезал при переключении сессий.
+   */
+  private markCancelled(sessionId?: string): void {
+    this.postMessage({ type: 'cancelled' }, sessionId);
+    this.conversationManager.addMessageTo(sessionId, { role: 'assistant', content: '_Запрос отменён._' });
   }
 
   /** Обновить запуск в истории финальными значениями (по завершении) */
@@ -578,7 +587,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       this.finalizeRun(planRunId, planStartTime, model, 'plan-mode', 0, 0, 1, 'success');
     } catch (err: any) {
       if (isAbortError(err)) {
-        this.postMessage({ type: 'cancelled' }, sessionId);
+        this.markCancelled(sessionId);
         this.finalizeRun(planRunId, planStartTime, model, 'plan-mode', 0, 0, 0, 'cancelled');
       } else {
         this.postMessage({ type: 'error', text: `Ошибка планирования: ${err.message}` }, sessionId);
@@ -662,7 +671,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       this.finalizeRun(implRunId, implStartTime, model, 'plan-mode', 0, 0, 1, 'success');
     } catch (err: any) {
       if (isAbortError(err)) {
-        this.postMessage({ type: 'cancelled' }, sessionId);
+        this.markCancelled(sessionId);
         this.finalizeRun(implRunId, implStartTime, model, 'plan-mode', 0, 0, 0, 'cancelled');
       } else {
         this.postMessage({ type: 'error', text: `Ошибка имплементации: ${err.message}` }, sessionId);
@@ -781,7 +790,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       result = await orchestrator.execute(task, provider, mcpTools.length > 0 ? mcpTools : undefined);
     } catch (err: any) {
       if (isAbortError(err)) {
-        this.postMessage({ type: 'cancelled' }, sessionId);
+        this.markCancelled(sessionId);
         this.finalizeRun(orchRunId, orchStartTime, model, 'orchestrator', 0, 0, 0, 'cancelled');
         return;
       }
