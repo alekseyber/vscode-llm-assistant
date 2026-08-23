@@ -59,7 +59,7 @@
   function hideRetryStatus() {
     const indicator = document.getElementById('streaming-indicator');
     if (indicator) {
-      indicator.querySelector('.loading-dots').textContent = 'LLM печатает';
+      indicator.querySelector('.loading-dots').textContent = 'Думаю';
       indicator.style.background = '';
       indicator.classList.add('hidden');
     }
@@ -369,6 +369,25 @@
   let streamingAnswerEl = null;     // <div class="streaming-answer">
   let currentActivityStep = null;   // текущий <details> шаг
 
+  /** Счётчик выполненных шагов (tool-calls) — «Думаю… · N» (AC P0-3.4) */
+  let activityStepCount = 0;
+  const activityCounter = document.getElementById('activity-counter');
+
+  /** Русская плюрализация: 1 шаг / 2 шага / 5 шагов. */
+  function pluralSteps(n) {
+    const mod10 = n % 10, mod100 = n % 100;
+    if (mod10 === 1 && mod100 !== 11) return 'шаг';
+    if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return 'шага';
+    return 'шагов';
+  }
+
+  /** Обновить счётчик шагов в индикаторе «Думаю…». */
+  function updateActivityCounter() {
+    if (activityCounter) {
+      activityCounter.textContent = activityStepCount > 0 ? `· ${activityStepCount} ${pluralSteps(activityStepCount)}` : '';
+    }
+  }
+
   /** Создать (при необходимости) контейнеры активности и ответа */
   function ensureStreamingEls() {
     if (!lastAssistantContentEl) {
@@ -389,14 +408,18 @@
     return true;
   }
 
-  /** Новый шаг: заголовок «🔧 toolName» (сворачиваемый details) */
-  function appendActivityStep(toolName) {
+  /** Новый шаг: дружелюбный заголовок «{icon} {label} {detail}» вместо сырого «🔧 toolName» (AC P0-3.1, P0-3.2) */
+  function appendActivityStep(toolName, args) {
     if (!ensureStreamingEls()) return;
+    const desc = (typeof window !== 'undefined' && window.TOOL_ACTIVITY)
+      ? window.TOOL_ACTIVITY.describeToolCall(toolName, args)
+      : { label: toolName || 'Инструмент', icon: '🔧', detail: '' };
     const step = document.createElement('details');
     step.className = 'activity-step';
     const summary = document.createElement('summary');
     summary.className = 'activity-step-summary';
-    summary.innerHTML = `<span class="activity-icon">🔧</span><span class="activity-tool">${escapeHtml(toolName)}</span><span class="activity-status">…</span>`;
+    const detailHtml = desc.detail ? `<span class="activity-detail">${escapeHtml(desc.detail)}</span>` : '';
+    summary.innerHTML = `<span class="activity-icon">${desc.icon}</span><span class="activity-tool">${escapeHtml(desc.label)}</span>${detailHtml}<span class="activity-status">…</span>`;
     step.appendChild(summary);
     const body = document.createElement('div');
     body.className = 'activity-step-body';
@@ -406,13 +429,15 @@
     scrollToBottom();
   }
 
-  /** Заполнить результат текущего шага (сворачиваемое тело) */
+  /** Заполнить результат текущего шага (сворачиваемое тело) + инкремент счётчика */
   function appendActivityResult(text) {
     if (!currentActivityStep) return;
     const body = currentActivityStep.querySelector('.activity-step-body');
     const status = currentActivityStep.querySelector('.activity-status');
     if (body) body.textContent = text || '';
     if (status) status.textContent = '✓';
+    activityStepCount++;
+    updateActivityCounter();
     // Короткий результат раскрываем сразу, длинный — оставляем свёрнутым
     if (text && text.length < 200) currentActivityStep.open = true;
     scrollToBottom();
@@ -431,7 +456,7 @@
   /** Обработчик структурированного хода выполнения */
   function handleToolActivity(activity) {
     if (!activity) return;
-    if (activity.kind === 'start') appendActivityStep(activity.toolName);
+    if (activity.kind === 'start') appendActivityStep(activity.toolName, activity.args);
     else if (activity.kind === 'result') appendActivityResult(activity.text);
     else if (activity.kind === 'note') appendActivityNote(activity.text);
   }
@@ -455,6 +480,8 @@
     streamingActivityEl = null;
     streamingAnswerEl = null;
     currentActivityStep = null;
+    activityStepCount = 0;
+    updateActivityCounter();
     streamingIndicator.classList.add('hidden');
     sendButton.disabled = false;
     sendButton.textContent = '➤';

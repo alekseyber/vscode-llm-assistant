@@ -275,6 +275,24 @@ suite('AgentWorker', () => {
     assert.strictEqual(toolSteps[0].toolName, 'read_file', 'Первый tool call должен быть read_file');
   });
 
+  test('tool_call шаг несёт args (P0 Этап 3)', async () => {
+    const role: AgentRole = {
+      name: 'arg-user',
+      systemPrompt: 'Используй инструменты.',
+    };
+    const provider = createMockProvider([
+      mockToolCallResponse('read_file', { path: 'src/main.js' }),
+      mockTextResponse('готово'),
+    ]);
+
+    const worker = new AgentWorker(role, provider);
+    const result = await worker.run('прочитай');
+
+    const toolSteps = result.steps.filter(s => s.type === 'tool_call');
+    assert.ok(toolSteps.length > 0, 'есть tool_call');
+    assert.deepStrictEqual(toolSteps[0].args, { path: 'src/main.js' }, 'args проброшены в шаг');
+  });
+
   // MA-1.5: run() не зависает, если нет финального ответа
   test('MA-1.5: run() возвращает fallback-ответ при исчерпании итераций', async () => {
     const role: AgentRole = {

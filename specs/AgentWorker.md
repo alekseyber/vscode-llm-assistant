@@ -94,6 +94,7 @@ since: 0.7.0
 - **Summary:** срабатывает при `enableSummary && i >= 2 && messages.length > 6`. Сжимаются все сообщения кроме system, task, и последних 2 пар. Результат вставляется как system-сообщение.
 - **All tools merging:** `[...baseToolSchemas, ...extraTools]`, затем фильтр по `allowedTools`
 - **Confirmation:** `onConfirm` получает `(toolName, args) → Promise<boolean>`. Если false — tool-сообщение с «Операция отклонена».
+- **Step args (P0 Этап 3):** `AgentStep` для `tool_call` несёт `args` (распарсенные аргументы) — ChatViewProvider пробрасывает их в WebView для дружелюбного рендера шага (`{icon} {label} {detail}`) вместо сырого `🔧 toolName`.
 - **Токены:** приоритет `response.usage.prompt_tokens/completion_tokens`, fallback `chars/4`. Накопление за все итерации.
 - **Ошибки:** throw Error — оркестратор ловит и изолирует; runAgentLoop ловит в handleSendMessage
 - **Messages мутация:** ответы ассистента и tool-результаты пушатся в массив; при summary массив пересобирается
@@ -132,6 +133,7 @@ since: 0.7.0
 
 | Версия | Дата | Изменения |
 |--------|------|-----------|
+| 0.13.0 | 2026-08-22 | P0 Этап 3: `args` в AgentStep (tool_call) для activity-feed в WebView |
 | 0.12.0 | 2026-08-22 | WorkerResult.limitExceeded; isAbortError в catch ReAct-цикла |
 | 0.9.0 | 2026-08-11 | signal и skipGlobalAllowList в AgentWorkerOptions; unfiltered-инструменты для обхода глобального allow-list |
 | 0.9.0 | 2026-08-09 | Добавлен SkillsLoader: инжект скилов в system prompt воркера |

@@ -41,6 +41,8 @@ export interface AgentStep {
   message: string;
   toolName?: string;
   toolResult?: string;
+  /** Аргументы вызова (для tool_call) — дружелюбный рендер в activity-feed (P0 Этап 3) */
+  args?: Record<string, unknown>;
 }
 
 /**
@@ -302,7 +304,7 @@ export class AgentWorker {
             }
           }
 
-          emit({ iteration: i, type: 'tool_call', message: `🔧 ${toolName}`, toolName });
+          emit({ iteration: i, type: 'tool_call', message: `🔧 ${toolName}`, toolName, args });
           emitEvent('tool/call', { stepId: `step_${i}`, name: toolName, args });
 
           try {

@@ -26,6 +26,7 @@ function loadWebview(): WebviewHandle {
     .replace('{{MARKED_LIB}}', '')
     .replace('{{LINEDIFF}}', '')
     .replace('{{TOOLBAR}}', '')
+    .replace('{{TOOLACTIVITY}}', '')
     .replace('{{SCRIPT}}', '');
   const dom = new JSDOM(html, { runScripts: 'outside-only', url: 'http://localhost/' });
   const window = dom.window as any;
@@ -44,9 +45,10 @@ function loadWebview(): WebviewHandle {
   window.URL.createObjectURL = () => 'blob:mock-url';
   window.URL.revokeObjectURL = () => {};
 
-  // Выполняем вспомогательный UMD и основной скрипт
+  // Выполняем вспомогательные UMD и основной скрипт
   window.eval(fs.readFileSync(path.join(CHAT_DIR, 'lineDiff.js'), 'utf-8'));
   window.eval(fs.readFileSync(path.join(CHAT_DIR, 'toolbar.js'), 'utf-8'));
+  window.eval(fs.readFileSync(path.join(CHAT_DIR, 'toolActivity.js'), 'utf-8'));
   window.eval(fs.readFileSync(path.join(CHAT_DIR, 'main.js'), 'utf-8'));
 
   // extension → WebView: синхронный dispatch MessageEvent
@@ -343,5 +345,53 @@ suite('ChatWebview (jsdom)', () => {
     const del = postedMessages.find((m) => m.type === 'deleteSession');
     assert.ok(del, 'deleteSession отправлен');
     assert.strictEqual(del.sessionId, 's1');
+  });
+
+  test('activity-feed: tool_call рендерится дружелюбно (AC P0-3.1, P0-3.2)', () => {
+    const { dispatch, document } = loadWebview();
+    dispatch({ type: 'toolActivity', activity: { kind: 'start', toolName: 'run_terminal', args: { command: 'npm test' } } });
+
+    const tool = document.querySelector('.activity-tool') as HTMLElement;
+    assert.ok(tool, 'шаг создан');
+    assert.strictEqual(tool.textContent, 'Команда', 'дружелюбный label вместо run_terminal');
+
+    const icon = document.querySelector('.activity-icon') as HTMLElement;
+    assert.strictEqual(icon.textContent, '▶️', 'иконка из маппинга');
+
+    const detail = document.querySelector('.activity-detail') as HTMLElement;
+    assert.strictEqual(detail.textContent, 'npm test', 'сводка аргументов');
+  });
+
+  test('activity-feed: неизвестный тул → fallback raw name + 🔧', () => {
+    const { dispatch, document } = loadWebview();
+    dispatch({ type: 'toolActivity', activity: { kind: 'start', toolName: 'some_mcp_tool' } });
+
+    const tool = document.querySelector('.activity-tool') as HTMLElement;
+    assert.strictEqual(tool.textContent, 'some_mcp_tool', 'fallback raw name');
+    const icon = document.querySelector('.activity-icon') as HTMLElement;
+    assert.strictEqual(icon.textContent, '🔧', 'fallback иконка 🔧');
+  });
+
+  test('activity-feed: счётчик шагов «· N шаг/шага» (AC P0-3.4)', () => {
+    const { dispatch, document } = loadWebview();
+    const counter = document.getElementById('activity-counter') as HTMLElement;
+
+    dispatch({ type: 'toolActivity', activity: { kind: 'start', toolName: 'read_file' } });
+    dispatch({ type: 'toolActivity', activity: { kind: 'result', toolName: 'read_file', text: 'ok' } });
+    assert.strictEqual(counter.textContent, '· 1 шаг', '1 шаг');
+
+    dispatch({ type: 'toolActivity', activity: { kind: 'start', toolName: 'search_files' } });
+    dispatch({ type: 'toolActivity', activity: { kind: 'result', toolName: 'search_files', text: 'x\ny' } });
+    assert.strictEqual(counter.textContent, '· 2 шага', '2 шага');
+  });
+
+  test('activity-feed: индикатор «Думаю» + кнопка «Остановить» (AC P0-3.3)', () => {
+    const { document } = loadWebview();
+
+    const dots = document.querySelector('#streaming-indicator .loading-dots') as HTMLElement;
+    assert.strictEqual(dots.textContent, 'Думаю', 'текст индикатора — Думаю');
+
+    const cancel = document.getElementById('btn-cancel') as HTMLElement;
+    assert.ok(cancel.textContent!.includes('Остановить'), 'кнопка Остановить');
   });
 });

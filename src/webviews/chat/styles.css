@@ -518,15 +518,26 @@ body {
 #streaming-indicator {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 8px;
   padding: 6px 12px;
   background: var(--bg-secondary);
   border-top: 1px solid var(--border);
   flex-shrink: 0;
 }
 
+#streaming-indicator #btn-cancel {
+  margin-left: auto;
+}
+
 #streaming-indicator.hidden {
   display: none;
+}
+
+/* Счётчик шагов «Думаю… · N» (P0, Этап 3) */
+.activity-counter {
+  font-size: 11px;
+  color: var(--text-secondary);
+  white-space: nowrap;
 }
 
 .loading-dots {
@@ -955,6 +966,14 @@ body {
   font-family: 'Cascadia Code', 'Fira Code', monospace;
   color: var(--accent);
   font-weight: 600;
+}
+.activity-detail {
+  font-size: 11px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 40%;
 }
 .activity-status { margin-left: auto; color: var(--text-secondary); font-size: 12px; }
 .activity-step-body {

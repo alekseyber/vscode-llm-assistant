@@ -519,7 +519,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         onStep: (step) => {
           switch (step.type) {
             case 'tool_call':
-              this.postMessage({ type: 'toolActivity', activity: { kind: 'start', toolName: step.toolName } }, sessionId);
+              this.postMessage({ type: 'toolActivity', activity: { kind: 'start', toolName: step.toolName, args: step.args } }, sessionId);
               break;
             case 'tool_result':
               this.postMessage({ type: 'toolActivity', activity: { kind: 'result', toolName: step.toolName, text: step.toolResult || step.message } }, sessionId);
@@ -1015,6 +1015,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       html = html.replace('{{MARKED_LIB}}', fs.readFileSync(vscode.Uri.joinPath(base, 'src', 'webviews', 'chat', 'marked.min.js').fsPath, 'utf-8'));
       html = html.replace('{{LINEDIFF}}', fs.readFileSync(vscode.Uri.joinPath(base, 'src', 'webviews', 'chat', 'lineDiff.js').fsPath, 'utf-8'));
       html = html.replace('{{TOOLBAR}}', fs.readFileSync(vscode.Uri.joinPath(base, 'src', 'webviews', 'chat', 'toolbar.js').fsPath, 'utf-8'));
+      html = html.replace('{{TOOLACTIVITY}}', fs.readFileSync(vscode.Uri.joinPath(base, 'src', 'webviews', 'chat', 'toolActivity.js').fsPath, 'utf-8'));
       html = html.replace('{{SCRIPT}}', fs.readFileSync(vscode.Uri.joinPath(base, 'src', 'webviews', 'chat', 'main.js').fsPath, 'utf-8'));
       return html;
     } catch { return '<html><body><h1>Ошибка загрузки чата</h1></body></html>'; }

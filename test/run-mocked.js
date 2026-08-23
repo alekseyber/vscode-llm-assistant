@@ -62,6 +62,7 @@ const testFiles = [
   '../out/test/suite/lineDiff.test.js',
   '../out/test/suite/chatWebview.test.js',
   '../out/test/suite/toolbar.test.js',
+  '../out/test/suite/toolActivity.test.js',
   '../out/test/suite/codeReviewer.test.js',
   '../out/test/suite/reviewViewProvider.test.js',
   '../out/test/suite/reviewCommand.test.js',

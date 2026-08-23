@@ -16,6 +16,7 @@ since: 0.1.0
 | `index.html` | Разметка: messagesContainer, input, sidebar | ~150 |
 | `main.js` | Логика: сообщения, стриминг, сессии, провайдеры, тулбар | 912 |
 | `toolbar.js` | Декларативный реестр `TOOLBAR_ACTIONS` (P0) | ~30 |
+| `toolActivity.js` | Маппинг `tool_name → {label, icon}` + описание вызова (P0) | ~80 |
 | `styles.css` | Стили: чат, кнопки, контекст-бар | ~500 |
 
 ## Интерфейс (postMessage)
@@ -69,6 +70,7 @@ since: 0.1.0
 - **Confirmation:** модальное окно с `requestId`. Ответ через `confirmResponse`.
 - **Провайдеры:** селектор `<select id="provider-select">`, модели обновляются при смене провайдера.
 - **Тулбар ⋮ (P0, Этап 1):** кнопки шапки рендерятся из декларативного реестра `TOOLBAR_ACTIONS` (`toolbar.js`, UMD: глобал в WebView + `module.exports` для тестов). `primary: true` → видимая иконка, остальные — в ⋮-меню (`#toolbar-menu`). Деструктив (очистить/удалить сессию/удалить все) — `primary: false` и `danger: true`. «Удалить все сессии» шлёт `clearAllSessions`.
+- **Activity-feed (P0, Этап 3):** tool-шаги рендерятся дружелюбно через `toolActivity.js` (`describeToolCall(toolName, args)` → `{icon, label, detail}`) вместо сырого `🔧 toolName`. Индикатор «Думаю…» + счётчик шагов `· N` + кнопка «Остановить».
 - **Токены:** `MODEL_PRICES` в main.js — хардкод (дублирует types.ts). Контекст-бар: `.context-bar-fill { width: N% }`.
 - **Контекст-бар:** `width: 120px; flex-shrink: 0` (не `flex: 1`). `context-overflow` — красный с пульсацией.
 - **Welcome:** `#welcome-message` скрывается при первом сообщении.
@@ -118,6 +120,7 @@ since: 0.1.0
 
 | Версия | Дата | Изменения |
 |--------|------|-----------|
+| 0.13.0 | 2026-08-22 | P0 Этап 3: activity-feed — маппинг `tool_name→{label,icon}` (`toolActivity.js`), «Думаю…» + счётчик шагов |
 | 0.13.0 | 2026-08-22 | P0 Этап 2: левый сайдбар сессий (группировка, превью, избранное/переименовать/удалить) вместо dropdown |
 | 0.13.0 | 2026-08-22 | P0 Этап 1: тулбар ⋮ — реестр `TOOLBAR_ACTIONS` (`toolbar.js`), primary-иконки + ⋮-меню, «Удалить все сессии» (`clearAllSessions`) |
 | 0.1.0 | 2026-08-04 | Базовая реализация |
