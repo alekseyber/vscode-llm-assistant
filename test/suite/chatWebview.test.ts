@@ -504,6 +504,21 @@ suite('ChatWebview (jsdom)', () => {
     assert.ok(cancel.textContent!.includes('Остановить'), 'кнопка Остановить');
   });
 
+  test('done: свёрнутый трейс шагов остаётся после завершения (P0-fix)', () => {
+    const { dispatch, document } = loadWebview();
+
+    dispatch({ type: 'toolActivity', activity: { kind: 'start', toolName: 'read_file', args: { path: 'a.ts' } } });
+    dispatch({ type: 'toolActivity', activity: { kind: 'result', toolName: 'read_file', text: 'содержимое' } });
+    dispatch({ type: 'streamChunk', text: 'готово' });
+    dispatch({ type: 'done' });
+
+    const trace = document.querySelector('.agent-trace') as HTMLElement;
+    assert.ok(trace, 'свёрнутый трейс создан');
+    const summary = trace.querySelector('.agent-trace-summary') as HTMLElement;
+    assert.strictEqual(summary.textContent, '🔧 Выполнено 1 шаг', 'счётчик шагов в трейсе');
+    assert.ok(trace.querySelector('.activity-step'), 'френдли-шаг внутри трейса');
+  });
+
   test('input-toolbar: при загрузке активен Agent (AC P0-4.3)', () => {
     const { document } = loadWebview();
 

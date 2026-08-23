@@ -504,11 +504,31 @@
   }
 
   /**
-   * Завершить стриминг — рендерить ТОЛЬКО финальный ответ (без хода выполнения).
+   * Завершить стриминг — рендерить финальный ответ + свёрнутый трейс шагов (не портянку).
    */
   function finishStreaming() {
     if (lastAssistantContentEl) {
+      // Сохраняем френдли-шаги ДО перезаписи innerHTML (иначе они теряются)
+      const activityHtml = streamingActivityEl ? streamingActivityEl.innerHTML : '';
+      const stepCount = activityStepCount;
+
       lastAssistantContentEl.innerHTML = renderMarkdown(streamingRawText);
+
+      // Свёрнутый трейс «🔧 Выполнено N шагов» — раскрывается, если были tool-шаги
+      if (activityHtml && stepCount > 0) {
+        const trace = document.createElement('details');
+        trace.className = 'agent-trace';
+        const sum = document.createElement('summary');
+        sum.className = 'agent-trace-summary';
+        sum.textContent = `🔧 Выполнено ${stepCount} ${pluralSteps(stepCount)}`;
+        trace.appendChild(sum);
+        const body = document.createElement('div');
+        body.className = 'agent-trace-body';
+        body.innerHTML = activityHtml;
+        trace.appendChild(body);
+        lastAssistantContentEl.prepend(trace);
+      }
+
       addCopyButtonsToCodeBlocks(lastAssistantMessageEl || lastAssistantContentEl);
       addCodeToggles(lastAssistantMessageEl || lastAssistantContentEl);
     }
