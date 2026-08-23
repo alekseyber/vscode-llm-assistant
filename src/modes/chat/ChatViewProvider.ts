@@ -16,6 +16,7 @@ import { AgentOrchestrator, MultiAgentTask, MultiAgentResult } from '../apply/Ag
 import { RunHistoryStore, generateRunId, RunEntry } from '../../shared/RunHistoryStore';
 import { SessionLog } from '../../shared/SessionLog';
 import { isAbortError } from '../../shared/RetryHandler';
+import { buildThinkingExtraBody } from '../../shared/thinking';
 import { HistoryViewProvider } from '../history/HistoryViewProvider';
 import { OrchestratorViewProvider, OrchestratorTaskInfo, WorkerInfo } from '../orchestrator/OrchestratorViewProvider';
 import { setDelegateHandler } from './ChatAgentTools';
@@ -375,7 +376,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         const runSteps = this.sessionLog?.computeStats(this.resolveSessionId(sessionId) ?? '')?.steps || 1;
         this.finalizeRun(runId, startTime, model, providerDisplayName, inTokens, 0, runSteps, 'success');
       } else {
-        const stream = provider.chat(messages, { model, stream: true }, abortController.signal, onRetry);
+        const stream = provider.chat(messages, { model, stream: true, extraBody: buildThinkingExtraBody(model) }, abortController.signal, onRetry);
         let full = '';
         const buffer = { acc: '' };
         for await (const chunk of stream) { full += chunk; this.postMessage({ type: 'streamChunk', text: chunk }, sessionId); this.logStreamChunk(sessionId, chunk, buffer); }

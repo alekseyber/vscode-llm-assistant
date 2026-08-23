@@ -8,6 +8,7 @@ import { ChatMessage, LLMProvider } from '../../providers/types';
 import { ToolSystem } from './ToolSystem';
 import { loadAgentsMd } from '../../shared/AgentsMdLoader';
 import { ContextSummarizer } from '../../shared/ContextSummarizer';
+import { buildThinkingExtraBody } from '../../shared/thinking';
 
 /**
  * Системный промпт для ReAct-агента (из PLAN.md, секция «System Prompt для ReAct-агента»).
@@ -357,6 +358,7 @@ export class AgentController {
         temperature: 0,       // Минимальная температура для детерминированного выбора инструментов
         maxTokens: 4096,      // Достаточно для JSON с аргументами инструмента
         stream: true,
+        extraBody: buildThinkingExtraBody(options.model),
       },
       options.signal
     );

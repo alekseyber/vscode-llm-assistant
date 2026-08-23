@@ -5,6 +5,7 @@ import * as vscode from 'vscode';
 import { ProviderManager } from '../../providers/manager';
 import { computeDiff, applyDiffDecorations, clearDiffDecorations, acceptChanges } from './diff';
 import { cleanLlmResponse } from '../../shared/cleanLlmResponse';
+import { buildThinkingExtraBody } from '../../shared/thinking';
 
 /**
  * EditController — хендлер для редактирования выделенного кода через LLM.
@@ -165,7 +166,7 @@ export class EditController {
 
           const stream = provider.chat(
             messages,
-            { model, stream: true },
+            { model, stream: true, extraBody: buildThinkingExtraBody(model) },
             abortController.signal
           );
 

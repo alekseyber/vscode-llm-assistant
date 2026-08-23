@@ -7,6 +7,7 @@ import * as fs from 'fs';
 import { ProviderManager } from '../../providers/manager';
 import { ConversationManager } from './ConversationManager';
 import { ChatMessage } from '../../providers/types';
+import { buildThinkingExtraBody } from '../../shared/thinking';
 
 /**
  * ChatPanel — управляет отдельной вкладкой (WebviewPanel) для чата с LLM.
@@ -185,7 +186,7 @@ export class ChatPanel {
       const messages: ChatMessage[] = await this.conversationManager.getMessagesForRequest(provider);
       const stream = provider.chat(
         messages,
-        { model, stream: true },
+        { model, stream: true, extraBody: buildThinkingExtraBody(model) },
         this.abortController.signal
       );
 
