@@ -427,7 +427,7 @@ suite('SessionLog', () => {
     assert.ok(t.includes(`# Сессия: ${sid}`), 'заголовок сессии');
     assert.ok(t.includes('## 👤 Пользователь'), 'секция пользователя');
     assert.ok(t.includes('привет'), 'текст пользователя');
-    assert.ok(t.includes('### 01-agent'), 'заголовок воркера (дефолт agent)');
+    assert.ok(t.includes('### agent'), 'заголовок воркера (дефолт agent)');
     assert.ok(t.includes('🔧 read_file'), 'вызов инструмента');
     assert.ok(t.includes('"path": "a.ts"'), 'аргументы инструмента');
     assert.ok(t.includes('содержимое'), 'результат инструмента');
@@ -436,19 +436,20 @@ suite('SessionLog', () => {
   });
 
   test('toTranscript(): группирует tool-шаги по воркерам (P0-5.2)', () => {
-    log.append(ev('tool/call', { stepId: 'a1', name: 'read_file', args: { path: 'a.ts' }, role: 'architect' }));
-    log.append(ev('tool/result', { stepId: 'a1', name: 'read_file', result: 'r1', role: 'architect' }));
-    log.append(ev('tool/call', { stepId: 'c1', name: 'write_file', args: { path: 'b.ts' }, role: 'coder' }));
-    log.append(ev('tool/result', { stepId: 'c1', name: 'write_file', result: 'r2', role: 'coder' }));
-    log.append(ev('tool/call', { stepId: 'a2', name: 'search_files', args: { pattern: 'x' }, role: 'architect' }));
-    log.append(ev('tool/result', { stepId: 'a2', name: 'search_files', result: 'r3', role: 'architect' }));
+    log.append(ev('tool/call', { stepId: 'a1', name: 'read_file', args: { path: 'a.ts' }, role: '01-architect' }));
+    log.append(ev('tool/result', { stepId: 'a1', name: 'read_file', result: 'r1', role: '01-architect' }));
+    log.append(ev('tool/call', { stepId: 'c1', name: 'write_file', args: { path: 'b.ts' }, role: '02-coder' }));
+    log.append(ev('tool/result', { stepId: 'c1', name: 'write_file', result: 'r2', role: '02-coder' }));
+    log.append(ev('tool/call', { stepId: 'a2', name: 'search_files', args: { pattern: 'x' }, role: '01-architect' }));
+    log.append(ev('tool/result', { stepId: 'a2', name: 'search_files', result: 'r3', role: '01-architect' }));
 
     const t = log.toTranscript(sid);
     assert.ok(t.includes('### 01-architect'), 'заголовок 01-architect');
     assert.ok(t.includes('### 02-coder'), 'заголовок 02-coder');
     assert.ok(t.indexOf('### 01-architect') < t.indexOf('### 02-coder'), 'architect раньше coder');
-    // Повторный блок architect (после coder) использует тот же индекс 01, а не новый
+    // Повторный блок architect (после coder) использует тот же заголовок 01-architect, а не новый
     assert.strictEqual(t.split('### 01-architect').length - 1, 2, '01-architect встречается дважды');
+    assert.ok(!t.includes('### 01-01-'), 'нет двойной нумерации (01-01-architect)');
     assert.ok(!t.includes('### 03-'), 'нет лишних индексов воркеров');
   });
 

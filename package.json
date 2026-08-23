@@ -3,7 +3,7 @@
   "displayName": "VS Code LLM Assistant",
   "description": "AI-ассистент: чат, редактирование, автокомплит, агентный кодинг",
   "publisher": "alekseyber",
-  "version": "0.13.0-rc13",
+  "version": "0.13.0-rc14",
   "icon": "media/icon.png",
   "repository": {
     "type": "git",

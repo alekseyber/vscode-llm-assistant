@@ -106,3 +106,4 @@ status: planned
 | 0.1.0 | 2026-08-22 | deleteSession/pruneUnknown/clearAll/truncate — полный жизненный цикл лога (удаление, ре-консиляция сирот, обрезка старых событий) |
 | 0.13.0 | 2026-08-22 | P0 Этап 5: `role?` в tool/call+tool/result; toTranscript группирует 🔧-шаги по воркерам (`### 01-{role}`) |
 | 0.13.0 | 2026-08-23 | `deriveMessages({includeContext:false})` — чистая проекция без pendingContext (фикс загрязнения промпта в WebView) |
+| 0.13.0 | 2026-08-23 | `toTranscript`: заголовок воркера `### ${role}` без двойной нумерации (роль уже несёт префикс `01-`) |

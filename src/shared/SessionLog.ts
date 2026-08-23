@@ -98,16 +98,13 @@ export class SessionLog {
    */
   toTranscript(sessionId: string): string {
     const lines: string[] = [`# Сессия: ${sessionId}`, ''];
-    // Группировка tool-шагов по воркерам (P0 Этап 5): роль → заголовок `### 01-architect`
-    const workerIndex = new Map<string, number>();
+    // Группировка tool-шагов по воркерам (P0 Этап 5): роль уже несёт порядковый префикс (01-architect)
     let activeWorker: string | null = null;
 
     const ensureWorkerHeader = (role?: string): void => {
       const r = role || 'agent';
       if (r !== activeWorker) {
-        if (!workerIndex.has(r)) workerIndex.set(r, workerIndex.size + 1);
-        const idx = String(workerIndex.get(r)!).padStart(2, '0');
-        lines.push(`### ${idx}-${r}`, '');
+        lines.push(`### ${r}`, '');
         activeWorker = r;
       }
     };
