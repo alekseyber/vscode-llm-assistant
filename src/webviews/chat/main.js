@@ -1165,7 +1165,7 @@
     overlay.className = 'confirm-overlay';
     overlay.innerHTML = `
       <div class="confirm-box">
-        <div class="confirm-title">🔧 ${msg.toolName} — <code>${escapeHtml(msg.filePath || '')}</code></div>
+        <div class="confirm-title">🔧 ${msg.toolName}${msg.filePath ? ' — <code>' + escapeHtml(msg.filePath) + '</code>' : ''}</div>
         ${diffStats ? `<div class="diff-stats">${diffStats}</div>` : ''}
         <div class="confirm-body">${diffHtml}</div>
         <div class="confirm-buttons">

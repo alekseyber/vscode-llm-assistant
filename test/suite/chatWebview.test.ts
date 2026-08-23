@@ -79,6 +79,22 @@ suite('ChatWebview (jsdom)', () => {
     assert.ok(!document.body.textContent!.includes('чужой токен'), 'токен чужой сессии проигнорирован');
   });
 
+  test('confirmAction (run_terminal) показывает команду, не пустой блок', () => {
+    const { dispatch, document } = loadWebview();
+
+    dispatch({
+      type: 'confirmAction',
+      toolName: 'run_terminal',
+      content: 'date',
+      requestId: 'req-term',
+    });
+
+    const dialog = document.getElementById('confirm-dialog');
+    assert.ok(dialog, 'диалог создан');
+    assert.ok(dialog!.textContent!.includes('date'), 'команда видна в теле');
+    assert.ok(!dialog!.innerHTML.includes('<code></code>'), 'нет пустого code в заголовке');
+  });
+
   test('confirmAction (write_file) рендерит git-diff диалог с remove/add', () => {
     const { dispatch, document } = loadWebview();
 

@@ -850,7 +850,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         requestId,
         toolName,
         filePath: args.path || '',
-        content: args.content || '',
+        content: (args.content as string) || (args.command as string) || '',
         oldContent,
         oldStr: args.old_str || '',
         newStr: args.new_str || '',
