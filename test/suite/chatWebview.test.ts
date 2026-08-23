@@ -519,6 +519,37 @@ suite('ChatWebview (jsdom)', () => {
     assert.ok(trace.querySelector('.activity-step'), 'френдли-шаг внутри трейса');
   });
 
+  test('history: assistant со steps рендерит свёрнутый трейс (P0-fix)', () => {
+    const { dispatch, document } = loadWebview();
+    dispatch({
+      type: 'history',
+      messages: [
+        { kind: 'user', content: 'задача' },
+        {
+          kind: 'assistant',
+          content: 'готово',
+          steps: [
+            { toolName: 'read_file', args: { path: 'a.ts' }, result: 'содержимое' },
+            { toolName: 'search_files', args: { pattern: 'x' }, result: 'ничего' },
+          ],
+        },
+      ],
+    });
+
+    const trace = document.querySelector('.agent-trace') as HTMLElement;
+    assert.ok(trace, 'трейс восстановлен из истории');
+    const summary = trace.querySelector('.agent-trace-summary') as HTMLElement;
+    assert.strictEqual(summary.textContent, '🔧 Выполнено 2 шага', 'счётчик шагов');
+    assert.strictEqual(trace.querySelectorAll('.activity-step').length, 2, '2 шага внутри трейса');
+  });
+
+  test('history: легаси {role, content} рендерится (обратная совместимость)', () => {
+    const { dispatch, document } = loadWebview();
+    dispatch({ type: 'history', messages: [{ role: 'user', content: 'привет' }, { role: 'assistant', content: 'ответ' }] });
+    const user = [...document.querySelectorAll('.message')].find((m) => m.textContent!.includes('привет'));
+    assert.ok(user, 'легаси user-сообщение отрендерено');
+  });
+
   test('input-toolbar: при загрузке активен Agent (AC P0-4.3)', () => {
     const { document } = loadWebview();
 

@@ -943,9 +943,30 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     if (ac) { ac.abort(); this.abortControllers.delete(sid); }
   }
   private sendHistoryToWebview(): void {
-    const messages = this.conversationManager.getMessages();
-    console.warn(`[LLM Assistant] history: ${messages.length} сообщений, активная=${this.conversationManager.session.getActive()?.meta.id?.slice(0, 16) ?? 'нет'}`);
-    if (this.view) this.postMessage({ type: 'history', messages });
+    const sessionId = this.conversationManager.session.getActive()?.meta.id;
+    const events = (sessionId && this.sessionLog?.getEvents(sessionId)) || [];
+
+    // Собираем упорядоченный список для отображения: user / assistant(+steps) / trace
+    const items: any[] = [];
+    let pendingSteps: any[] = [];
+    for (const e of events) {
+      if (e.type === 'user/message') {
+        items.push({ kind: 'user', content: e.content });
+      } else if (e.type === 'tool/call') {
+        pendingSteps.push({ stepId: e.stepId, toolName: e.name, args: e.args, result: '' });
+      } else if (e.type === 'tool/result') {
+        const s = pendingSteps.find((x) => x.stepId === e.stepId);
+        if (s) s.result = e.result;
+      } else if (e.type === 'assistant/message') {
+        items.push({ kind: 'assistant', content: e.content, steps: pendingSteps });
+        pendingSteps = [];
+      }
+    }
+    // Шаги без финального ответа (отменённый/упавший ран) — отдельным трейсом
+    if (pendingSteps.length) items.push({ kind: 'trace', steps: pendingSteps });
+
+    console.warn(`[LLM Assistant] history: ${items.length} элементов, активная=${sessionId?.slice(0, 16) ?? 'нет'}`);
+    if (this.view) this.postMessage({ type: 'history', messages: items });
   }
 
   /** Восстановить индикатор токенов (📊) из истории запусков для сессии — иначе после Reload он 0. */

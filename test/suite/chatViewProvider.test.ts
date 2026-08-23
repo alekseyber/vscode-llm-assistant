@@ -478,6 +478,32 @@ suite('ChatViewProvider.handleSendMessage', () => {
     assert.strictEqual(s.preview, 'Как написать юнит-тест?', 'превью из последнего сообщения');
   });
 
+  test('sendHistoryToWebview: шлёт items с шагами из session-log (P0-fix)', () => {
+    const postMessage = sandbox.stub();
+    (provider as any).view = { webview: { postMessage } };
+
+    const sid = cm.session.getActive()!.meta.id;
+    const sessionLog = new SessionLog(storage);
+    sessionLog.append({ sessionId: sid, ts: 1, type: 'user/message', content: 'задача' });
+    sessionLog.append({ sessionId: sid, ts: 2, type: 'tool/call', stepId: 's1', name: 'read_file', args: { path: 'a.ts' } });
+    sessionLog.append({ sessionId: sid, ts: 3, type: 'tool/result', stepId: 's1', name: 'read_file', result: 'содержимое' });
+    sessionLog.append({ sessionId: sid, ts: 4, type: 'assistant/message', content: 'готово' });
+    (provider as any).sessionLog = sessionLog;
+
+    (provider as any).sendHistoryToWebview();
+
+    const msg = postMessage.getCall(0).args[0];
+    assert.strictEqual(msg.type, 'history');
+    const items = msg.messages;
+    assert.strictEqual(items.length, 2, 'user + assistant');
+    assert.strictEqual(items[0].kind, 'user');
+    assert.strictEqual(items[0].content, 'задача');
+    assert.strictEqual(items[1].kind, 'assistant');
+    assert.strictEqual(items[1].steps.length, 1, '1 шаг в трейсе');
+    assert.strictEqual(items[1].steps[0].toolName, 'read_file');
+    assert.strictEqual(items[1].steps[0].result, 'содержимое');
+  });
+
   test('getHtmlForWebview: инжектит webview-ресурсы без незаменённых плейсхолдеров (P0-6.1)', () => {
     // Указываем реальный корень репо, чтобы getHtmlForWebview читал настоящие файлы webview
     const realRoot = path.resolve(__dirname, '../../..');

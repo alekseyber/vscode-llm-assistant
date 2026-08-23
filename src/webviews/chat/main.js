@@ -367,6 +367,7 @@
   /** DOM-элементы для структурированного хода выполнения агента */
   let streamingActivityEl = null;   // <div class="agent-activity">
   let streamingAnswerEl = null;     // <div class="streaming-answer">
+  let streamingSteps = [];          // данные шагов {toolName, args, result} для свёрнутого трейса
   let currentActivityStep = null;   // текущий <details> шаг
 
   /** Счётчик выполненных шагов (tool-calls) — «Думаю… · N» (AC P0-3.4) */
@@ -426,6 +427,7 @@
     step.appendChild(body);
     streamingActivityEl.appendChild(step);
     currentActivityStep = step;
+    streamingSteps.push({ toolName, args, result: '' });
     scrollToBottom();
   }
 
@@ -436,6 +438,7 @@
     const status = currentActivityStep.querySelector('.activity-status');
     if (body) body.textContent = text || '';
     if (status) status.textContent = '✓';
+    if (streamingSteps.length) streamingSteps[streamingSteps.length - 1].result = text || '';
     activityStepCount++;
     updateActivityCounter();
     // Короткий результат раскрываем сразу, длинный — оставляем свёрнутым
@@ -479,6 +482,7 @@
     streamingRawText = '';
     streamingActivityEl = null;
     streamingAnswerEl = null;
+    streamingSteps = [];
     currentActivityStep = null;
     activityStepCount = 0;
     updateActivityCounter();
@@ -504,31 +508,51 @@
   }
 
   /**
+   * Собрать свёрнутый трейс шагов из данных (для завершения стрима и replay истории).
+   * @param {Array<{toolName: string, args?: object, result?: string}>} steps
+   */
+  function buildAgentTrace(steps) {
+    const trace = document.createElement('details');
+    trace.className = 'agent-trace';
+    const sum = document.createElement('summary');
+    sum.className = 'agent-trace-summary';
+    sum.textContent = `🔧 Выполнено ${steps.length} ${pluralSteps(steps.length)}`;
+    trace.appendChild(sum);
+    const body = document.createElement('div');
+    body.className = 'agent-trace-body';
+    for (const s of steps) {
+      const desc = (typeof window !== 'undefined' && window.TOOL_ACTIVITY)
+        ? window.TOOL_ACTIVITY.describeToolCall(s.toolName, s.args)
+        : { label: s.toolName || 'Инструмент', icon: '🔧', detail: '' };
+      const step = document.createElement('details');
+      step.className = 'activity-step';
+      const stepSum = document.createElement('summary');
+      stepSum.className = 'activity-step-summary';
+      const detailHtml = desc.detail ? `<span class="activity-detail">${escapeHtml(desc.detail)}</span>` : '';
+      stepSum.innerHTML = `<span class="activity-icon">${desc.icon}</span><span class="activity-tool">${escapeHtml(desc.label)}</span>${detailHtml}<span class="activity-status">✓</span>`;
+      step.appendChild(stepSum);
+      if (s.result) {
+        const stepBody = document.createElement('div');
+        stepBody.className = 'activity-step-body';
+        stepBody.textContent = s.result;
+        step.appendChild(stepBody);
+      }
+      body.appendChild(step);
+    }
+    trace.appendChild(body);
+    return trace;
+  }
+
+  /**
    * Завершить стриминг — рендерить финальный ответ + свёрнутый трейс шагов (не портянку).
    */
   function finishStreaming() {
     if (lastAssistantContentEl) {
-      // Сохраняем френдли-шаги ДО перезаписи innerHTML (иначе они теряются)
-      const activityHtml = streamingActivityEl ? streamingActivityEl.innerHTML : '';
-      const stepCount = activityStepCount;
-
+      const steps = streamingSteps;
       lastAssistantContentEl.innerHTML = renderMarkdown(streamingRawText);
-
-      // Свёрнутый трейс «🔧 Выполнено N шагов» — раскрывается, если были tool-шаги
-      if (activityHtml && stepCount > 0) {
-        const trace = document.createElement('details');
-        trace.className = 'agent-trace';
-        const sum = document.createElement('summary');
-        sum.className = 'agent-trace-summary';
-        sum.textContent = `🔧 Выполнено ${stepCount} ${pluralSteps(stepCount)}`;
-        trace.appendChild(sum);
-        const body = document.createElement('div');
-        body.className = 'agent-trace-body';
-        body.innerHTML = activityHtml;
-        trace.appendChild(body);
-        lastAssistantContentEl.prepend(trace);
+      if (steps.length > 0) {
+        lastAssistantContentEl.prepend(buildAgentTrace(steps));
       }
-
       addCopyButtonsToCodeBlocks(lastAssistantMessageEl || lastAssistantContentEl);
       addCodeToggles(lastAssistantMessageEl || lastAssistantContentEl);
     }
@@ -780,9 +804,23 @@
     // Скрываем приветствие — есть история сообщений
     if (welcome) welcome.classList.add('hidden');
 
-    // Добавляем каждое сообщение
-    for (const msg of messages) {
-      addMessage(msg.role, msg.content);
+    // Добавляем каждое сообщение (items: user/assistant/trace или легаси {role, content})
+    for (const item of messages) {
+      if (!item) continue;
+      if (item.kind === 'user') {
+        addMessage('user', item.content);
+      } else if (item.kind === 'assistant') {
+        const el = addMessage('assistant', item.content);
+        if (item.steps && item.steps.length) {
+          const contentEl = el.querySelector('.message-content');
+          if (contentEl) contentEl.prepend(buildAgentTrace(item.steps));
+        }
+      } else if (item.kind === 'trace') {
+        if (item.steps && item.steps.length) messagesContainer.appendChild(buildAgentTrace(item.steps));
+      } else if (item.role) {
+        // Обратная совместимость: {role, content}
+        addMessage(item.role, item.content);
+      }
     }
     addCopyButtonsToCodeBlocks(messagesContainer);
     addCodeToggles(messagesContainer);

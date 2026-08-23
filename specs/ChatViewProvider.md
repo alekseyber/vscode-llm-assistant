@@ -122,6 +122,7 @@ since: 0.1.0
 | 0.13.0 | 2026-08-22 | P0 Этап 3: activity-feed — `toolActivity.start` несёт `args`, инжект `toolActivity.js` (`{{TOOLACTIVITY}}`) |
 | 0.13.0 | 2026-08-22 | `reveal()` — chat.focus фокусирует сайдбар вместо легаси ChatPanel (@deprecated) |
 | 0.13.0 | 2026-08-23 | Фикс подтверждения: `content` пробрасывает `args.command` (run_terminal не показывал команду в диалоге) |
+| 0.13.0 | 2026-08-23 | `sendHistoryToWebview` → упорядоченные items (user/assistant+steps) из session-log — трейс шагов в истории |
 | 0.12.1 | 2026-08-22 | Plan Mode → session-log: PlanModeManager получает sessionId + onEvent (tool-события planner/оркестратора/ревьюера в лог) |
 | 0.12.0 | 2026-08-22 | isAbortError; user-msg оркестратора в лог сразу; restoreTokenIndicator; maxTokens в индикатор (getMaxContextTokens); limitExceeded → finalizeRun + maxIterations 20; onEvent+sessionId воркерам оркестратора (F1 5a) |
 | 0.10.0 | 2026-08-20 | Фикс: результат Plan Mode персистится в сессию + кнопка «Имплементировать» шлёт исходную sessionId (не текущую) — результат не теряется при переключении чатов |
