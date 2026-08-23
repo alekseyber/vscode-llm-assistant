@@ -18,7 +18,6 @@ jobs:
 
       - name: Check spec consistency (src/X.ts → specs/X.md)
         run: |
-          # Используем grep вместо git pathspec — надёжнее
           CHANGED_TS=$(git diff --name-only HEAD~1 HEAD 2>/dev/null | grep '^src/.*\.ts$' || echo "")
           CHANGED_SPECS=$(git diff --name-only HEAD~1 HEAD 2>/dev/null | grep '^specs/.*\.md$' || echo "")
 
@@ -32,16 +31,35 @@ jobs:
 
           VIOLATIONS=0
 
+          # Маппинг src-файла → имя спеки (не совпадает с basename).
+          spec_for() {
+            case "$1" in
+              src/providers/manager.ts) echo "specs/ProviderManager.md" ;;
+              src/providers/openai.ts)  echo "specs/OpenAIProvider.md" ;;
+              src/shared/logger.ts)     echo "specs/Logger.md" ;;
+              src/shared/streaming.ts)  echo "specs/Streaming.md" ;;
+              *)                        echo "specs/$(basename "$1" .ts).md" ;;
+            esac
+          }
+
           for ts_file in $CHANGED_TS; do
             component=$(basename "$ts_file" .ts)
 
+            # Инфраструктура/хелперы без собственной спеки (как в spec-validate.js SRC_EXEMPT).
             case "$component" in
-              index|types|extension|registerCommands|base|diff|ContextBuilder|GhostTextManager|ChatPanel)
+              index|types|extension|registerCommands|base|diff|ContextBuilder|GhostTextManager|ChatPanel|cleanLlmResponse)
                 echo "  ⏭️  $ts_file — exempt (infrastructure)" ;;
               *)
-                spec_file="specs/${component}.md"
+                spec_file=$(spec_for "$ts_file")
                 if echo "$CHANGED_SPECS" | grep -qF "$spec_file"; then
-                  echo "  ✅ $ts_file → $spec_file"
+                  echo "  ✅ $ts_file → $spec_file (обновлена)"
+                  # Проверяем, что version в спеке реально изменился (бамп обязателен).
+                  old_ver=$(git show HEAD~1:"$spec_file" 2>/dev/null | grep -m1 '^version:' | sed 's/version:[[:space:]]*//')
+                  new_ver=$(git show HEAD:"$spec_file" 2>/dev/null | grep -m1 '^version:' | sed 's/version:[[:space:]]*//')
+                  if [ -n "$old_ver" ] && [ "$old_ver" = "$new_ver" ]; then
+                    echo "  ❌ $spec_file: version не изменён ($new_ver) — нужен бамп + строка в «Истории изменений»"
+                    VIOLATIONS=$((VIOLATIONS + 1))
+                  fi
                 else
                   echo "  ❌ $ts_file → $spec_file NOT updated"
                   VIOLATIONS=$((VIOLATIONS + 1))
@@ -51,8 +69,8 @@ jobs:
 
           if [ $VIOLATIONS -gt 0 ]; then
             echo ""
-            echo "❌ SDD VIOLATION: $VIOLATIONS component(s) without updated spec."
-            echo "   Please update the relevant specs/<Component>.md file."
+            echo "❌ SDD VIOLATION: $VIOLATIONS компонент(ов) без обновлённой спеки."
+            echo "   Обнови specs/<Component>.md: бамп version + строка в «Истории изменений»."
             exit 1
           fi
 

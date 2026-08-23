@@ -1,6 +1,6 @@
 ---
 component: Logger
-version: 0.8.0
+version: 0.1.0
 status: stable
 since: 0.1.0
 ---

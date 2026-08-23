@@ -1,6 +1,6 @@
 ---
 component: AgentSharedContext
-version: 0.8.0
+version: 0.7.0
 status: stable
 since: 0.7.0
 ---
