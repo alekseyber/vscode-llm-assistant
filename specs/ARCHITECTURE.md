@@ -250,6 +250,6 @@ AgentController (Apply Mode)
 
 | Версия | Дата | Изменения |
 |--------|------|-----------|
-| 0.14.0 | 2026-10-18 | +OllamaProvider (planned): нативный /api/chat вместо /v1, type в конфиге провайдера, локальные цены 0, isLocal |
+| 0.14.0 | 2026-11-07 | +OllamaProvider (planned): нативный /api/chat вместо /v1, type в конфиге провайдера, локальные цены 0, isLocal |
 | 0.13.0 | 2026-08-23 | +thinking.ts, SessionLog, PlanModeManager, SlashCommands, HistoryViewProvider в карту; сайдбар/toolbar/activity-feed/тумблеры; autocomplete async + thinking; 38 компонентов; убран jest.config.js (Mocha); agent max 20 |
 | 0.8.0 | 2026-08-06 | Первая версия мастер-спецификации |

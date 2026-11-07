@@ -143,8 +143,8 @@ since: 0.7.0
 
 | Версия | Дата | Изменения |
 |--------|------|-----------|
-| 0.14.1 | 2026-10-18 | Stage 5: `buildThinkingExtraBody(model)` передаётся шестым аргументом; при `isLocal` и `local.toolLoop:false` цикл не стартует (ошибка + `run/final`), возврат `WorkerResult` с `iterations: 0`; 4 теста |
-| 0.14.0 | 2026-10-18 | `extraBody` в `createWithTools` (гашение рассуждения), предупреждение при `local.toolLoop:false`, локальный профиль таймаутов |
+| 0.14.1 | 2026-11-07 | Stage 5: `buildThinkingExtraBody(model)` передаётся шестым аргументом; при `isLocal` и `local.toolLoop:false` цикл не стартует (ошибка + `run/final`), возврат `WorkerResult` с `iterations: 0`; 4 теста |
+| 0.14.0 | 2026-11-07 | `extraBody` в `createWithTools` (гашение рассуждения), предупреждение при `local.toolLoop:false`, локальный профиль таймаутов |
 | 0.13.0 | 2026-08-22 | P0 Этап 3: `args` в AgentStep (tool_call) для activity-feed в WebView |
 | 0.13.0 | 2026-08-22 | P0 Этап 5: `role` в session-log tool-событиях (группировка по воркерам) |
 | 0.12.0 | 2026-08-22 | WorkerResult.limitExceeded; isAbortError в catch ReAct-цикла |

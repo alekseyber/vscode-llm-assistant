@@ -7,7 +7,7 @@ since: 0.14.0
 
 ## Назначение
 
-Провайдер локальных моделей через **нативный** API Ollama (`/api/chat`, `/api/tags`, `/api/show`). Существует потому, что OpenAI-совместимый `/v1` у Ollama не умеет отключать рассуждение: `think:false` в теле и `chat_template_kwargs.enable_thinking:false` игнорируются, thinking-модель (`qwen3:8b`) отдаёт пустой `content`, весь бюджет уходит в `reasoning`. Нативный `/api/chat` принимает `think` и отдаёт `thinking` отдельным полем — единственный рабочий путь (замерено 2026-10-18: 5,0 с против 27,3 с, `content` непустой).
+Провайдер локальных моделей через **нативный** API Ollama (`/api/chat`, `/api/tags`, `/api/show`). Существует потому, что OpenAI-совместимый `/v1` у Ollama не умеет отключать рассуждение: `think:false` в теле и `chat_template_kwargs.enable_thinking:false` игнорируются, thinking-модель (`qwen3:8b`) отдаёт пустой `content`, весь бюджет уходит в `reasoning`. Нативный `/api/chat` принимает `think` и отдаёт `thinking` отдельным полем — единственный рабочий путь (замерено 2026-11-07: 5,0 с против 27,3 с, `content` непустой).
 
 ## Интерфейс
 
@@ -184,9 +184,9 @@ Discovery: `GET /api/tags` → имена моделей. Кэш на 30 с. П�
 
 | Версия | Дата | Изменения |
 |--------|------|-----------|
-| 0.14.5 | 2026-10-18 | Stage 6: тест на локальный таймаут (OLL-6.4 / AW-1.3), матрица «AC → тест» в `TRACEABILITY.md`; базлайн 449 → 492 |
-| 0.14.4 | 2026-10-18 | Vision: `chatWithVision` на нативном API, чистая `toNativeVisionMessages` (data-url → `images[]`); +2 теста |
-| 0.14.3 | 2026-10-18 | Stage 5: `createWithTools` на нативном `/api/chat` (tools, конвертация истории в обе стороны, `usage`), чистые `toNativeMessages`/`toOpenAIToolCalls`; +4 теста |
-| 0.14.2 | 2026-10-18 | Stage 3: discovery `/api/tags` с TTL-кэшем и слиянием с конфигом, `capabilities()`/`version()`/`modelSizes()`, `invalidateCache()`, `describeLocalServer()` для команды проверки; +6 тестов |
-| 0.14.1 | 2026-10-18 | Stage 2: реализованы `chat()` и `chatComplete()` (нативный NDJSON), `think`/`num_predict`/`num_ctx`, маппинг ошибок 404/сети, `isLocal`; 8 тестов зелёные; status → beta |
-| 0.14.0 | 2026-10-18 | Создан (planned): нативный `/api/chat` + `/api/tags` + `/api/show`, `think:false`, `num_predict`/`num_ctx`, конвертация истории агента |
+| 0.14.5 | 2026-11-07 | Stage 6: тест на локальный таймаут (OLL-6.4 / AW-1.3), матрица «AC → тест» в `TRACEABILITY.md`; базлайн 449 → 492 |
+| 0.14.4 | 2026-11-07 | Vision: `chatWithVision` на нативном API, чистая `toNativeVisionMessages` (data-url → `images[]`); +2 теста |
+| 0.14.3 | 2026-11-07 | Stage 5: `createWithTools` на нативном `/api/chat` (tools, конвертация истории в обе стороны, `usage`), чистые `toNativeMessages`/`toOpenAIToolCalls`; +4 теста |
+| 0.14.2 | 2026-11-07 | Stage 3: discovery `/api/tags` с TTL-кэшем и слиянием с конфигом, `capabilities()`/`version()`/`modelSizes()`, `invalidateCache()`, `describeLocalServer()` для команды проверки; +6 тестов |
+| 0.14.1 | 2026-11-07 | Stage 2: реализованы `chat()` и `chatComplete()` (нативный NDJSON), `think`/`num_predict`/`num_ctx`, маппинг ошибок 404/сети, `isLocal`; 8 тестов зелёные; status → beta |
+| 0.14.0 | 2026-11-07 | Создан (planned): нативный `/api/chat` + `/api/tags` + `/api/show`, `think:false`, `num_predict`/`num_ctx`, конвертация истории агента |

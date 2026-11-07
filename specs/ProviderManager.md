@@ -139,8 +139,8 @@ since: 0.1.0
 
 | Версия | Дата | Изменения |
 |--------|------|-----------|
-| 0.14.1 | 2026-10-18 | Stage 2: ветка `type` реализована, `DEFAULT_OLLAMA_BASE_URL`, `setZeroPricing()`, неизвестный `type` пропускается; 7 тестов `providerManagerLocal.test.ts` |
-| 0.14.0 | 2026-10-18 | `type` в конфиге (openai/ollama), ветка `OllamaProvider`, нулевые цены для локальных моделей (конфиг + discovery), `isLocal` |
+| 0.14.1 | 2026-11-07 | Stage 2: ветка `type` реализована, `DEFAULT_OLLAMA_BASE_URL`, `setZeroPricing()`, неизвестный `type` пропускается; 7 тестов `providerManagerLocal.test.ts` |
+| 0.14.0 | 2026-11-07 | `type` в конфиге (openai/ollama), ветка `OllamaProvider`, нулевые цены для локальных моделей (конфиг + discovery), `isLocal` |
 | 0.13.0 | 2026-08-23 | getDefault() fallback на первый настроенный провайдер |
 | 0.8.0 | 2026-08-06 | ModelEntry, pricingMap, calculateCost |
 | 0.1.0 | 2026-08-04 | Базовая реализация |

@@ -152,8 +152,8 @@ since: 0.1.0
 | 0.10.0 | 2026-08-20 | `computeLineDiff` (git-diff диалога) вынесен в `lineDiff.js` (инлайнится в index.html через `{{LINEDIFF}}`) |
 | 0.10.0 | 2026-08-19 | Автокомплит команд: sendSlashCommandsToWebview (встроенные + скилы + @orchestrate, поле prefix) |
 | 0.9.0 | 2026-08-18 | Слэш-команды код-действий: /explain, /explain_stepbystep, /doc, /test, /review, /improve (интеграция SlashCommands) |
-| 0.14.1 | 2026-10-18 | Stage 3: реализован неблокирующий `providerList` (конфиг → discovery), `isLocal` в сообщении, `buildProviderListFromConfig`, обнуление цен после discovery; 3 теста |
-| 0.14.0 | 2026-10-18 | `providerList`: модели от провайдера (`models()`) с fallback на конфиг, неблокирующий рендер |
+| 0.14.1 | 2026-11-07 | Stage 3: реализован неблокирующий `providerList` (конфиг → discovery), `isLocal` в сообщении, `buildProviderListFromConfig`, обнуление цен после discovery; 3 теста |
+| 0.14.0 | 2026-11-07 | `providerList`: модели от провайдера (`models()`) с fallback на конфиг, неблокирующий рендер |
 | 0.9.0 | 2026-08-11 | Фикс: каталог скилов (getSkillTemplate) в getSystemPrompt() для agent-режима |
 | 0.9.0 | 2026-08-11 | Фикс: Plan Mode сохраняет сообщение пользователя в историю |
 | 0.9.0 | 2026-08-09 | SkillsLoader: инжект скилов в getSystemPrompt() |
