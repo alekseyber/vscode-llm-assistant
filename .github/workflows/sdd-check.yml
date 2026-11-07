@@ -36,6 +36,7 @@ jobs:
             case "$1" in
               src/providers/manager.ts) echo "specs/ProviderManager.md" ;;
               src/providers/openai.ts)  echo "specs/OpenAIProvider.md" ;;
+              src/providers/ollama.ts)  echo "specs/OllamaProvider.md" ;;
               src/shared/logger.ts)     echo "specs/Logger.md" ;;
               src/shared/streaming.ts)  echo "specs/Streaming.md" ;;
               *)                        echo "specs/$(basename "$1" .ts).md" ;;

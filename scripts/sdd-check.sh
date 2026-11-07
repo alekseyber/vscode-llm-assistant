@@ -18,6 +18,19 @@ echo "$CHANGED_TS" | sed 's/^/  /'
 
 VIOLATIONS=0
 
+# Маппинг src-файла → имя спеки (не совпадает с basename). Держать в синхроне с
+# .github/workflows/sdd-check.yml и scripts/spec-validate.js SRC_TO_SPEC.
+spec_for() {
+  case "$1" in
+    src/providers/manager.ts) echo "specs/ProviderManager.md" ;;
+    src/providers/openai.ts)  echo "specs/OpenAIProvider.md" ;;
+    src/providers/ollama.ts)  echo "specs/OllamaProvider.md" ;;
+    src/shared/logger.ts)     echo "specs/Logger.md" ;;
+    src/shared/streaming.ts)  echo "specs/Streaming.md" ;;
+    *)                        echo "specs/$(basename "$1" .ts).md" ;;
+  esac
+}
+
 for ts_file in $CHANGED_TS; do
   # Извлекаем имя компонента: src/modes/apply/AgentWorker.ts → AgentWorker
   component=$(basename "$ts_file" .ts)
@@ -28,7 +41,7 @@ for ts_file in $CHANGED_TS; do
       continue ;;
   esac
 
-  spec_file="specs/${component}.md"
+  spec_file=$(spec_for "$ts_file")
 
   if ! echo "$CHANGED_SPECS" | grep -qF "$spec_file"; then
     echo "  ❌ $ts_file → $spec_file НЕ обновлён"

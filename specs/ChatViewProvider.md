@@ -1,6 +1,6 @@
 ---
 component: ChatViewProvider
-version: 0.13.0
+version: 0.14.0
 status: stable
 since: 0.1.0
 ---
@@ -55,6 +55,12 @@ since: 0.1.0
 
 | Ситуация | Поведение |
 |----------|-----------|
+| Отправка списка провайдеров в WebView | Модели берутся у провайдера (`provider.models()`); при ошибке/недоступном сервере — из `llmAssistant.providers.<name>.models` (fallback), рендер не блокируется |
+| Локальный провайдер (`isLocal`) | В сообщение `providerList` попадает признак локальности; capabilities в селектор не входят (отдельный опциональный шаг) |
+
+
+| Ситуация | Поведение |
+|----------|-----------|
 | Провайдер не поддерживает `createWithTools` | Ошибка «не поддерживает режим Агента» |
 | `@orchestrate` вне агентного режима | Игнорируется |
 | Vision + нет `supportsVision` | Ошибка |
@@ -105,6 +111,19 @@ since: 0.1.0
 - **limitExceeded → finalizeRun:** при воркере оркестратора без финального ответа запуск помечается статусом `limit_exceeded` (в истории «Лимит», не «Успех»); лимит итераций воркеров оркестратора 20 (было 10).
 - **isAbortError:** отмена распознаётся через `isAbortError()` (AbortError + APIUserAbortError), применяется в catch-ветках чат/агент/оркестратор.
 
+## AC
+
+| ID | Критерий | Статус |
+|----|----------|--------|
+| CVP-1.1 | `sendProviderListToWebview()` берёт модели у провайдера (`models()`), при ошибке — из конфига; рендер не блокируется | ⏳ planned |
+| CVP-1.2 | В `providerList` есть признак локальности провайдера (`isLocal`) | ⏳ planned |
+
+## Детали реализации (0.14.0)
+
+- `sendProviderListToWebview()` перестаёт читать модели только из конфига: для каждого провайдера берётся `models()` (для `OllamaProvider` — `/api/tags` с кэшем 30 с), ошибка не пробрасывается наружу, используется конфиг.
+- Вызов не блокирует отрисовку панели: сначала уходит список из конфига, затем — обновлённый после discovery.
+- Иконки/capabilities в селекторе — не входят в 0.14.0 (опциональный AC P5-6.4 плана).
+
 ## Тесты
 
 - `chatViewProvider.test.ts` — полный мок vscode/ProviderManager/LLM/AgentOrchestrator/PlanModeManager: `handleSendMessage` напрямую (chat/agent/planMode/orchestrate), сессионная маршрутизация, история со старта (`running` → `success`), отсутствие двойной записи в Plan Mode, ошибка агента без `createWithTools`, персистентность плана/имплементации/рефлексии (`handlePlanMode`/`handleImplementPlan` → `addMessageTo`).
@@ -131,6 +150,7 @@ since: 0.1.0
 | 0.10.0 | 2026-08-20 | `computeLineDiff` (git-diff диалога) вынесен в `lineDiff.js` (инлайнится в index.html через `{{LINEDIFF}}`) |
 | 0.10.0 | 2026-08-19 | Автокомплит команд: sendSlashCommandsToWebview (встроенные + скилы + @orchestrate, поле prefix) |
 | 0.9.0 | 2026-08-18 | Слэш-команды код-действий: /explain, /explain_stepbystep, /doc, /test, /review, /improve (интеграция SlashCommands) |
+| 0.14.0 | 2026-10-18 | `providerList`: модели от провайдера (`models()`) с fallback на конфиг, неблокирующий рендер |
 | 0.9.0 | 2026-08-11 | Фикс: каталог скилов (getSkillTemplate) в getSystemPrompt() для agent-режима |
 | 0.9.0 | 2026-08-11 | Фикс: Plan Mode сохраняет сообщение пользователя в историю |
 | 0.9.0 | 2026-08-09 | SkillsLoader: инжект скилов в getSystemPrompt() |

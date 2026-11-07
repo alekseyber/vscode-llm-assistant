@@ -31,6 +31,7 @@ const SRC_EXEMPT = new Set([
 const SRC_TO_SPEC = {
   'src/providers/manager.ts': 'ProviderManager.md',
   'src/providers/openai.ts': 'OpenAIProvider.md',
+  'src/providers/ollama.ts': 'OllamaProvider.md',
   'src/shared/logger.ts': 'Logger.md',
   'src/shared/streaming.ts': 'Streaming.md',
 };

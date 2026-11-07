@@ -1,6 +1,6 @@
 ---
 document: TRACEABILITY
-version: 0.8.0
+version: 0.14.0
 ---
 
 # Матрица трассировки: spec → AC → тест → код
@@ -17,7 +17,7 @@ version: 0.8.0
 | ToolDefinitions | `src/modes/apply/ToolDefinitions.ts` | — | — |
 | ToolAllowList | `src/modes/apply/ToolAllowList.ts` | `test/suite/toolAllowList.test.ts` | AC-4.1–AC-4.4 |
 | McpClient | `src/modes/apply/McpClient.ts` | `test/suite/mcpClient.test.ts` | AC-5.1–AC-5.5 |
-| ChatViewProvider | `src/modes/chat/ChatViewProvider.ts` | — | — |
+| ChatViewProvider | `src/modes/chat/ChatViewProvider.ts` | `test/suite/chatWebview.test.ts` | CVP-1.1 (planned) |
 | ConversationManager | `src/modes/chat/ConversationManager.ts` | `test/suite/conversation.test.ts` | — |
 | SessionManager | `src/modes/chat/SessionManager.ts` | `test/suite/session.test.ts` | — |
 | ChatAgentTools | `src/modes/chat/ChatAgentTools.ts` | — | AC-4.1–AC-4.4 |
@@ -29,8 +29,10 @@ version: 0.8.0
 | RunHistoryStore | `src/shared/RunHistoryStore.ts` | `test/suite/runHistoryStore.test.ts` | AC-6.6 |
 | HistoryViewProvider | `src/modes/history/HistoryViewProvider.ts` | — | — |
 | OrchestratorViewProvider | `src/modes/orchestrator/OrchestratorViewProvider.ts` | `test/suite/orchestratorView.test.ts` | MA-4.1–MA-4.5 |
-| OpenAIProvider | `src/providers/openai.ts` | `test/suite/providers.test.ts` | AC-9.4 |
-| ProviderManager | `src/providers/manager.ts` | `test/suite/providers.test.ts` | AC-9.4 |
+| OpenAIProvider | `src/providers/openai.ts` | `test/suite/providers.test.ts` | AC-9.4, OAI-1.1 |
+| OllamaProvider (planned) | `src/providers/ollama.ts` | `test/suite/ollamaProvider.test.ts` (planned) | OLL-1.1–OLL-8.1 |
+| thinking | `src/shared/thinking.ts` | `test/suite/thinking.test.ts` (planned) | TH-1.1–TH-1.4 |
+| ProviderManager | `src/providers/manager.ts` | `test/suite/providers.test.ts`, `test/suite/providerManagerLocal.test.ts` (planned) | AC-9.4, PRM-1.1–PRM-1.5 |
 | Streaming | `src/shared/streaming.ts` | `test/suite/streaming.test.ts` | AC-9.3 |
 | Logger | `src/shared/logger.ts` | — | — |
 | EditController | `src/modes/edit/EditController.ts` | — | — |
@@ -38,10 +40,10 @@ version: 0.8.0
 
 ## Статистика
 
-- **Всего компонентов:** 26
-- **С исходниками:** 26/26 (100%)
-- **С тестами:** 17/26 (65%)
-- **Без тестов:** AgentController, ToolDefinitions, ChatViewProvider, ChatAgentTools, HistoryViewProvider, Logger, EditController, AutocompleteController, ChatPanel
+- **Всего компонентов:** 27
+- **С исходниками:** 27/27 (100%), из них 1 planned (`OllamaProvider` — спека есть, код в 0.14.0)
+- **С тестами:** 18/27 (67%) — в 0.14.0 добавляются `ollamaProvider.test.ts` и `thinking.test.ts`
+- **Без тестов:** AgentController, ToolDefinitions, ChatAgentTools, HistoryViewProvider, Logger, EditController, AutocompleteController, ChatPanel
 
 ## Правило обновления
 

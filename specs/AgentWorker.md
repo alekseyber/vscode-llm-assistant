@@ -1,6 +1,6 @@
 ---
 component: AgentWorker
-version: 0.13.0
+version: 0.14.0
 status: stable
 since: 0.7.0
 ---
@@ -80,6 +80,9 @@ since: 0.7.0
 | MA-1.10 | initialMessages принимает готовый массив сообщений | ✅ |
 | MA-1.11 | Инжект-сообщение (⚠️ system на позиции 1) удаляется после выполнения ask_user | ✅ |
 | SK-3.2 | `SkillsLoader.loadSkillsSummary()` инжектится в system prompt воркера | planned |
+| AW-1.1 | `createWithTools` вызывается с `buildThinkingExtraBody(model)` — рассуждение гасится в агентском цикле | ⏳ planned |
+| AW-1.2 | Локальный провайдер (`isLocal`) при `llmAssistant.local.toolLoop: false` (по умолчанию) не запускает инструменты, а отдаёт предупреждение с инструкцией, как включить | ⏳ planned |
+| AW-1.3 | Для `isLocal` применяется `llmAssistant.local.requestTimeout` (300 с), а не глобальные 60 с | ⏳ planned |
 
 ## Связи
 
@@ -119,6 +122,12 @@ since: 0.7.0
 {summary}
 ```
 
+## Детали реализации (0.14.0)
+
+- **Прокидывание thinking:** вызов `this.provider.createWithTools(messages, model, toolSchemas, signal, undefined, buildThinkingExtraBody(model))` — шестой аргумент; без него deepseek-модель съедает бюджет на рассуждение и шаг возвращает пустой `content`.
+- **Локальный провайдер:** проверка `this.provider.isLocal` (признак ставит `OllamaProvider`/`ProviderManager`). При `local.toolLoop === false` цикл не стартует: эмитится `error`-событие с текстом «локальная модель: агентский цикл выключен (`llmAssistant.local.toolLoop`)» и цикл завершается без вызовов инструментов.
+- **Таймауты:** `local.requestTimeout` подставляется в опции запроса вместо глобального значения, только для `isLocal`.
+
 ## Тесты (agentWorker.test.ts, 12 тестов)
 
 - MA-1.1: AgentWorker принимает AgentRole и создаёт изолированный контекст
@@ -134,6 +143,7 @@ since: 0.7.0
 
 | Версия | Дата | Изменения |
 |--------|------|-----------|
+| 0.14.0 | 2026-10-18 | `extraBody` в `createWithTools` (гашение рассуждения), предупреждение при `local.toolLoop:false`, локальный профиль таймаутов |
 | 0.13.0 | 2026-08-22 | P0 Этап 3: `args` в AgentStep (tool_call) для activity-feed в WebView |
 | 0.13.0 | 2026-08-22 | P0 Этап 5: `role` в session-log tool-событиях (группировка по воркерам) |
 | 0.12.0 | 2026-08-22 | WorkerResult.limitExceeded; isAbortError в catch ReAct-цикла |

@@ -1,6 +1,6 @@
 ---
 component: ProviderManager
-version: 0.13.0
+version: 0.14.0
 status: stable
 since: 0.1.0
 ---
@@ -43,10 +43,22 @@ since: 0.1.0
         "deepseek-chat",
         { "name": "deepseek-v4-pro", "pricing": { "input": 0.435, "output": 0.87 } }
       ]
+    },
+    "local": {
+      "type": "ollama",
+      "baseUrl": "http://127.0.0.1:11434",
+      "models": []
     }
   }
 }
 ```
+
+### Поле type
+
+| Значение | Что создаётся | apiKey | Цена модели |
+|----------|---------------|--------|-------------|
+| отсутствует или `"openai"` | `OpenAIProvider` | обязателен по смыслу (пустая строка допустима) | из конфига / fallback |
+| `"ollama"` | `OllamaProvider` (нативный `/api/chat`) | не требуется | 0 (`{input:0, output:0}` в `pricingMap`) |
 
 ### Формат models
 
@@ -69,10 +81,16 @@ since: 0.1.0
 | `models` отсутствует | `[]` |
 | `apiKey` содержит `${VAR}` | Подстановка из `process.env` |
 | Переменная не найдена | Остаётся `${VAR}` как есть |
+| `type: "ollama"` | Создаётся `OllamaProvider`, `isLocal = true` |
+| `type: "ollama"` без `baseUrl` | `http://127.0.0.1:11434` |
+| `type: "ollama"`, `models: []` | Список моделей берётся из `OllamaProvider.models()` (discovery), конфиг — fallback |
+| Локальный провайдер | Все его модели (из конфига **и** из discovery) попадают в `_pricingMap` с `{input:0, output:0}` — `calculateCost()` возвращает 0, а не `DEFAULT_PRICING` |
+| Discovery вернул модели после `refresh()` | `_pricingMap` дополняется нулевыми ценами в момент заполнения кэша discovery, не в конструкторе |
+| Неизвестный `type` | Провайдер не создаётся, в debug-лог пишется ошибка конфигурации |
 
 ## Связи
 
-- **Использует:** `OpenAIProvider`, `types.ModelEntry`, `types.calculateCost`
+- **Использует:** `OpenAIProvider`, `OllamaProvider`, `types.ModelEntry`, `types.calculateCost`
 - **Используется:** `ChatViewProvider`, `registerCommands.startApplyMode`
 
 ## AC
@@ -85,6 +103,11 @@ since: 0.1.0
 |  — | pricingMap строится из ModelEntry[] + fallback | ✅ |
 |  — | extractModelNames() извлекает имена из ModelEntry[] | ✅ |
 |  — | calculateCost() использует pricingMap > fallback > default | ✅ |
+| PRM-1.1 | `type: "ollama"` → `OllamaProvider`, `isLocal = true` | ⏳ planned |
+| PRM-1.2 | `type` отсутствует → `OpenAIProvider` (обратная совместимость) | ⏳ planned |
+| PRM-1.3 | `Type` описан в `ProviderConfig` как `type?: 'openai' \| 'ollama'` | ⏳ planned |
+| PRM-1.4 | Локальные модели получают цену 0 — из конфига и из discovery | ⏳ planned |
+| PRM-1.5 | Неизвестный `type` → провайдер не создан, ошибка в лог, остальные провайдеры работают | ⏳ planned |
 
 ## Детали реализации
 
@@ -93,6 +116,9 @@ since: 0.1.0
 - **Pricing:** `buildPricingMap(ModelEntry[])` → приоритет: конфиг > FALLBACK > DEFAULT
 - **extractModelNames:** `ModelEntry[]` → `string[]` для OpenAIProvider
 - **defaultProvider:** `llmAssistant.defaultProvider` или `'openai'`
+- **Ветка `type`:** `providerCfg.type === 'ollama'` → `new OllamaProvider({name, baseUrl, models, supportsVision})`, иначе `new OpenAIProvider(...)`; `apiKey` для локального не подставляется из env (не нужен)
+- **Обнуление цен:** после создания локального провайдера все его модели (конфиг + `models()` из кэша discovery) кладутся в `_pricingMap` с `{input:0, output:0}`; `calculateCost()` не меняется
+- **Discovery-кэш:** `ProviderManager` не вызывает `models()` синхронно в `refresh()` (метод синхронный); список обновляется после заполнения кэша `OllamaProvider` и рассылается в WebView
 
 
 ## Тесты (providers.test.ts, 11 тестов)
@@ -104,11 +130,15 @@ since: 0.1.0
 - Пустая конфигурация: getDefault() → undefined
 - ${VAR} подстановка: из process.env; оставляет если переменная не найдена
 - Провайдер имеет список моделей из конфигурации
+- PRM-1.1/1.2/1.3: ветка `type` создаёт нужный класс, отсутствие `type` не ломает облачных (`providerManagerLocal.test.ts`, planned)
+- PRM-1.4: цена локальной модели 0 для конфига и для discovery
+- PRM-1.5: неизвестный `type` не мешает остальным провайдерам
 
 ## История изменений
 
 | Версия | Дата | Изменения |
 |--------|------|-----------|
+| 0.14.0 | 2026-10-18 | `type` в конфиге (openai/ollama), ветка `OllamaProvider`, нулевые цены для локальных моделей (конфиг + discovery), `isLocal` |
 | 0.13.0 | 2026-08-23 | getDefault() fallback на первый настроенный провайдер |
 | 0.8.0 | 2026-08-06 | ModelEntry, pricingMap, calculateCost |
 | 0.1.0 | 2026-08-04 | Базовая реализация |

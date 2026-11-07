@@ -1,6 +1,6 @@
 ---
 component: OpenAIProvider
-version: 0.13.0
+version: 0.14.0
 status: stable
 since: 0.1.0
 ---
@@ -29,9 +29,11 @@ OpenAI-совместимый провайдер LLM. Обёртывает API-�
 
 Vision-запрос с изображениями.
 
-### `createWithTools(messages, model, tools, signal?, onRetry?) → Promise<any>`
+### `createWithTools(messages, model, tools, signal?, onRetry?, extraBody?) → Promise<any>`
 
 Нестриминговый запрос с function calling. Возвращает полный ответ OpenAI SDK (choices + usage).
+
+`extraBody` — **шестой необязательный** параметр: поля досыпаются в тело запроса рядом с `tools` (`...(extraBody ?? {})`). Добавлен в 0.14.0, потому что агентский цикл (`AgentWorker`) до этого не мог передать `thinking:{type:'disabled'}` и reasoning-модель deepseek съедала бюджет на рассуждение. Существующие вызовы без шестого аргумента работают как раньше.
 
 ### `chatComplete(messages, options, signal?, onRetry?) → Promise<string>`
 
@@ -47,6 +49,8 @@ Vision-запрос с изображениями.
 | Ретраи выключены | Прямой вызов без retry |
 | AbortSignal | Пробрасывается в OpenAI SDK |
 | maxRetries: 0 в SDK | Отключено — используем свои ретраи |
+| `createWithTools` с `extraBody` | Поля уходят в тело запроса вместе с `tools` и `tool_choice: 'auto'` |
+| `createWithTools` без `extraBody` | Тело запроса как в 0.13.0 (обратная совместимость) |
 
 ## Связи
 
@@ -67,6 +71,7 @@ Vision-запрос с изображениями.
 
 ## Тесты (providers.test.ts)
 
+- OAI-1.1: `createWithTools` прокидывает `extraBody` в тело; без аргумента тело не меняется (planned)
 - AC-9.4: refresh() читает конфиг и создаёт провайдеров
 - getProvider() / getDefault() / getAllProviders()
 - refresh() очищает старых, обрабатывает пустую конфигурацию
@@ -76,5 +81,6 @@ Vision-запрос с изображениями.
 
 | Версия | Дата | Изменения |
 |--------|------|-----------|
+| 0.14.0 | 2026-10-18 | `extraBody` как необязательный 6-й параметр `createWithTools` (агентский цикл) |
 | 0.13.0 | 2026-08-23 | extraBody в теле запроса (thinking disabled) |
 | 0.1.0 | 2026-08-04 | Базовая реализация |
