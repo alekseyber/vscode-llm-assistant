@@ -6,7 +6,7 @@ import * as sinon from 'sinon';
 import * as vscode from 'vscode';
 import * as assert from 'assert';
 import * as path from 'path';
-import { ChatViewProvider } from '../../src/modes/chat/ChatViewProvider';
+import { ChatViewProvider, buildProviderListFromConfig } from '../../src/modes/chat/ChatViewProvider';
 import { ConversationManager } from '../../src/modes/chat/ConversationManager';
 import { RunHistoryStore } from '../../src/shared/RunHistoryStore';
 import { PlanModeManager } from '../../src/modes/chat/PlanModeManager';
@@ -533,5 +533,33 @@ suite('ChatViewProvider.handleSendMessage', () => {
     assert.ok(html.includes('id="session-sidebar"'), 'сайдбар сессий в разметке (P0-2)');
     assert.ok(html.includes('id="input-toolbar"'), 'input-toolbar в разметке (P0-4)');
     assert.ok(html.includes('id="header-actions"'), 'header-actions в разметке (P0-1)');
+  });
+});
+
+// ─────────── Stage 3 / AC CVP-1.1, CVP-1.2: список провайдеров для WebView ───────────
+suite('buildProviderListFromConfig', () => {
+  test('CVP-1.1: модели берутся из конфигурации, отсутствие models → пустой список', () => {
+    const providers = buildProviderListFromConfig({
+      deepseek: { baseUrl: 'https://api.deepseek.com/v1', models: ['deepseek-flash'] },
+      empty: { baseUrl: 'http://x' },
+    });
+
+    assert.deepStrictEqual(providers.deepseek.models, ['deepseek-flash']);
+    assert.deepStrictEqual(providers.empty.models, []);
+    assert.strictEqual(providers.deepseek.isLocal, undefined);
+  });
+
+  test('CVP-1.2: локальный провайдер помечен isLocal', () => {
+    const providers = buildProviderListFromConfig({
+      local: { type: 'ollama', baseUrl: 'http://127.0.0.1:11434', models: [] },
+      cloud: { type: 'openai', models: ['gpt-4o'] },
+    });
+
+    assert.strictEqual(providers.local.isLocal, true);
+    assert.strictEqual(providers.cloud.isLocal, undefined);
+  });
+
+  test('CVP-1.1: пустая конфигурация не роняет сборку', () => {
+    assert.deepStrictEqual(buildProviderListFromConfig({}), {});
   });
 });

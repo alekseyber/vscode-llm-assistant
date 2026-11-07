@@ -7,7 +7,7 @@ import * as sinon from 'sinon';
 import * as vscode from 'vscode';
 import * as assert from 'assert';
 import * as http from 'http';
-import { OllamaProvider } from '../../src/providers/ollama';
+import { OllamaProvider, describeLocalServer } from '../../src/providers/ollama';
 
 interface Captured {
   body: any;
@@ -19,6 +19,8 @@ suite('OllamaProvider (нативный /api/chat)', () => {
   let server: http.Server;
   let baseUrl: string;
   let captured: Captured[] = [];
+  // Счётчик обращений по путям — для проверки кэша discovery
+  let hits: Record<string, number> = {};
   // Поведение сервера настраивается в каждом тесте
   let handler: (req: http.IncomingMessage, res: http.ServerResponse, body: any) => void;
 
@@ -43,10 +45,13 @@ suite('OllamaProvider (нативный /api/chat)', () => {
   setup((done) => {
     sandbox = sinon.createSandbox();
     captured = [];
+    hits = {};
     for (const key of Object.keys(localSettings)) delete localSettings[key];
     stubConfig();
 
     server = http.createServer((req, res) => {
+      const pathName = (req.url ?? '').split('?')[0];
+      hits[pathName] = (hits[pathName] ?? 0) + 1;
       let raw = '';
       req.on('data', (chunk) => (raw += chunk));
       req.on('end', () => {
@@ -229,5 +234,118 @@ suite('OllamaProvider (нативный /api/chat)', () => {
       throw new Error('поток не был прерван');
     });
     assert.deepStrictEqual(received, ['первый']);
+  });
+
+  // ─────────── Stage 3: discovery и команда проверки ───────────
+
+  test('OLL-4.1: /api/tags → список моделей, конфиг первым, кэш 30 с', async () => {
+    handler = (req, res) => {
+      if (req.url === '/api/tags') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          models: [
+            { name: 'gemma3:4b', size: 3350000000 },
+            { name: 'qwen3:8b', size: 5230000000 },
+          ],
+        }));
+        return;
+      }
+      ndjson(res, [{ message: { content: 'ok' }, done: true }]);
+    };
+
+    const local = new OllamaProvider({ name: 'local', baseUrl, models: ['qwen3:8b'] });
+    const first = await local.models();
+    const second = await local.models();
+
+    assert.deepStrictEqual(first, ['qwen3:8b', 'gemma3:4b'], 'модель из конфига идёт первой');
+    assert.deepStrictEqual(second, first);
+    assert.strictEqual(hits['/api/tags'], 1, 'второй вызов в пределах TTL не ходит в сеть');
+
+    local.invalidateCache();
+    await local.models();
+    assert.strictEqual(hits['/api/tags'], 2, 'после сброса кэша — новый запрос');
+  });
+
+  test('OLL-4.1: сервер недоступен → модели из конфига, без исключения', async () => {
+    const probe = http.createServer(() => undefined);
+    const port: number = await new Promise((resolve) => {
+      probe.listen(0, '127.0.0.1', () => {
+        const address = probe.address() as any;
+        probe.close(() => resolve(address.port));
+      });
+    });
+    const dead = new OllamaProvider({ name: 'local', baseUrl: `http://127.0.0.1:${port}`, models: ['qwen3:8b', 'mistral:7b'] });
+
+    const models = await dead.models();
+    assert.deepStrictEqual(models, ['qwen3:8b', 'mistral:7b'], 'fallback на конфиг');
+    assert.strictEqual(await dead.version(), undefined);
+  });
+
+  test('OLL-4.2: /api/show → capabilities, повторный вызов из кэша', async () => {
+    handler = (req, res, body) => {
+      assert.strictEqual(req.url, '/api/show');
+      assert.strictEqual(body.model, 'qwen3:8b');
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ capabilities: ['completion', 'tools', 'thinking'] }));
+    };
+
+    const local = new OllamaProvider({ name: 'local', baseUrl, models: [] });
+    const caps = await local.capabilities('qwen3:8b');
+    const again = await local.capabilities('qwen3:8b');
+
+    assert.deepStrictEqual(caps, { tools: true, thinking: true, vision: false });
+    assert.deepStrictEqual(again, caps);
+    assert.strictEqual(hits['/api/show'], 1, 'capabilities кэшируются');
+  });
+
+  test('OLL-4.2: /api/show упал → undefined, без исключения', async () => {
+    handler = (_req, res) => {
+      res.writeHead(500);
+      res.end('boom');
+    };
+    const local = new OllamaProvider({ name: 'local', baseUrl, models: [] });
+    assert.strictEqual(await local.capabilities('qwen3:8b'), undefined);
+  });
+
+  test('команда проверки: версия, модели, capabilities одной строкой на модель', async () => {
+    handler = (req, res) => {
+      if (req.url === '/api/version') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ version: '0.40.14' }));
+        return;
+      }
+      if (req.url === '/api/tags') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ models: [{ name: 'gemma3:4b', size: 3350000000 }] }));
+        return;
+      }
+      // /api/show
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ capabilities: ['completion', 'vision'] }));
+    };
+
+    const lines = await describeLocalServer(new OllamaProvider({ name: 'local', baseUrl, models: [] }));
+
+    assert.match(lines[0], /Ollama 0\.40\.14 · 1 моделей/);
+    assert.match(lines[1], /gemma3:4b · 3\.4 ГБ · vision/);
+  });
+
+  test('команда проверки: сервер недоступен → подсказка, а не падение', async () => {
+    const dead = new OllamaProvider({ name: 'local', baseUrl: 'http://127.0.0.1:1', models: [] });
+    // порт 1 недоступен; fetch может быть отфильтрован undici — тогда берём закрытый порт
+    const probe = http.createServer(() => undefined);
+    const port: number = await new Promise((resolve) => {
+      probe.listen(0, '127.0.0.1', () => {
+        const address = probe.address() as any;
+        probe.close(() => resolve(address.port));
+      });
+    });
+    const closed = new OllamaProvider({ name: 'local', baseUrl: `http://127.0.0.1:${port}`, models: [] });
+
+    for (const provider of [dead, closed]) {
+      const lines = await describeLocalServer(provider);
+      assert.match(lines.join(' '), /Ollama недоступен/);
+      assert.match(lines.join(' '), /туннель/);
+    }
   });
 });

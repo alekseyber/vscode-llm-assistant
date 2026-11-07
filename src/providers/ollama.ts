@@ -17,6 +17,15 @@ const DEFAULT_NUM_CTX = 8192;
 const DEFAULT_LOCAL_TIMEOUT_MS = 300_000;
 /** Доля бюджета ответа, после которой предупреждаем о «съеденном» рассуждении. */
 const MIN_CONTENT_CHARS = 1;
+/** Сколько живёт кэш списка моделей (мс). */
+const MODELS_CACHE_TTL_MS = 30_000;
+
+/** Возможности модели по данным /api/show. */
+export interface OllamaCapabilities {
+  tools: boolean;
+  thinking: boolean;
+  vision: boolean;
+}
 
 /** Настройки локального провайдера, читаемые из llmAssistant.local.* */
 export interface OllamaLocalSettings {
@@ -120,6 +129,10 @@ export class OllamaProvider extends BaseProvider {
   /** Признак локального провайдера — по нему AgentWorker/ChatViewProvider меняют поведение. */
   public readonly isLocal = true;
   public readonly supportsVision: boolean;
+  /** Кэш discovery: список моделей и время заполнения. */
+  private modelsCache?: { at: number; models: string[] };
+  /** Кэш capabilities по модели (на время жизни провайдера). */
+  private readonly capsCache = new Map<string, OllamaCapabilities>();
 
   constructor(config: {
     name: string;
@@ -319,10 +332,141 @@ export class OllamaProvider extends BaseProvider {
   }
 
   /**
-   * Discovery моделей появится в Stage 3 (/api/tags).
-   * До тех пор — список из конфигурации.
+   * Список моделей: `GET /api/tags` с кэшем 30 с.
+   * При недоступном сервере (или ошибке) — список из конфигурации, без исключения:
+   * селектор моделей не должен ломаться из-за выключенного Ollama.
    */
   async models(): Promise<string[]> {
-    return super.models();
+    const now = Date.now();
+    if (this.modelsCache && now - this.modelsCache.at < MODELS_CACHE_TTL_MS) {
+      return [...this.modelsCache.models];
+    }
+
+    const configured = await super.models();
+    try {
+      const response = await fetch(`${this.baseUrl}/api/tags`, { method: 'GET' });
+      if (!response.ok) {
+        debugLog(`[ollama] /api/tags ответил ${response.status} — берём модели из конфига`);
+        return configured;
+      }
+      const json: any = await response.json();
+      const discovered: string[] = (json?.models ?? [])
+        .map((m: any) => m?.name ?? m?.model)
+        .filter((name: any): name is string => typeof name === 'string' && name.length > 0);
+
+      // Модели из конфига идут первыми (порядок пользователя), затем новые из discovery
+      const merged = [...configured, ...discovered.filter((name) => !configured.includes(name))];
+      if (merged.length === 0) return configured;
+
+      this.modelsCache = { at: now, models: merged };
+      debugLog(`[ollama] discovery: ${merged.length} моделей (${discovered.length} с сервера)`);
+      return [...merged];
+    } catch (error: any) {
+      debugLog(`[ollama] discovery недоступен: ${error?.message ?? error}`);
+      return configured;
+    }
   }
+
+  /** Сбросить кэш discovery (команда проверки сервера, смена настроек). */
+  invalidateCache(): void {
+    this.modelsCache = undefined;
+    this.capsCache.clear();
+  }
+
+  /** Версия сервера — `GET /api/version` (для команды проверки). */
+  async version(): Promise<string | undefined> {
+    try {
+      const response = await fetch(`${this.baseUrl}/api/version`, { method: 'GET' });
+      if (!response.ok) return undefined;
+      const json: any = await response.json();
+      return typeof json?.version === 'string' ? json.version : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  /**
+   * Возможности модели по `/api/show` (tools / thinking / vision).
+   * Вызывается только по явному действию (команда проверки сервера), кэшируется на сессию.
+   */
+  async capabilities(model: string): Promise<OllamaCapabilities | undefined> {
+    const cached = this.capsCache.get(model);
+    if (cached) return cached;
+
+    try {
+      const response = await fetch(`${this.baseUrl}/api/show`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model }),
+      });
+      if (!response.ok) return undefined;
+      const json: any = await response.json();
+      const caps: string[] = Array.isArray(json?.capabilities) ? json.capabilities : [];
+      const result: OllamaCapabilities = {
+        tools: caps.includes('tools'),
+        thinking: caps.includes('thinking'),
+        vision: caps.includes('vision'),
+      };
+      this.capsCache.set(model, result);
+      return result;
+    } catch {
+      return undefined;
+    }
+  }
+
+  /** Размеры моделей с сервера (ГБ) — для человекочитаемого отчёта команды проверки. */
+  async modelSizes(): Promise<Record<string, number>> {
+    try {
+      const response = await fetch(`${this.baseUrl}/api/tags`, { method: 'GET' });
+      if (!response.ok) return {};
+      const json: any = await response.json();
+      const sizes: Record<string, number> = {};
+      for (const m of json?.models ?? []) {
+        const name: string | undefined = m?.name ?? m?.model;
+        if (name && typeof m?.size === 'number') sizes[name] = m.size;
+      }
+      return sizes;
+    } catch {
+      return {};
+    }
+  }
+}
+
+/** Форматирование размера модели в ГБ для отчёта команды проверки. */
+function formatSize(bytes: number): string {
+  return `${(bytes / 1e9).toFixed(1)} ГБ`;
+}
+
+/**
+ * Человекочитаемый отчёт о локальном сервере: версия, модели, capabilities.
+ * Вынесено отдельной функцией, чтобы её можно было проверить тестом без VS Code.
+ */
+export async function describeLocalServer(provider: OllamaProvider): Promise<string[]> {
+  const version = await provider.version();
+  if (!version) {
+    return [
+      'Ollama недоступен.',
+      'Проверьте: сервер запущен (`ollama serve`), baseUrl верный, для удалённой машины открыт SSH-туннель.',
+    ];
+  }
+
+  const models = await provider.models();
+  const sizes = await provider.modelSizes();
+  const lines: string[] = [`Ollama ${version} · ${models.length} моделей`];
+
+  if (models.length === 0) {
+    lines.push('Моделей нет — скачайте: ollama pull qwen3:8b');
+    return lines;
+  }
+
+  for (const model of models) {
+    const caps = await provider.capabilities(model);
+    const flags = caps
+      ? [caps.tools ? 'tools' : null, caps.thinking ? 'thinking' : null, caps.vision ? 'vision' : null].filter(Boolean).join(', ') || 'completion'
+      : 'capabilities не прочитаны';
+    const size = sizes[model] !== undefined ? ` · ${formatSize(sizes[model])}` : '';
+    lines.push(`• ${model}${size} · ${flags}`);
+  }
+
+  return lines;
 }

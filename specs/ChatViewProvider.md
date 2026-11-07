@@ -1,6 +1,6 @@
 ---
 component: ChatViewProvider
-version: 0.14.0
+version: 0.14.1
 status: stable
 since: 0.1.0
 ---
@@ -115,14 +115,16 @@ since: 0.1.0
 
 | ID | Критерий | Статус |
 |----|----------|--------|
-| CVP-1.1 | `sendProviderListToWebview()` берёт модели у провайдера (`models()`), при ошибке — из конфига; рендер не блокируется | ⏳ planned |
-| CVP-1.2 | В `providerList` есть признак локальности провайдера (`isLocal`) | ⏳ planned |
+| CVP-1.1 | `sendProviderListToWebview()` берёт модели у провайдера (`models()`), при ошибке — из конфига; рендер не блокируется (сначала уходит конфиг, затем обновление) | ✅ |
+| CVP-1.2 | В `providerList` есть признак локальности провайдера (`isLocal`) | ✅ |
 
 ## Детали реализации (0.14.0)
 
 - `sendProviderListToWebview()` перестаёт читать модели только из конфига: для каждого провайдера берётся `models()` (для `OllamaProvider` — `/api/tags` с кэшем 30 с), ошибка не пробрасывается наружу, используется конфиг.
 - Вызов не блокирует отрисовку панели: сначала уходит список из конфига, затем — обновлённый после discovery.
 - Иконки/capabilities в селекторе — не входят в 0.14.0 (опциональный AC P5-6.4 плана).
+- Сборка сообщения из конфига вынесена в чистую функцию `buildProviderListFromConfig(providersConfig)` — её и проверяют тесты (`test/suite/chatViewProvider.test.ts`, suite `buildProviderListFromConfig`).
+- Для локального провайдера после discovery вызывается `providerManager.setZeroPricing(models)`, чтобы найденные модели тоже не показывали выдуманную стоимость.
 
 ## Тесты
 
@@ -150,6 +152,7 @@ since: 0.1.0
 | 0.10.0 | 2026-08-20 | `computeLineDiff` (git-diff диалога) вынесен в `lineDiff.js` (инлайнится в index.html через `{{LINEDIFF}}`) |
 | 0.10.0 | 2026-08-19 | Автокомплит команд: sendSlashCommandsToWebview (встроенные + скилы + @orchestrate, поле prefix) |
 | 0.9.0 | 2026-08-18 | Слэш-команды код-действий: /explain, /explain_stepbystep, /doc, /test, /review, /improve (интеграция SlashCommands) |
+| 0.14.1 | 2026-10-18 | Stage 3: реализован неблокирующий `providerList` (конфиг → discovery), `isLocal` в сообщении, `buildProviderListFromConfig`, обнуление цен после discovery; 3 теста |
 | 0.14.0 | 2026-10-18 | `providerList`: модели от провайдера (`models()`) с fallback на конфиг, неблокирующий рендер |
 | 0.9.0 | 2026-08-11 | Фикс: каталог скилов (getSkillTemplate) в getSystemPrompt() для agent-режима |
 | 0.9.0 | 2026-08-11 | Фикс: Plan Mode сохраняет сообщение пользователя в историю |

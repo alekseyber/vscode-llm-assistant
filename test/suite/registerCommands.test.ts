@@ -46,7 +46,7 @@ suite('registerCommands', () => {
     };
   }
 
-  test('регистрирует все 11 команд', () => {
+  test('регистрирует все 12 команд', () => {
     registerCommands(makeDeps());
 
     const names = registerSpy.getCalls().map((c) => c.args[0]);
@@ -55,6 +55,7 @@ suite('registerCommands', () => {
       'llmAssistant.autocomplete.toggle',
       'llmAssistant.chat.addSelection',
       'llmAssistant.chat.focus',
+      'llmAssistant.checkLocalServer',
       'llmAssistant.clearAllSessions',
       'llmAssistant.edit.selection',
       'llmAssistant.exportSession',
@@ -63,15 +64,15 @@ suite('registerCommands', () => {
       'llmAssistant.review.file',
       'llmAssistant.selectProvider',
     ].sort());
-    assert.strictEqual(registerSpy.callCount, 11);
+    assert.strictEqual(registerSpy.callCount, 12);
   });
 
   test('все команды добавляются в context.subscriptions', () => {
     const deps = makeDeps();
     registerCommands(deps);
 
-    // 11 команд регистрируются через context.subscriptions.push
-    assert.strictEqual(deps.context.subscriptions.push.callCount, 11);
+    // 12 команд регистрируются через context.subscriptions.push (0.14.0: +checkLocalServer)
+    assert.strictEqual(deps.context.subscriptions.push.callCount, 12);
   });
 
   test('chat.focus: reveal контейнера + revealChat (вместо легаси ChatPanel)', async () => {

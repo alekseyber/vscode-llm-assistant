@@ -23,6 +23,22 @@ import { setDelegateHandler } from './ChatAgentTools';
 import { PlanModeManager } from './PlanModeManager';
 import { parseSlashCommand, getSlashCommand, SLASH_COMMANDS } from './SlashCommands';
 
+/**
+ * Собрать сообщение `providerList` из конфигурации (без сети).
+ * Чистая функция: используется и в фоновом обновлении, и в тестах —
+ * локальный провайдер помечается `isLocal`, чтобы WebView мог отличать его от облачного.
+ */
+export function buildProviderListFromConfig(
+  providersConfig: Record<string, any>,
+): Record<string, { models: string[]; isLocal?: boolean }> {
+  const providers: Record<string, { models: string[]; isLocal?: boolean }> = {};
+  for (const [name, cfg] of Object.entries(providersConfig ?? {})) {
+    const models: string[] = Array.isArray(cfg?.models) ? cfg.models : [];
+    providers[name] = cfg?.type === 'ollama' ? { models, isLocal: true } : { models };
+  }
+  return providers;
+}
+
 export class ChatViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = 'llmAssistant.chat';
   private view?: vscode.WebviewView;
@@ -1014,13 +1030,51 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     }
     return '';
   }
+  /**
+   * Отправить список провайдеров в WebView.
+   *
+   * 1. Сразу уходит список из конфигурации — рендер не ждёт сеть.
+   * 2. Затем, если у провайдера есть discovery (локальный Ollama), список обновляется
+   *    моделями с сервера. Ошибка discovery не ломает панель: остаётся конфиг.
+   */
   private sendProviderListToWebview(): void {
     if (!this.view) return;
     const config = vscode.workspace.getConfiguration('llmAssistant');
     const providersConfig = config.get<Record<string, any>>('providers') ?? {};
-    const providers: Record<string, { models: string[] }> = {};
-    for (const [name, cfg] of Object.entries(providersConfig)) providers[name] = { models: cfg.models ?? [] };
-    this.postMessage({ type: 'providerList', providers, defaultProvider: config.get<string>('defaultProvider') ?? '' });
+    const defaultProvider = config.get<string>('defaultProvider') ?? '';
+
+    this.postMessage({ type: 'providerList', providers: buildProviderListFromConfig(providersConfig), defaultProvider });
+
+    // Discovery — фоновым проходом, без блокировки рендера
+    void (async () => {
+      try {
+        const withDiscovery: Record<string, { models: string[]; isLocal?: boolean }> = {};
+        let changed = false;
+        for (const [name, cfg] of Object.entries(providersConfig)) {
+          const provider: any = this.providerManager.getProvider(name);
+          const configured: string[] = Array.isArray(cfg?.models) ? cfg.models : [];
+          let models = configured;
+          if (provider && typeof provider.models === 'function') {
+            const discovered: string[] = await provider.models();
+            if (Array.isArray(discovered) && discovered.length > 0) {
+              models = discovered;
+              if (models.length !== configured.length) changed = true;
+            }
+          }
+          // Локальные модели бесплатны: обнуляем цены и для пришедших из discovery
+          if (cfg?.type === 'ollama' && provider?.isLocal) {
+            this.providerManager.setZeroPricing(models);
+          }
+          withDiscovery[name] = cfg?.type === 'ollama' ? { models, isLocal: true } : { models };
+        }
+        if (changed && this.view) {
+          this.postMessage({ type: 'providerList', providers: withDiscovery, defaultProvider });
+        }
+      } catch (error: any) {
+        // Discovery — вспомогательный путь: панель уже отрисована по конфигу
+        console.log(`[chat] discovery провайдеров не удался: ${error?.message ?? error}`);
+      }
+    })();
   }
   /** Отправить в WebView список команд для автокомплита (слэш + @orchestrate) */
   private sendSlashCommandsToWebview(): void {

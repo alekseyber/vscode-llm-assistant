@@ -11,6 +11,7 @@
 
 import * as vscode from 'vscode';
 import { ProviderManager } from '../providers/manager';
+import { OllamaProvider, describeLocalServer } from '../providers/ollama';
 import { ConversationManager } from '../modes/chat/ConversationManager';
 import { EditController } from '../modes/edit/EditController';
 import { AutocompleteController } from '../modes/autocomplete/AutocompleteController';
@@ -147,7 +148,40 @@ export function registerCommands(deps: CommandDependencies): void {
     })
   );
 
-  console.log('[registerCommands] Зарегистрировано 11 команд: chat.focus, chat.addSelection, edit.selection, autocomplete.toggle, apply.start, selectProvider, openHistory, review.file, exportSession, forkSession, clearAllSessions');
+  // ── 12. llmAssistant.checkLocalServer — версия, модели и capabilities локального Ollama ──
+  context.subscriptions.push(
+    vscode.commands.registerCommand('llmAssistant.checkLocalServer', async () => {
+      const localProviders = [...providerManager.getAllProviders().entries()]
+        .filter(([, provider]) => (provider as any).isLocal);
+
+      if (localProviders.length === 0) {
+        vscode.window.showInformationMessage(
+          'Локальный провайдер не настроен. Добавьте в llmAssistant.providers запись с "type": "ollama".',
+        );
+        return;
+      }
+
+      const blocks: string[] = [];
+      for (const [name, provider] of localProviders) {
+        const lines = await describeLocalServer(provider as OllamaProvider);
+        (provider as OllamaProvider).invalidateCache();
+        blocks.push(`[${name}]`, ...lines, '');
+      }
+
+      // Подробности — в выходной канал, короткая сводка — в сообщении
+      const summary = blocks.slice(0, 6).join('\n');
+      const choice = await vscode.window.showInformationMessage(
+        summary,
+        { modal: true },
+        'Скопировать отчёт',
+      );
+      if (choice === 'Скопировать отчёт') {
+        await vscode.env.clipboard.writeText(blocks.join('\n'));
+      }
+    })
+  );
+
+  console.log('[registerCommands] Зарегистрировано 12 команд: chat.focus, chat.addSelection, edit.selection, autocomplete.toggle, apply.start, selectProvider, openHistory, review.file, exportSession, forkSession, clearAllSessions, checkLocalServer');
 }
 
 /**

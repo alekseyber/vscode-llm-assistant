@@ -1,6 +1,6 @@
 ---
 component: OllamaProvider
-version: 0.14.1
+version: 0.14.2
 status: beta
 since: 0.14.0
 ---
@@ -45,6 +45,22 @@ since: 0.14.0
 
 Discovery: `GET /api/tags` → имена моделей. Кэш на 30 с. При ошибке соединения — список из конфига (`BaseProvider.models()`), без исключения.
 
+### `version(): Promise<string | undefined>`
+
+`GET /api/version`. `undefined`, если сервер недоступен — команда проверки показывает подсказку вместо ошибки.
+
+### `modelSizes(): Promise<Record<string, number>>`
+
+`GET /api/tags` → размеры моделей в байтах (для отчёта команды проверки). Ошибка → `{}`.
+
+### `invalidateCache(): void`
+
+Сбрасывает кэш моделей и capabilities (вызывается командой проверки сервера).
+
+### `describeLocalServer(provider): Promise<string[]>` (свободная функция)
+
+Отчёт для команды «Проверить локальный сервер»: версия, число моделей, по строке на модель (`имя · размер · capabilities`). При недоступном сервере — две строки с подсказкой (`ollama serve`, baseUrl, SSH-туннель). Вынесена из команды, чтобы проверяться тестом без VS Code.
+
 ### `capabilities(model): Promise<{tools: boolean; thinking: boolean; vision: boolean}>`
 
 `POST /api/show` → `capabilities` (`completion`, `tools`, `thinking`, `vision`). Кэш на время сессии, вызывается только по явному действию (команда проверки сервера) — не на каждый рендер.
@@ -70,7 +86,9 @@ Discovery: `GET /api/tags` → имена моделей. Кэш на 30 с. П�
 - **Транспорт:** `fetch` (Node 18+/VS Code runtime), NDJSON построчно: буфер, `split('\n')`, последняя неполная строка остаётся в буфере. OpenAI SDK не используется — он не умеет нативный формат.
 - **Маппинг сообщений:** `ChatMessage` (`system`/`user`/`assistant`) → нативный вид без изменений ролей; входящая история агента (`assistant` с `tool_calls`, затем `role:'tool'` с `tool_call_id`) → `assistant` с `tool_calls[{function:{name,arguments}}]` и `role:'tool'` с `tool_name`; `id` при синтезе ответа — `call_<n>` (у нативного API идентификаторов нет).
 - **Обратный маппинг:** нативный `message.tool_calls[]` → OpenAI-форма с `id`, `type:'function'`, `function.arguments` как **строка** JSON (`JSON.stringify`), потому что `AgentWorker` разбирает её через `JSON.parse`.
-- **Кэш:** `models()` — 30 с на провайдера; `capabilities()` — до конца сессии. Кэш инвалидируется командой проверки сервера.
+- **Кэш:** `models()` — 30 с на провайдера (`MODELS_CACHE_TTL_MS`), `capabilities()` — до конца сессии. Кэш инвалидируется `invalidateCache()` (команда проверки сервера).
+- **Слияние списков:** модели из конфига идут первыми (порядок пользователя), затем новые из `/api/tags`; дублей нет. При ошибке discovery возвращается ровно конфиг.
+- **Цены после discovery:** `ChatViewProvider` при обновлении списка вызывает `providerManager.setZeroPricing(models)` для локального провайдера, поэтому найденные модели тоже бесплатны.
 - **Таймауты:** `local.requestTimeout` (300 с); в потоке таймер продлевается на каждом чанке (`createTimeoutSignal().reset()`), поэтому долгая генерация не обрывается на 60-й секунде, а зависший поток закрывается по бездействию.
 - **Ретраи:** берутся из общих настроек (`llmAssistant.retry.enabled` / `retry.maxRetries`), а не из хардкода; при выключенных ретраях — одна попытка. Ретраится только установление соединения, не сама генерация.
 - **Код ошибки для `RetryHandler`:** `cause.code` из undici; если кода нет (например, «запрещённый» порт или иной текст), из сообщения извлекается `E[AAA-ZZZ]`-паттерн, иначе ставится `NETWORK_ERROR` — так сетевая ошибка остаётся retryable.
@@ -122,8 +140,8 @@ Discovery: `GET /api/tags` → имена моделей. Кэш на 30 с. П�
 | OLL-2.1 | `content` пуст при непустом `thinking` → предупреждение вместо пустого ответа | ✅ |
 | OLL-3.1 | `createWithTools()` отдаёт `tool_calls` в форме OpenAI, `arguments` — строка JSON | ⏳ planned |
 | OLL-3.2 | История агента (`assistant.tool_calls` + `role:'tool'`) конвертируется в нативный вид; второй шаг цикла работает | ⏳ planned |
-| OLL-4.1 | `models()` — `/api/tags` с кэшем 30 с; при недоступном сервере — конфиг, без исключения | ⏳ planned |
-| OLL-4.2 | `capabilities()` — `/api/show`, только по явному вызову | ⏳ planned |
+| OLL-4.1 | `models()` — `/api/tags` с кэшем 30 с; при недоступном сервере — конфиг, без исключения | ✅ |
+| OLL-4.2 | `capabilities()` — `/api/show`, только по явному вызову | ✅ |
 | OLL-5.1 | `chatWithVision()` переводит `image_url` (data-url) в нативное `images: [base64]` | ⏳ planned |
 | OLL-6.1 | 404 «model not found» → ошибка с `ollama pull <model>`, без ретраев | ✅ |
 | OLL-6.2 | `ECONNREFUSED` → ошибка с подсказкой про сервер/туннель, ретраи по `RetryHandler` | ✅ |
@@ -146,7 +164,12 @@ Discovery: `GET /api/tags` → имена моделей. Кэш на 30 с. П�
 | сервер недоступен → сообщение с подсказкой, `code` сохраняется для `RetryHandler` | OLL-6.2 | ✅ |
 | отмена прерывает поток | OLL-6.3 | ✅ |
 | инструменты: `tool_calls` → OpenAI-форма, конвертация истории | OLL-3.1, OLL-3.2 | ⏳ Stage 5 |
-| discovery `/api/tags` с кэшем, `/api/show` | OLL-4.1, OLL-4.2 | ⏳ Stage 3 |
+| `/api/tags` → список моделей, конфиг первым, кэш 30 с | OLL-4.1 | ✅ |
+| сервер недоступен → модели из конфига, `version()` → `undefined` | OLL-4.1 | ✅ |
+| `/api/show` → capabilities, повторный вызов из кэша | OLL-4.2 | ✅ |
+| `/api/show` упал → `undefined` без исключения | OLL-4.2 | ✅ |
+| команда проверки: версия, модели, capabilities строкой на модель | OLL-4.2 | ✅ |
+| команда проверки: сервер недоступен → подсказка, а не падение | OLL-4.2 | ✅ |
 | vision: `image_url` → `images: [base64]` | OLL-5.1 | ⏳ Stage 3 |
 | `usage` из `prompt_eval_count`/`eval_count` | OLL-8.1 | ⏳ Stage 5 |
 
@@ -160,5 +183,6 @@ Discovery: `GET /api/tags` → имена моделей. Кэш на 30 с. П�
 
 | Версия | Дата | Изменения |
 |--------|------|-----------|
+| 0.14.2 | 2026-10-18 | Stage 3: discovery `/api/tags` с TTL-кэшем и слиянием с конфигом, `capabilities()`/`version()`/`modelSizes()`, `invalidateCache()`, `describeLocalServer()` для команды проверки; +6 тестов |
 | 0.14.1 | 2026-10-18 | Stage 2: реализованы `chat()` и `chatComplete()` (нативный NDJSON), `think`/`num_predict`/`num_ctx`, маппинг ошибок 404/сети, `isLocal`; 8 тестов зелёные; status → beta |
 | 0.14.0 | 2026-10-18 | Создан (planned): нативный `/api/chat` + `/api/tags` + `/api/show`, `think:false`, `num_predict`/`num_ctx`, конвертация истории агента |
