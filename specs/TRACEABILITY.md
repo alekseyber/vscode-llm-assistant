@@ -30,9 +30,9 @@ version: 0.14.0
 | HistoryViewProvider | `src/modes/history/HistoryViewProvider.ts` | — | — |
 | OrchestratorViewProvider | `src/modes/orchestrator/OrchestratorViewProvider.ts` | `test/suite/orchestratorView.test.ts` | MA-4.1–MA-4.5 |
 | OpenAIProvider | `src/providers/openai.ts` | `test/suite/providers.test.ts` | AC-9.4, OAI-1.1 |
-| OllamaProvider (planned) | `src/providers/ollama.ts` | `test/suite/ollamaProvider.test.ts` (planned) | OLL-1.1–OLL-8.1 |
+| OllamaProvider | `src/providers/ollama.ts` | `test/suite/ollamaProviderLocal.test.ts` | OLL-1.1–OLL-8.1 (1.x, 2.1, 6.x, 7.1 ✅) |
 | thinking | `src/shared/thinking.ts` | `test/suite/thinking.test.ts` (planned) | TH-1.1–TH-1.4 |
-| ProviderManager | `src/providers/manager.ts` | `test/suite/providers.test.ts`, `test/suite/providerManagerLocal.test.ts` (planned) | AC-9.4, PRM-1.1–PRM-1.5 |
+| ProviderManager | `src/providers/manager.ts` | `test/suite/providers.test.ts`, `test/suite/providerManagerLocal.test.ts` | AC-9.4, PRM-1.1–PRM-1.5 |
 | Streaming | `src/shared/streaming.ts` | `test/suite/streaming.test.ts` | AC-9.3 |
 | Logger | `src/shared/logger.ts` | — | — |
 | EditController | `src/modes/edit/EditController.ts` | — | — |
@@ -41,8 +41,8 @@ version: 0.14.0
 ## Статистика
 
 - **Всего компонентов:** 27
-- **С исходниками:** 27/27 (100%), из них 1 planned (`OllamaProvider` — спека есть, код в 0.14.0)
-- **С тестами:** 18/27 (67%) — в 0.14.0 добавляются `ollamaProvider.test.ts` и `thinking.test.ts`
+- **С исходниками:** 27/27 (100%)
+- **С тестами:** 19/27 (70%) — `OllamaProvider` и `ProviderManager` покрыты; `thinking.test.ts` появится в Stage 4
 - **Без тестов:** AgentController, ToolDefinitions, ChatAgentTools, HistoryViewProvider, Logger, EditController, AutocompleteController, ChatPanel
 
 ## Правило обновления

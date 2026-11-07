@@ -1,7 +1,7 @@
 ---
 component: OllamaProvider
-version: 0.14.0
-status: planned
+version: 0.14.1
+status: beta
 since: 0.14.0
 ---
 
@@ -71,7 +71,9 @@ Discovery: `GET /api/tags` → имена моделей. Кэш на 30 с. П�
 - **Маппинг сообщений:** `ChatMessage` (`system`/`user`/`assistant`) → нативный вид без изменений ролей; входящая история агента (`assistant` с `tool_calls`, затем `role:'tool'` с `tool_call_id`) → `assistant` с `tool_calls[{function:{name,arguments}}]` и `role:'tool'` с `tool_name`; `id` при синтезе ответа — `call_<n>` (у нативного API идентификаторов нет).
 - **Обратный маппинг:** нативный `message.tool_calls[]` → OpenAI-форма с `id`, `type:'function'`, `function.arguments` как **строка** JSON (`JSON.stringify`), потому что `AgentWorker` разбирает её через `JSON.parse`.
 - **Кэш:** `models()` — 30 с на провайдера; `capabilities()` — до конца сессии. Кэш инвалидируется командой проверки сервера.
-- **Таймауты:** `local.requestTimeout` (300 с) на запрос целиком; для `stream` — таймаут на первую строку потока, а не на весь ответ (иначе долгая генерация обрывается на 60-й секунде).
+- **Таймауты:** `local.requestTimeout` (300 с); в потоке таймер продлевается на каждом чанке (`createTimeoutSignal().reset()`), поэтому долгая генерация не обрывается на 60-й секунде, а зависший поток закрывается по бездействию.
+- **Ретраи:** берутся из общих настроек (`llmAssistant.retry.enabled` / `retry.maxRetries`), а не из хардкода; при выключенных ретраях — одна попытка. Ретраится только установление соединения, не сама генерация.
+- **Код ошибки для `RetryHandler`:** `cause.code` из undici; если кода нет (например, «запрещённый» порт или иной текст), из сообщения извлекается `E[AAA-ZZZ]`-паттерн, иначе ставится `NETWORK_ERROR` — так сетевая ошибка остаётся retryable.
 - **Логи:** запросы и ошибки — в существующий debug-канал; тело запроса целиком не логируется (может содержать код пользователя).
 
 ## Форматы данных
@@ -113,38 +115,40 @@ Discovery: `GET /api/tags` → имена моделей. Кэш на 30 с. П�
 
 | ID | Критерий | Статус |
 |----|----------|--------|
-| OLL-1.1 | `chat()` стримит `content` из нативного NDJSON, непустой ответ при `think:false` | ⏳ planned |
-| OLL-1.2 | `think` читается из `llmAssistant.local.think` (по умолчанию `false`) и уходит в тело | ⏳ planned |
-| OLL-1.3 | `maxTokens` → `num_predict`, `local.numCtx` → `num_ctx` | ⏳ planned |
-| OLL-1.4 | `extraBody` игнорируется, причина пишется в debug-лог | ⏳ planned |
-| OLL-2.1 | `content` пуст при непустом `thinking` → предупреждение вместо пустого ответа | ⏳ planned |
+| OLL-1.1 | `chat()` стримит `content` из нативного NDJSON, непустой ответ при `think:false` | ✅ |
+| OLL-1.2 | `think` читается из `llmAssistant.local.think` (по умолчанию `false`) и уходит в тело | ✅ |
+| OLL-1.3 | `maxTokens` → `num_predict`, `local.numCtx` → `num_ctx` | ✅ |
+| OLL-1.4 | `extraBody` игнорируется, причина пишется в debug-лог | ✅ |
+| OLL-2.1 | `content` пуст при непустом `thinking` → предупреждение вместо пустого ответа | ✅ |
 | OLL-3.1 | `createWithTools()` отдаёт `tool_calls` в форме OpenAI, `arguments` — строка JSON | ⏳ planned |
 | OLL-3.2 | История агента (`assistant.tool_calls` + `role:'tool'`) конвертируется в нативный вид; второй шаг цикла работает | ⏳ planned |
 | OLL-4.1 | `models()` — `/api/tags` с кэшем 30 с; при недоступном сервере — конфиг, без исключения | ⏳ planned |
 | OLL-4.2 | `capabilities()` — `/api/show`, только по явному вызову | ⏳ planned |
 | OLL-5.1 | `chatWithVision()` переводит `image_url` (data-url) в нативное `images: [base64]` | ⏳ planned |
-| OLL-6.1 | 404 «model not found» → ошибка с `ollama pull <model>`, без ретраев | ⏳ planned |
-| OLL-6.2 | `ECONNREFUSED` → ошибка с подсказкой про сервер/туннель, ретраи по `RetryHandler` | ⏳ planned |
-| OLL-6.3 | Отмена прерывает поток немедленно | ⏳ planned |
-| OLL-7.1 | `isLocal === true` | ⏳ planned |
+| OLL-6.1 | 404 «model not found» → ошибка с `ollama pull <model>`, без ретраев | ✅ |
+| OLL-6.2 | `ECONNREFUSED` → ошибка с подсказкой про сервер/туннель, ретраи по `RetryHandler` | ✅ |
+| OLL-6.3 | Отмена прерывает поток немедленно | ✅ |
+| OLL-7.1 | `isLocal === true` | ✅ |
 | OLL-8.1 | `usage` заполняется из `prompt_eval_count`/`eval_count`; стоимость = 0 через `pricingMap` | ⏳ planned |
 
-## Тесты (ollamaProvider.test.ts, 12 тестов, planned)
+## Тесты (`test/suite/ollamaProviderLocal.test.ts`, 8 тестов)
 
-Матрица «AC → тест» (пишется в Stage 6, мок-сервер на `node:http`, без живого Ollama):
+Сервер поднимается внутри теста (`node:http`), живой Ollama не нужен, в сеть тест не ходит.
 
-- OLL-1.1: стрим из NDJSON-чанков отдаёт текст в правильном порядке
-- OLL-1.2: `think:false` в теле запроса по умолчанию, `true` при настройке
-- OLL-1.3: `num_predict` и `num_ctx` в `options`
-- OLL-1.4: `extraBody` не попадает в тело
-- OLL-2.1: `content` пуст + `thinking` непуст → предупреждение, а не пустая строка
-- OLL-3.1: нативный `tool_calls` → OpenAI-форма, `arguments` — строка
-- OLL-3.2: две итерации: `assistant.tool_calls` + `role:'tool'` в нативный вид, второй ответ доходит
-- OLL-4.1: `/api/tags` парсится; второй вызов в пределах TTL не ходит в сеть; ошибка → список из конфига
-- OLL-4.2: `/api/show` → capabilities, повторный вызов из кэша
-- OLL-5.1: `image_url` data-url → `images: [base64]` без префикса
-- OLL-6.1/6.2: 404 и `ECONNREFUSED` → разные сообщения, ретрай только на сетевой ошибке
-- OLL-6.3: `AbortSignal` обрывает поток
+| Тест | AC | Статус |
+|------|----|--------|
+| стримит `content` из NDJSON в правильном порядке | OLL-1.1 | ✅ |
+| `think:false` по умолчанию, `think:true` при настройке | OLL-1.2 | ✅ |
+| `maxTokens → num_predict`, `local.numCtx → num_ctx`, `max_tokens` не уходит | OLL-1.3 | ✅ |
+| `extraBody` игнорируется и не попадает в тело | OLL-1.4 | ✅ |
+| пустой `content` при непустом `thinking` → ошибка с подсказкой | OLL-2.1 | ✅ |
+| 404 `model not found` → подсказка `ollama pull`, без ретраев | OLL-6.1 | ✅ |
+| сервер недоступен → сообщение с подсказкой, `code` сохраняется для `RetryHandler` | OLL-6.2 | ✅ |
+| отмена прерывает поток | OLL-6.3 | ✅ |
+| инструменты: `tool_calls` → OpenAI-форма, конвертация истории | OLL-3.1, OLL-3.2 | ⏳ Stage 5 |
+| discovery `/api/tags` с кэшем, `/api/show` | OLL-4.1, OLL-4.2 | ⏳ Stage 3 |
+| vision: `image_url` → `images: [base64]` | OLL-5.1 | ⏳ Stage 3 |
+| `usage` из `prompt_eval_count`/`eval_count` | OLL-8.1 | ⏳ Stage 5 |
 
 ## Связи
 
@@ -156,4 +160,5 @@ Discovery: `GET /api/tags` → имена моделей. Кэш на 30 с. П�
 
 | Версия | Дата | Изменения |
 |--------|------|-----------|
+| 0.14.1 | 2026-10-18 | Stage 2: реализованы `chat()` и `chatComplete()` (нативный NDJSON), `think`/`num_predict`/`num_ctx`, маппинг ошибок 404/сети, `isLocal`; 8 тестов зелёные; status → beta |
 | 0.14.0 | 2026-10-18 | Создан (planned): нативный `/api/chat` + `/api/tags` + `/api/show`, `think:false`, `num_predict`/`num_ctx`, конвертация истории агента |

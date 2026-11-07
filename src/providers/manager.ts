@@ -3,7 +3,12 @@
 
 import * as vscode from 'vscode';
 import { LLMProvider, ProviderConfig, ModelEntry, PricingMap, extractModelNames, buildPricingMap } from './types';
+import { debugLog } from '../shared/logger';
+
+/** Адрес Ollama по умолчанию, если в конфиге не задан baseUrl. */
+export const DEFAULT_OLLAMA_BASE_URL = 'http://127.0.0.1:11434';
 import { OpenAIProvider } from './openai';
+import { OllamaProvider } from './ollama';
 
 /**
  * ProviderManager — управляет всеми LLM-провайдерами.
@@ -27,6 +32,11 @@ import { OpenAIProvider } from './openai';
  *       "baseUrl": "https://api.deepseek.com/v1",
  *       "apiKey": "sk-...",
  *       "models": ["deepseek-chat", "deepseek-coder"]
+ *     },
+ *     "local": {
+ *       "type": "ollama",
+ *       "baseUrl": "http://127.0.0.1:11434",
+ *       "models": []
  *     }
  *   },
  *   "llmAssistant.defaultProvider": "openai",
@@ -75,14 +85,49 @@ export class ProviderManager {
         this._pricingMap.set(m, p);
       }
 
+      // Тип провайдера: отсутствие поля = 'openai' (обратная совместимость)
+      const type = (providerCfg as any).type as 'openai' | 'ollama' | undefined;
+      const supportsVision = (providerCfg as any).supportsVision ?? false;
+
+      if (type === 'ollama') {
+        const local = new OllamaProvider({
+          name,
+          baseUrl: baseUrl || DEFAULT_OLLAMA_BASE_URL,
+          apiKey,
+          models: modelNames,
+          supportsVision,
+        });
+        this.providers.set(name, local);
+        // Локальные модели ничего не стоят: иначе calculateCost() возьмёт DEFAULT_PRICING
+        // ($0.50/$1.00 за 1M) и покажет выдуманную стоимость в статистике токенов.
+        this.setZeroPricing(modelNames);
+        continue;
+      }
+
+      if (type !== undefined && type !== 'openai') {
+        debugLog(`[manager] неизвестный type="${String(type)}" у провайдера "${name}" — провайдер пропущен`);
+        continue;
+      }
+
       const provider = new OpenAIProvider({
         name,
         baseUrl,
         apiKey,
         models: modelNames, // Только имена моделей (строки)
-        supportsVision: (providerCfg as any).supportsVision ?? false,
+        supportsVision,
       });
       this.providers.set(name, provider);
+    }
+  }
+
+  /**
+   * Обнулить цены моделей в `_pricingMap`.
+   * Используется для локальных провайдеров — их модели не стоят денег, а `calculateCost()`
+   * для неизвестной модели берёт `DEFAULT_PRICING`.
+   */
+  setZeroPricing(modelNames: string[]): void {
+    for (const model of modelNames) {
+      this._pricingMap.set(model, { input: 0, output: 0 });
     }
   }
 

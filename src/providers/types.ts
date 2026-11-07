@@ -9,6 +9,11 @@ export type { RetryCallback } from '../shared/RetryHandler';
  */
 export interface ProviderConfig {
   name: string;
+  /**
+   * Тип провайдера. Отсутствие поля = 'openai' (обратная совместимость).
+   * 'ollama' — нативный /api/chat вместо OpenAI-совместимого /v1.
+   */
+  type?: 'openai' | 'ollama';
   baseUrl: string;
   apiKey: string;
   models: string[];
@@ -49,6 +54,13 @@ export interface CompletionOptions {
 export interface LLMProvider {
   /** Название провайдера (например, 'openai', 'deepseek') */
   readonly name: string;
+
+  /**
+   * Признак локального провайдера (Ollama). Вызывающие используют его вместо
+   * угадывания по имени модели: локальному нужен свой таймаут, а агентский цикл
+   * по умолчанию выключен (llmAssistant.local.toolLoop).
+   */
+  readonly isLocal?: boolean;
 
   /**
    * Отправить сообщения в чат и получить стриминг ответа

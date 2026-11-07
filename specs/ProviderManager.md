@@ -1,6 +1,6 @@
 ---
 component: ProviderManager
-version: 0.14.0
+version: 0.14.1
 status: stable
 since: 0.1.0
 ---
@@ -103,11 +103,11 @@ since: 0.1.0
 |  — | pricingMap строится из ModelEntry[] + fallback | ✅ |
 |  — | extractModelNames() извлекает имена из ModelEntry[] | ✅ |
 |  — | calculateCost() использует pricingMap > fallback > default | ✅ |
-| PRM-1.1 | `type: "ollama"` → `OllamaProvider`, `isLocal = true` | ⏳ planned |
-| PRM-1.2 | `type` отсутствует → `OpenAIProvider` (обратная совместимость) | ⏳ planned |
+| PRM-1.1 | `type: "ollama"` → `OllamaProvider`, `isLocal = true` | ✅ |
+| PRM-1.2 | `type` отсутствует → `OpenAIProvider` (обратная совместимость) | ✅ |
 | PRM-1.3 | `Type` описан в `ProviderConfig` как `type?: 'openai' \| 'ollama'` | ⏳ planned |
-| PRM-1.4 | Локальные модели получают цену 0 — из конфига и из discovery | ⏳ planned |
-| PRM-1.5 | Неизвестный `type` → провайдер не создан, ошибка в лог, остальные провайдеры работают | ⏳ planned |
+| PRM-1.4 | Локальные модели получают цену 0 — из конфига и из discovery | ✅ |
+| PRM-1.5 | Неизвестный `type` → провайдер не создан, ошибка в лог, остальные провайдеры работают | ✅ |
 
 ## Детали реализации
 
@@ -130,14 +130,16 @@ since: 0.1.0
 - Пустая конфигурация: getDefault() → undefined
 - ${VAR} подстановка: из process.env; оставляет если переменная не найдена
 - Провайдер имеет список моделей из конфигурации
-- PRM-1.1/1.2/1.3: ветка `type` создаёт нужный класс, отсутствие `type` не ломает облачных (`providerManagerLocal.test.ts`, planned)
-- PRM-1.4: цена локальной модели 0 для конфига и для discovery
-- PRM-1.5: неизвестный `type` не мешает остальным провайдерам
+- PRM-1.1/1.3: `type: "ollama"` создаёт `OllamaProvider` с `isLocal`, без `baseUrl` подставляется `http://127.0.0.1:11434` (`providerManagerLocal.test.ts`)
+- PRM-1.2: конфиг без `type` даёт `OpenAIProvider` (обратная совместимость)
+- PRM-1.4: цена локальной модели 0 (`calculateCost` → 0), облачная цена не затёрта; `setZeroPricing()` обнуляет модели из discovery
+- PRM-1.5: неизвестный `type` пропускается, остальные провайдеры создаются, локальный не требует `apiKey`
 
 ## История изменений
 
 | Версия | Дата | Изменения |
 |--------|------|-----------|
+| 0.14.1 | 2026-10-18 | Stage 2: ветка `type` реализована, `DEFAULT_OLLAMA_BASE_URL`, `setZeroPricing()`, неизвестный `type` пропускается; 7 тестов `providerManagerLocal.test.ts` |
 | 0.14.0 | 2026-10-18 | `type` в конфиге (openai/ollama), ветка `OllamaProvider`, нулевые цены для локальных моделей (конфиг + discovery), `isLocal` |
 | 0.13.0 | 2026-08-23 | getDefault() fallback на первый настроенный провайдер |
 | 0.8.0 | 2026-08-06 | ModelEntry, pricingMap, calculateCost |
