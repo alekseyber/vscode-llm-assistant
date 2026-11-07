@@ -34,6 +34,7 @@ const testFiles = [
   '../out/test/suite/providers.test.js',
   '../out/test/suite/providerManagerLocal.test.js',
   '../out/test/suite/ollamaProviderLocal.test.js',
+  '../out/test/suite/thinking.test.js',
   '../out/test/suite/streaming.test.js',
   '../out/test/suite/tools.test.js',
   '../out/test/suite/context.test.js',

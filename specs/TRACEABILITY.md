@@ -30,13 +30,13 @@ version: 0.14.0
 | HistoryViewProvider | `src/modes/history/HistoryViewProvider.ts` | — | — |
 | OrchestratorViewProvider | `src/modes/orchestrator/OrchestratorViewProvider.ts` | `test/suite/orchestratorView.test.ts` | MA-4.1–MA-4.5 |
 | OpenAIProvider | `src/providers/openai.ts` | `test/suite/providers.test.ts` | AC-9.4, OAI-1.1 |
-| OllamaProvider | `src/providers/ollama.ts` | `test/suite/ollamaProviderLocal.test.ts` | OLL-1.1–OLL-8.1 (1.x, 2.1, 6.x, 7.1 ✅) |
-| thinking | `src/shared/thinking.ts` | `test/suite/thinking.test.ts` (planned) | TH-1.1–TH-1.4 |
+| OllamaProvider | `src/providers/ollama.ts` | `test/suite/ollamaProviderLocal.test.ts` | OLL-1.1–OLL-8.1 (все, кроме OLL-4.2 частично) |
+| thinking | `src/shared/thinking.ts` | `test/suite/thinking.test.ts` | TH-1.1–TH-1.4 |
 | ProviderManager | `src/providers/manager.ts` | `test/suite/providers.test.ts`, `test/suite/providerManagerLocal.test.ts` | AC-9.4, PRM-1.1–PRM-1.5 |
 | Streaming | `src/shared/streaming.ts` | `test/suite/streaming.test.ts` | AC-9.3 |
 | Logger | `src/shared/logger.ts` | — | — |
 | EditController | `src/modes/edit/EditController.ts` | — | — |
-| AutocompleteController | `src/modes/autocomplete/AutocompleteController.ts` | — | — |
+| AutocompleteController | `src/modes/autocomplete/AutocompleteController.ts` | решение вынесено в `thinking.test.ts` (TH-1.4) | AC-AC-1, AC-AC-2 |
 
 ## Статистика
 

@@ -1,6 +1,6 @@
 ---
 component: thinking
-version: 0.14.0
+version: 0.14.1
 status: stable
 since: 0.13.0
 ---
@@ -47,9 +47,9 @@ since: 0.13.0
 | ID | Критерий | Статус |
 |----|----------|--------|
 | TH-1.1 | `buildThinkingExtraBody` для deepseek + `disableThinking: true` → `{thinking:{type:'disabled'}}`; для не-deepseek → `undefined` | ✅ |
-| TH-1.2 | `buildThinkingExtraBody` не применяется к локальным моделям (`OllamaProvider` гасит нативно) | ⏳ planned |
-| TH-1.3 | `shouldDisableThinking` — чистая функция: `isLocal` → `true`; `always` + deepseek → `true`; иначе по `disableThinking` | ⏳ planned |
-| TH-1.4 | `AutocompleteController` не формирует `extraBody` для локального провайдера | ⏳ planned |
+| TH-1.2 | `buildThinkingExtraBody` не применяется к локальным моделям (`OllamaProvider` гасит нативно) | ✅ |
+| TH-1.3 | `shouldDisableThinking` — чистая функция: `isLocal` → `true`; `always` + deepseek → `true`; иначе по `disableThinking` | ✅ |
+| TH-1.4 | `AutocompleteController` не формирует `extraBody` для локального провайдера | ✅ |
 
 ## Связи
 
@@ -68,5 +68,6 @@ since: 0.13.0
 
 | Версия | Дата | Изменения |
 |--------|------|-----------|
+| 0.14.1 | 2026-10-18 | Stage 4: `shouldDisableThinking` реализована как чистая функция, автокомплит переведён на неё (тип провайдера вместо регекспа модели), локальному `extraBody` не отправляется; `thinking.test.ts` — 6 тестов (первый тест у модуля вообще) |
 | 0.14.0 | 2026-10-18 | Два механизма (deepseek `thinking`, ollama `think`); чистая `shouldDisableThinking`; локальные модели не используют `extraBody` |
 | 0.13.0 | 2026-08-23 | Базовая реализация (фикс пустого `content` у reasoning-моделей deepseek) |

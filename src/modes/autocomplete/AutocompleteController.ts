@@ -8,6 +8,7 @@ import { AutocompleteContext } from './ContextBuilder';
 import { GhostTextManager } from './GhostTextManager';
 import { cleanLlmResponse } from '../../shared/cleanLlmResponse';
 import { isAbortError } from '../../shared/RetryHandler';
+import { shouldDisableThinking } from '../../shared/thinking';
 
 /**
  * AutocompleteController — контроллер автокомплита (ghost text).
@@ -133,8 +134,18 @@ ${context.suffix}
 
     try {
       // DeepSeek-модели по умолчанию в режиме размышлений (reasoning) — тратят maxTokens
-      // на reasoning_content и оставляют content пустым. Отключаем thinking для автокомплита.
-      const extraBody = /deepseek/i.test(model) ? { thinking: { type: 'disabled' as const } } : undefined;
+      // на reasoning_content и оставляют content пустым. Для локального провайдера (Ollama)
+      // рассуждение гасится нативным флагом `think` внутри провайдера, поэтому extraBody
+      // ему не отправляем — решение принимает shouldDisableThinking по типу провайдера.
+      const isLocal = (provider as any).isLocal === true;
+      const needsDeepSeekThinking = shouldDisableThinking({
+        model,
+        isLocal,
+        disableThinking: true,
+        always: true,
+      });
+      const extraBody =
+        needsDeepSeekThinking && !isLocal ? { thinking: { type: 'disabled' as const } } : undefined;
 
       // Отправляем запрос (провайдер всегда стримит, собираем полный ответ)
       const stream = provider.chat(

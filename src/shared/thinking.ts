@@ -6,6 +6,32 @@
 
 import * as vscode from 'vscode';
 
+/** Вход решения «гасить ли рассуждение» — передаётся явно, чтобы функция была чистой. */
+export interface ThinkingDecisionInput {
+  /** Имя модели (например, 'deepseek-v4-flash', 'qwen3:8b') */
+  model: string;
+  /** Локальный провайдер (Ollama): рассуждение гасится флагом `think` внутри провайдера */
+  isLocal?: boolean;
+  /** Значение llmAssistant.disableThinking */
+  disableThinking: boolean;
+  /** Режим, в котором thinking выключается всегда (автокомплит) */
+  always?: boolean;
+}
+
+/**
+ * Нужно ли гасить рассуждение в этом запросе.
+ *
+ * Чистая функция без обращений к vscode — поэтому покрывается юнит-тестом напрямую.
+ * Не описывает, *как* гасить: для deepseek это `extraBody` с `thinking`, для локального
+ * провайдера — флаг `think` в нативном запросе (его ставит OllamaProvider).
+ */
+export function shouldDisableThinking(input: ThinkingDecisionInput): boolean {
+  const { model, isLocal, disableThinking, always } = input;
+  if (isLocal) return true;
+  if (!/deepseek/i.test(model)) return false;
+  return Boolean(always) || disableThinking;
+}
+
 /**
  * Собрать extraBody с отключением thinking для deepseek-моделей.
  * Возвращает undefined, если модель не deepseek или отключение не требуется.
