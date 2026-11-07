@@ -38,6 +38,46 @@ version: 0.14.0
 | EditController | `src/modes/edit/EditController.ts` | — | — |
 | AutocompleteController | `src/modes/autocomplete/AutocompleteController.ts` | решение вынесено в `thinking.test.ts` (TH-1.4) | AC-AC-1, AC-AC-2 |
 
+
+## Матрица 0.14.0 (P5 — локальные модели): AC → тест
+
+Заполняется по факту (Stage 6). Базлайн до работ: **449 passing / 0 failing** (`npm run test:mocked`, 2026-10-18). После работ: **492 passing / 0 failing**.
+
+| AC | Файл теста → имя | Статус |
+|----|------------------|--------|
+| PRM-1.1 | `providerManagerLocal.test.ts` → «type "ollama" создаёт OllamaProvider с isLocal»; «локальный провайдер не требует apiKey» | ✅ |
+| PRM-1.2 | `providerManagerLocal.test.ts` → «конфиг без type → OpenAIProvider (обратная совместимость)» | ✅ |
+| PRM-1.3 | `providerManagerLocal.test.ts` → «type описан в конфиге; отсутствие baseUrl даёт адрес по умолчанию» | ✅ |
+| PRM-1.4 | `providerManagerLocal.test.ts` → «локальные модели стоят 0…»; «setZeroPricing обнуляет модели из discovery» | ✅ |
+| PRM-1.5 | `providerManagerLocal.test.ts` → «неизвестный type пропускает провайдера, остальные создаются» | ✅ |
+| OLL-1.1 | `ollamaProviderLocal.test.ts` → «стримит content из NDJSON в правильном порядке» | ✅ |
+| OLL-1.2 | `ollamaProviderLocal.test.ts` → «think:false по умолчанию, think:true при настройке» | ✅ |
+| OLL-1.3 | `ollamaProviderLocal.test.ts` → «maxTokens → num_predict, local.numCtx → num_ctx» | ✅ |
+| OLL-1.4 | `ollamaProviderLocal.test.ts` → «extraBody игнорируется и не попадает в тело» | ✅ |
+| OLL-2.1 | `ollamaProviderLocal.test.ts` → «пустой content при непустом thinking…»; «в агентском шаге пустой content без tool_calls…» | ✅ |
+| OLL-3.1 | `ollamaProviderLocal.test.ts` → «tool_calls в форме OpenAI, arguments — строка JSON, usage из eval_count» | ✅ |
+| OLL-3.2 | `ollamaProviderLocal.test.ts` → «история агента конвертируется в нативный вид»; «конвертация — чистые функции, крайние случаи» | ✅ |
+| OLL-4.1 | `ollamaProviderLocal.test.ts` → «/api/tags → список моделей, конфиг первым, кэш 30 с»; «сервер недоступен → модели из конфига» | ✅ |
+| OLL-4.2 | `ollamaProviderLocal.test.ts` → «/api/show → capabilities, повторный вызов из кэша»; «/api/show упал → undefined»; «команда проверки…» (2 теста) | ✅ |
+| OLL-5.1 | `ollamaProviderLocal.test.ts` → «image_url data-url → нативное images: [base64]»; «конвертер изображений — крайние случаи» | ✅ |
+| OLL-6.1 | `ollamaProviderLocal.test.ts` → «404 model not found → подсказка ollama pull, без ретраев» | ✅ |
+| OLL-6.2 | `ollamaProviderLocal.test.ts` → «сервер недоступен → ошибка соединения с подсказкой» | ✅ |
+| OLL-6.3 | `ollamaProviderLocal.test.ts` → «отмена прерывает поток» | ✅ |
+| OLL-6.4 / AW-1.3 | `ollamaProviderLocal.test.ts` → «local.requestTimeout ограничивает ожидание» | ✅ |
+| OLL-7.1 | `providerManagerLocal.test.ts` → «type "ollama" создаёт OllamaProvider с isLocal» | ✅ |
+| OLL-8.1 | `ollamaProviderLocal.test.ts` → «tool_calls в форме OpenAI… usage из eval_count» | ✅ |
+| TH-1.1 | `thinking.test.ts` → «deepseek + disableThinking:true»; «disableThinking:false»; «не-deepseek модель» | ✅ |
+| TH-1.2 | `thinking.test.ts` → «локальная модель не получает extraBody (гасится нативно)» | ✅ |
+| TH-1.3 | `thinking.test.ts` → «shouldDisableThinking — таблица решений» | ✅ |
+| TH-1.4 | `thinking.test.ts` → «для локального провайдера extraBody не формируется» | ✅ |
+| AW-1.1 | `agentWorker.test.ts` → «buildThinkingExtraBody доходит до createWithTools шестым аргументом»; «без disableThinking extraBody не отправляется» | ✅ |
+| AW-1.2 | `agentWorker.test.ts` → «локальный провайдер при toolLoop:false не вызывает инструменты»; «…toolLoop:true работает как обычно» | ✅ |
+| OAI-1.1 | `providers.test.ts` → «extraBody уходит в тело запроса вместе с tools»; «без extraBody тело как в 0.13.0» | ✅ |
+| CVP-1.1 | `chatViewProvider.test.ts` → «модели берутся из конфигурации…»; «пустая конфигурация не роняет сборку» | ✅ |
+| CVP-1.2 | `chatViewProvider.test.ts` → «локальный провайдер помечен isLocal» | ✅ |
+
+**Правки существующих тестов (запланированные, не регрессия):** `registerCommands.test.ts` — 11 команд → 12 (`checkLocalServer`).
+
 ## Статистика
 
 - **Всего компонентов:** 27

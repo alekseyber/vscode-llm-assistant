@@ -106,6 +106,24 @@ code --install-extension vscode-llm-assistant-0.13.0.vsix
 - **MCP-клиент** — внешние инструменты через Model Context Protocol (stdio)
 - **Run History Dashboard** — вкладка «История» с таблицей всех запусков
 
+### 🖥 Локальные модели (Ollama)
+
+Свой Ollama — тот же чат, агент и автокомплит, но запросы не уходят в облако. Провайдер работает на **нативном** `/api/chat`: OpenAI-совместимый `/v1` у Ollama не умеет отключать рассуждение, и thinking-модель (`qwen3:8b`) отвечает пустым текстом.
+
+```json
+{
+  "llmAssistant.providers": {
+    "local": { "type": "ollama", "baseUrl": "http://127.0.0.1:11434", "models": [] }
+  }
+}
+```
+
+- **`models: []`** — список моделей подтянется с сервера (`/api/tags`), вручную прописывать не нужно
+- **Проверка сервера:** команда `LLM Assistant: Проверить локальный сервер` — версия, модели, размеры, capabilities (`tools` / `thinking` / `vision`)
+- **Стоимость:** локальные модели считаются бесплатными (в статистике токенов `$0`, а не выдуманная цена)
+- **Агентский цикл выключен по умолчанию** (`llmAssistant.local.toolLoop`): модели до 8B выдумывают результаты инструментов вместо чтения — ошибка выглядит как ответ
+- **Ожидаемые скорости на CPU:** `gemma3:4b` — 8 с на короткий ответ, `qwen3:8b` с `think: false` — ~5 с, агентский шаг — до 50 с. Это диалог «на подумать», не замена облаку
+
 ### Прочее
 - **Мульти-провайдер**: DeepSeek, Hermes, SiliconFlow, OpenAI и любые OpenAI-совместимые API
 - **Vision**: анализ изображений через Qwen3-VL (SiliconFlow)
@@ -136,6 +154,7 @@ code --install-extension vscode-llm-assistant-0.13.0.vsix
 | `LLM Assistant: Экспортировать сессию` | Экспорт транскрипции в `.md` (системный save-диалог) |
 | `LLM Assistant: Скопировать сессию (fork)` | Копия активной сессии («… (копия)») |
 | `LLM Assistant: Удалить все сессии` | Полная очистка (с модальным подтверждением) |
+| `LLM Assistant: Проверить локальный сервер (Ollama)` | Версия, модели, размеры и capabilities локального Ollama |
 
 ---
 
@@ -161,7 +180,8 @@ code --install-extension vscode-llm-assistant-0.13.0.vsix
 
 | Поле | Тип | Описание |
 |------|-----|----------|
-| `baseUrl` | string | URL API (OpenAI-совместимый) |
+| `type` | `"openai"` \| `"ollama"` | Тип провайдера. Не задан = `openai` (обратная совместимость). `ollama` — нативный `/api/chat` |
+| `baseUrl` | string | URL API (OpenAI-совместимый; для `ollama` — `http://127.0.0.1:11434`) |
 | `apiKey` | string | Ключ API. Поддерживает `${ENV_VAR}` |
 | `models` | string[] или `{name, pricing}[]` | Список моделей; объектная форма задаёт цены для расчёта стоимости |
 | `supportsVision` | boolean | `true` для vision-моделей (изображения) |
@@ -228,6 +248,15 @@ code --install-extension vscode-llm-assistant-0.13.0.vsix
 | `retry.enabled` | boolean | `true` | Включить ретраи |
 | `retry.maxRetries` | number | `3` | Максимум повторных попыток |
 | `retry.requestTimeout` | number | `60` | Таймаут запроса (секунды) |
+
+### Локальные модели (`llmAssistant.local`)
+
+| Ключ | Тип | По умолчанию | Описание |
+|------|-----|-------------|----------|
+| `llmAssistant.local.think` | boolean | `false` | Гасить рассуждение (нативный флаг `think`). `true` — модель думает вслух: медленнее и рискует пустым ответом |
+| `llmAssistant.local.numCtx` | number | `8192` | Окно контекста модели (`num_ctx`). Не путать с `chat.maxContextTokens` — это бюджет истории чата |
+| `llmAssistant.local.requestTimeout` | number | `300` | Таймаут шага, секунды. На CPU шаг легко занимает 30–60 с |
+| `llmAssistant.local.toolLoop` | boolean | `false` | Разрешить агентский цикл для локальной модели (см. предупреждение выше) |
 
 ### MCP (`llmAssistant.mcp`)
 
@@ -331,6 +360,19 @@ code --install-extension vscode-llm-assistant-0.13.0.vsix
 ---
 
 ## Устранение проблем
+
+### Локальные модели (Ollama)
+
+| Симптом | Причина и решение |
+|---------|-------------------|
+| «Не удалось подключиться к Ollama» | Сервер не запущен (`ollama serve`), неверный `baseUrl`, или Ollama на другой машине — нужен SSH-туннель: `ssh -N -L 11434:localhost:11434 <host>` |
+| «Модель не найдена на сервере Ollama (404)» | Модель не скачана: `ollama pull <model>` (имя — как в `/api/tags`, например `qwen3:8b`) |
+| Ответ приходит пустым | Thinking-модель израсходовала лимит на рассуждение. `llmAssistant.local.think = false` и/или увеличьте `chat.maxContextTokens` |
+| Ответ идёт 30–60 секунд | Норма для CPU-инференса 7–8B. Для быстрых ответов берите модель 3–4B |
+| Агент не работает на локальной модели | Так и задумано: `llmAssistant.local.toolLoop = false`. Включайте осознанно — модели ≤8B выдумывают результаты инструментов |
+| Портить ли порт наружу | Не нужно: у Ollama нет аутентификации. Держите `127.0.0.1` и ходите через туннель |
+
+
 
 | Проблема | Решение |
 |----------|---------|

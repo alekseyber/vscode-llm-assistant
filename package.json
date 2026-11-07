@@ -3,7 +3,7 @@
   "displayName": "VS Code LLM Assistant",
   "description": "AI-ассистент: чат, редактирование, автокомплит, агентный кодинг",
   "publisher": "alekseyber",
-  "version": "0.13.0",
+  "version": "0.14.0",
   "icon": "media/icon.png",
   "repository": {
     "type": "git",
@@ -249,7 +249,8 @@
         "llmAssistant.providers": {
           "type": "object",
           "default": {},
-          "description": "Настройки провайдеров (baseUrl, apiKey, models)"
+          "description": "Настройки провайдеров (baseUrl, apiKey, models)",
+          "markdownDescription": "Настройки провайдеров (baseUrl, apiKey, models, type).\n\nДля локальных моделей Ollama укажите `\"type\": \"ollama\"` — запросы пойдут на нативный `/api/chat` (OpenAI-совместимый `/v1` не умеет отключать рассуждение, и thinking-модель отвечает пустым текстом).\n\n```json\n\"llmAssistant.providers\": {\n  \"local\": { \"type\": \"ollama\", \"baseUrl\": \"http://127.0.0.1:11434\", \"models\": [] }\n}\n```"
         },
         "llmAssistant.mcp.servers": {
           "type": "array",
@@ -283,6 +284,28 @@
               }
             }
           }
+        },
+        "llmAssistant.local.think": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Гасить рассуждение у локальной модели (флаг `think` нативного API Ollama). `false` — быстрее и без «размышлений» в ответе; `true` — модель думает вслух (медленнее, риск пустого ответа при малом лимите)."
+        },
+        "llmAssistant.local.numCtx": {
+          "type": "number",
+          "default": 8192,
+          "minimum": 512,
+          "markdownDescription": "Окно контекста модели (`num_ctx`). Не связано с бюджетом истории чата (`llmAssistant.chat.maxContextTokens`): первое задаёт размер контекста модели, второе — сколько истории отправлять."
+        },
+        "llmAssistant.local.requestTimeout": {
+          "type": "number",
+          "default": 300,
+          "minimum": 1,
+          "markdownDescription": "Таймаут шага локальной модели, секунды. На CPU-инференсе шаг легко занимает 30–60 с, поэтому значение выше общего таймаута (`retry.requestTimeout`, 60 с)."
+        },
+        "llmAssistant.local.toolLoop": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Разрешить локальной модели агентский цикл (инструменты). По умолчанию **выключено**: модели до 8B выдумывают результаты инструментов вместо чтения, и ошибка выглядит как ответ."
         }
       }
     }

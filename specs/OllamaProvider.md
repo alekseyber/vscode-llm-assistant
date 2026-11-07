@@ -1,6 +1,6 @@
 ---
 component: OllamaProvider
-version: 0.14.4
+version: 0.14.5
 status: beta
 since: 0.14.0
 ---
@@ -163,6 +163,7 @@ Discovery: `GET /api/tags` → имена моделей. Кэш на 30 с. П�
 | 404 `model not found` → подсказка `ollama pull`, без ретраев | OLL-6.1 | ✅ |
 | сервер недоступен → сообщение с подсказкой, `code` сохраняется для `RetryHandler` | OLL-6.2 | ✅ |
 | отмена прерывает поток | OLL-6.3 | ✅ |
+| `local.requestTimeout` ограничивает ожидание (провайдер, не глобальные 60 с) | OLL-6.4 / AW-1.3 | ✅ |
 | инструменты: `tool_calls` → OpenAI-форма, конвертация истории | OLL-3.1, OLL-3.2 | ⏳ Stage 5 |
 | `/api/tags` → список моделей, конфиг первым, кэш 30 с | OLL-4.1 | ✅ |
 | сервер недоступен → модели из конфига, `version()` → `undefined` | OLL-4.1 | ✅ |
@@ -183,6 +184,7 @@ Discovery: `GET /api/tags` → имена моделей. Кэш на 30 с. П�
 
 | Версия | Дата | Изменения |
 |--------|------|-----------|
+| 0.14.5 | 2026-10-18 | Stage 6: тест на локальный таймаут (OLL-6.4 / AW-1.3), матрица «AC → тест» в `TRACEABILITY.md`; базлайн 449 → 492 |
 | 0.14.4 | 2026-10-18 | Vision: `chatWithVision` на нативном API, чистая `toNativeVisionMessages` (data-url → `images[]`); +2 теста |
 | 0.14.3 | 2026-10-18 | Stage 5: `createWithTools` на нативном `/api/chat` (tools, конвертация истории в обе стороны, `usage`), чистые `toNativeMessages`/`toOpenAIToolCalls`; +4 теста |
 | 0.14.2 | 2026-10-18 | Stage 3: discovery `/api/tags` с TTL-кэшем и слиянием с конфигом, `capabilities()`/`version()`/`modelSizes()`, `invalidateCache()`, `describeLocalServer()` для команды проверки; +6 тестов |

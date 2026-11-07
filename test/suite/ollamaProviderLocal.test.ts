@@ -479,4 +479,20 @@ suite('OllamaProvider (нативный /api/chat)', () => {
       'url без data-префикса передаётся как есть',
     );
   });
+
+  test('OLL-6.4 (AW-1.3): local.requestTimeout ограничивает ожидание', async () => {
+    // Сервер принимает запрос и молчит — поток должен быть прерван по таймауту настройки
+    handler = () => undefined;
+    localSettings['local.requestTimeout'] = 0.3; // секунды → 300 мс
+
+    const started = Date.now();
+    await assert.rejects(async () => {
+      for await (const _ of provider().chat([{ role: 'user', content: 'q' }], { model: 'qwen3:8b' })) {
+        /* consume */
+      }
+    });
+    const elapsed = Date.now() - started;
+
+    assert.ok(elapsed < 3000, `таймаут сработал быстро (${elapsed} мс), а не по глобальным 60 с`);
+  });
 });
