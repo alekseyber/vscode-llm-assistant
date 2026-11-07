@@ -7,7 +7,7 @@ import * as sinon from 'sinon';
 import * as vscode from 'vscode';
 import * as assert from 'assert';
 import * as http from 'http';
-import { OllamaProvider, describeLocalServer } from '../../src/providers/ollama';
+import { OllamaProvider, describeLocalServer, toNativeMessages, toNativeVisionMessages, toOpenAIToolCalls } from '../../src/providers/ollama';
 
 interface Captured {
   body: any;
@@ -347,5 +347,136 @@ suite('OllamaProvider (нативный /api/chat)', () => {
       assert.match(lines.join(' '), /Ollama недоступен/);
       assert.match(lines.join(' '), /туннель/);
     }
+  });
+
+  // ─────────── Stage 5: агентский цикл ───────────
+
+  test('OLL-3.1: tool_calls в форме OpenAI, arguments — строка JSON, usage из eval_count', async () => {
+    handler = (_req, res) => {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        message: {
+          role: 'assistant',
+          content: '',
+          tool_calls: [{ function: { name: 'read_file', arguments: { path: 'src/index.ts' } } }],
+        },
+        prompt_eval_count: 128,
+        eval_count: 24,
+        done: true,
+      }));
+    };
+
+    const response: any = await provider().createWithTools(
+      [{ role: 'user', content: 'прочитай файл' }],
+      'qwen3:8b',
+      [{ type: 'function', function: { name: 'read_file', description: 'чтение', parameters: {} } }],
+    );
+
+    const toolCall = response.choices[0].message.tool_calls[0];
+    assert.strictEqual(toolCall.type, 'function');
+    assert.strictEqual(toolCall.function.name, 'read_file');
+    assert.strictEqual(typeof toolCall.function.arguments, 'string', 'AgentWorker парсит arguments как строку');
+    assert.deepStrictEqual(JSON.parse(toolCall.function.arguments), { path: 'src/index.ts' });
+    assert.match(toolCall.id, /^call_/, 'id синтезируется, у нативного ответа его нет');
+    assert.strictEqual(response.usage.prompt_tokens, 128);
+    assert.strictEqual(response.usage.completion_tokens, 24);
+    assert.strictEqual(captured[0].body.stream, false);
+    assert.strictEqual(captured[0].body.tools.length, 1);
+  });
+
+  test('OLL-3.2: история агента конвертируется в нативный вид (второй шаг не падает)', async () => {
+    handler = (_req, res) => {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ message: { role: 'assistant', content: 'в файле 42 строки' }, done: true }));
+    };
+
+    const agentHistory = [
+      { role: 'system', content: 'ты агент' },
+      { role: 'user', content: 'сколько строк?' },
+      {
+        role: 'assistant',
+        content: '',
+        tool_calls: [{ id: 'call_1', type: 'function', function: { name: 'read_file', arguments: '{"path":"a.ts"}' } }],
+      },
+      { role: 'tool', tool_call_id: 'call_1', content: 'строка1\nстрока2' },
+    ];
+
+    const response: any = await provider().createWithTools(agentHistory, 'qwen3:8b', []);
+    const sent = captured[0].body.messages;
+
+    assert.strictEqual(sent[2].role, 'assistant');
+    assert.deepStrictEqual(sent[2].tool_calls[0].function.arguments, { path: 'a.ts' }, 'строка JSON → объект');
+    assert.strictEqual(sent[2].tool_calls[0].id, undefined, 'нативный вид без id/type');
+    assert.strictEqual(sent[3].role, 'tool');
+    assert.strictEqual(response.choices[0].message.content, 'в файле 42 строки');
+    assert.strictEqual(response.choices[0].message.tool_calls, undefined);
+  });
+
+  test('OLL-3.2: конвертация — чистые функции, крайние случаи', () => {
+    assert.deepStrictEqual(toNativeMessages([
+      { role: 'assistant', tool_calls: [{ function: { name: 'a', arguments: 'не json' } }] },
+    ])[0].tool_calls[0].function.arguments, {}, 'битый JSON не роняет конвертацию');
+
+    assert.deepStrictEqual(toNativeMessages([{ role: 'tool', tool_call_id: 'x', tool_name: 'read_file', content: 'ok' }])[0],
+      { role: 'tool', content: 'ok', tool_name: 'read_file' });
+
+    assert.deepStrictEqual(toOpenAIToolCalls([]), undefined, 'пустой список → undefined');
+    assert.deepStrictEqual(toOpenAIToolCalls(undefined), undefined);
+  });
+
+  test('OLL-2.1: в агентском шаге пустой content без tool_calls → ошибка про рассуждение', async () => {
+    handler = (_req, res) => {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ message: { content: '', thinking: 'думаю…' }, done: true }));
+    };
+
+    await assert.rejects(
+      () => provider().createWithTools([{ role: 'user', content: 'q' }], 'qwen3:8b', []),
+      /рассуждени/i,
+    );
+  });
+
+  // ─────────── Vision на локальной модели (OLL-5.1) ───────────
+
+  test('OLL-5.1: image_url data-url → нативное images: [base64] без префикса', async () => {
+    handler = (_req, res) => ndjson(res, [{ message: { content: 'на картинке кот' }, done: true }]);
+
+    const parts: string[] = [];
+    for await (const chunk of provider().chatWithVision(
+      [{
+        role: 'user',
+        content: [
+          { type: 'text', text: 'что на картинке?' },
+          { type: 'image_url', image_url: { url: 'data:image/png;base64,QUJD' } },
+        ],
+      }],
+      { model: 'gemma3:4b' },
+    )) {
+      parts.push(chunk);
+    }
+
+    assert.deepStrictEqual(parts, ['на картинке кот']);
+    const sent = captured[0].body.messages[0];
+    assert.deepStrictEqual(sent.images, ['QUJD'], 'префикс data:…;base64, срезан');
+    assert.strictEqual(sent.content, 'что на картинке?');
+    assert.strictEqual(captured[0].body.think, false);
+  });
+
+  test('OLL-5.1: конвертер изображений — крайние случаи', () => {
+    assert.deepStrictEqual(
+      toNativeVisionMessages([{ role: 'user', content: 'просто текст' }]),
+      [{ role: 'user', content: 'просто текст' }],
+      'строковый content не трогаем',
+    );
+    assert.deepStrictEqual(
+      toNativeVisionMessages([{ role: 'user', content: [{ type: 'text', text: 'a' }, { type: 'text', text: 'b' }] }])[0],
+      { role: 'user', content: 'a\nb' },
+      'несколько текстовых частей склеиваются',
+    );
+    assert.deepStrictEqual(
+      toNativeVisionMessages([{ role: 'user', content: [{ type: 'image_url', image_url: { url: 'http://host/img.png' } }] }])[0],
+      { role: 'user', content: '', images: ['http://host/img.png'] },
+      'url без data-префикса передаётся как есть',
+    );
   });
 });

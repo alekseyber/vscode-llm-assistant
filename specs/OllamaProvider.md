@@ -1,6 +1,6 @@
 ---
 component: OllamaProvider
-version: 0.14.2
+version: 0.14.4
 status: beta
 since: 0.14.0
 ---
@@ -138,16 +138,16 @@ Discovery: `GET /api/tags` → имена моделей. Кэш на 30 с. П�
 | OLL-1.3 | `maxTokens` → `num_predict`, `local.numCtx` → `num_ctx` | ✅ |
 | OLL-1.4 | `extraBody` игнорируется, причина пишется в debug-лог | ✅ |
 | OLL-2.1 | `content` пуст при непустом `thinking` → предупреждение вместо пустого ответа | ✅ |
-| OLL-3.1 | `createWithTools()` отдаёт `tool_calls` в форме OpenAI, `arguments` — строка JSON | ⏳ planned |
-| OLL-3.2 | История агента (`assistant.tool_calls` + `role:'tool'`) конвертируется в нативный вид; второй шаг цикла работает | ⏳ planned |
+| OLL-3.1 | `createWithTools()` отдаёт `tool_calls` в форме OpenAI, `arguments` — строка JSON | ✅ |
+| OLL-3.2 | История агента (`assistant.tool_calls` + `role:'tool'`) конвертируется в нативный вид; второй шаг цикла работает | ✅ |
 | OLL-4.1 | `models()` — `/api/tags` с кэшем 30 с; при недоступном сервере — конфиг, без исключения | ✅ |
 | OLL-4.2 | `capabilities()` — `/api/show`, только по явному вызову | ✅ |
-| OLL-5.1 | `chatWithVision()` переводит `image_url` (data-url) в нативное `images: [base64]` | ⏳ planned |
+| OLL-5.1 | `chatWithVision()` переводит `image_url` (data-url) в нативное `images: [base64]` | ✅ |
 | OLL-6.1 | 404 «model not found» → ошибка с `ollama pull <model>`, без ретраев | ✅ |
 | OLL-6.2 | `ECONNREFUSED` → ошибка с подсказкой про сервер/туннель, ретраи по `RetryHandler` | ✅ |
 | OLL-6.3 | Отмена прерывает поток немедленно | ✅ |
 | OLL-7.1 | `isLocal === true` | ✅ |
-| OLL-8.1 | `usage` заполняется из `prompt_eval_count`/`eval_count`; стоимость = 0 через `pricingMap` | ⏳ planned |
+| OLL-8.1 | `usage` заполняется из `prompt_eval_count`/`eval_count`; стоимость = 0 через `pricingMap` | ✅ |
 
 ## Тесты (`test/suite/ollamaProviderLocal.test.ts`, 8 тестов)
 
@@ -183,6 +183,8 @@ Discovery: `GET /api/tags` → имена моделей. Кэш на 30 с. П�
 
 | Версия | Дата | Изменения |
 |--------|------|-----------|
+| 0.14.4 | 2026-10-18 | Vision: `chatWithVision` на нативном API, чистая `toNativeVisionMessages` (data-url → `images[]`); +2 теста |
+| 0.14.3 | 2026-10-18 | Stage 5: `createWithTools` на нативном `/api/chat` (tools, конвертация истории в обе стороны, `usage`), чистые `toNativeMessages`/`toOpenAIToolCalls`; +4 теста |
 | 0.14.2 | 2026-10-18 | Stage 3: discovery `/api/tags` с TTL-кэшем и слиянием с конфигом, `capabilities()`/`version()`/`modelSizes()`, `invalidateCache()`, `describeLocalServer()` для команды проверки; +6 тестов |
 | 0.14.1 | 2026-10-18 | Stage 2: реализованы `chat()` и `chatComplete()` (нативный NDJSON), `think`/`num_predict`/`num_ctx`, маппинг ошибок 404/сети, `isLocal`; 8 тестов зелёные; status → beta |
 | 0.14.0 | 2026-10-18 | Создан (planned): нативный `/api/chat` + `/api/tags` + `/api/show`, `think:false`, `num_predict`/`num_ctx`, конвертация истории агента |

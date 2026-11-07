@@ -1,6 +1,6 @@
 ---
 component: AgentWorker
-version: 0.14.0
+version: 0.14.1
 status: stable
 since: 0.7.0
 ---
@@ -80,9 +80,9 @@ since: 0.7.0
 | MA-1.10 | initialMessages принимает готовый массив сообщений | ✅ |
 | MA-1.11 | Инжект-сообщение (⚠️ system на позиции 1) удаляется после выполнения ask_user | ✅ |
 | SK-3.2 | `SkillsLoader.loadSkillsSummary()` инжектится в system prompt воркера | planned |
-| AW-1.1 | `createWithTools` вызывается с `buildThinkingExtraBody(model)` — рассуждение гасится в агентском цикле | ⏳ planned |
-| AW-1.2 | Локальный провайдер (`isLocal`) при `llmAssistant.local.toolLoop: false` (по умолчанию) не запускает инструменты, а отдаёт предупреждение с инструкцией, как включить | ⏳ planned |
-| AW-1.3 | Для `isLocal` применяется `llmAssistant.local.requestTimeout` (300 с), а не глобальные 60 с | ⏳ planned |
+| AW-1.1 | `createWithTools` вызывается с `buildThinkingExtraBody(model)` — рассуждение гасится в агентском цикле | ✅ |
+| AW-1.2 | Локальный провайдер (`isLocal`) при `llmAssistant.local.toolLoop: false` (по умолчанию) не запускает инструменты, а отдаёт предупреждение с инструкцией, как включить | ✅ |
+| AW-1.3 | Для `isLocal` применяется `llmAssistant.local.requestTimeout` (300 с), а не глобальные 60 с — таймаут живёт в `OllamaProvider` (Stage 2), воркер его не переопределяет | ✅ |
 
 ## Связи
 
@@ -143,6 +143,7 @@ since: 0.7.0
 
 | Версия | Дата | Изменения |
 |--------|------|-----------|
+| 0.14.1 | 2026-10-18 | Stage 5: `buildThinkingExtraBody(model)` передаётся шестым аргументом; при `isLocal` и `local.toolLoop:false` цикл не стартует (ошибка + `run/final`), возврат `WorkerResult` с `iterations: 0`; 4 теста |
 | 0.14.0 | 2026-10-18 | `extraBody` в `createWithTools` (гашение рассуждения), предупреждение при `local.toolLoop:false`, локальный профиль таймаутов |
 | 0.13.0 | 2026-08-22 | P0 Этап 3: `args` в AgentStep (tool_call) для activity-feed в WebView |
 | 0.13.0 | 2026-08-22 | P0 Этап 5: `role` в session-log tool-событиях (группировка по воркерам) |

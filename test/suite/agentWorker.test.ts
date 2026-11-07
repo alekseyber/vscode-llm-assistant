@@ -10,6 +10,7 @@
 import 'mocha';
 import * as assert from 'assert';
 import * as sinon from 'sinon';
+import * as vscode from 'vscode';
 import { AgentWorker, AgentRole } from '../../src/modes/apply/AgentWorker';
 
 /**
@@ -371,5 +372,90 @@ suite('AgentWorker', () => {
     const worker = new AgentWorker(role, provider);
     const result = await worker.run('прочитай test.txt');
     assert.ok(result.answer.includes('Файл прочитан'), 'должен быть финальный ответ');
+  });
+});
+
+// ─────────── Stage 5 / AC AW-1.1, AW-1.2: thinking и локальный провайдер ───────────
+suite('AgentWorker — локальный провайдер и extraBody', () => {
+  let sandbox: sinon.SinonSandbox;
+
+  function stubConfig(extra: Record<string, unknown> = {}): void {
+    const values: Record<string, unknown> = { defaultModel: 'deepseek-v4-flash', ...extra };
+    const mockConfig = {
+      get: (key: string, defaultValue?: unknown) => (key in values ? values[key] : defaultValue),
+      has: () => false,
+      inspect: () => undefined,
+      update: () => Promise.resolve(),
+    };
+    sandbox.stub(vscode.workspace, 'getConfiguration').returns(mockConfig as any);
+  }
+
+  setup(() => {
+    sandbox = sinon.createSandbox();
+  });
+
+  teardown(() => {
+    sandbox.restore();
+  });
+
+  test('AW-1.1: buildThinkingExtraBody доходит до createWithTools шестым аргументом', async () => {
+    stubConfig({ disableThinking: true });
+    const provider = {
+      createWithTools: sinon.stub().resolves({
+        choices: [{ message: { content: 'готово' } }],
+        usage: { prompt_tokens: 10, completion_tokens: 5 },
+      }),
+    };
+    const worker = new AgentWorker({ name: 't', systemPrompt: 'Тест' }, provider as any, { maxIterations: 2 });
+
+    const result = await worker.run('задача');
+
+    const args = provider.createWithTools.firstCall.args;
+    assert.strictEqual(args.length, 6, 'передан шестой аргумент');
+    assert.deepStrictEqual(args[5], { thinking: { type: 'disabled' } }, 'extraBody для deepseek сформирован');
+    assert.strictEqual(result.answer, 'готово');
+  });
+
+  test('AW-1.1: без disableThinking extraBody не отправляется (поведение 0.13.0)', async () => {
+    stubConfig();
+    const provider = {
+      createWithTools: sinon.stub().resolves({ choices: [{ message: { content: 'ок' } }], usage: {} }),
+    };
+    const worker = new AgentWorker({ name: 't', systemPrompt: 'Тест' }, provider as any, { maxIterations: 2 });
+
+    await worker.run('задача');
+
+    assert.strictEqual(provider.createWithTools.firstCall.args[5], undefined);
+  });
+
+  test('AW-1.2: локальный провайдер при toolLoop:false не вызывает инструменты', async () => {
+    stubConfig({ 'local.toolLoop': false });
+    const provider = {
+      isLocal: true,
+      createWithTools: sinon.stub().resolves({ choices: [{ message: { content: 'не должно случиться' } }], usage: {} }),
+      models: sinon.stub().resolves([]),
+    };
+    const worker = new AgentWorker({ name: 't', systemPrompt: 'Тест' }, provider as any, { maxIterations: 2 });
+
+    const result = await worker.run('прочитай package.json');
+
+    assert.strictEqual(provider.createWithTools.called, false, 'LLM не вызывался');
+    assert.match(result.answer, /агентский цикл выключен/i);
+    assert.match(result.answer, /local\.toolLoop/);
+    assert.strictEqual(result.error, result.answer);
+  });
+
+  test('AW-1.2: локальный провайдер при toolLoop:true работает как обычно', async () => {
+    stubConfig({ 'local.toolLoop': true });
+    const provider = {
+      isLocal: true,
+      createWithTools: sinon.stub().resolves({ choices: [{ message: { content: 'ответ локальной модели' } }], usage: {} }),
+    };
+    const worker = new AgentWorker({ name: 't', systemPrompt: 'Тест' }, provider as any, { maxIterations: 2 });
+
+    const result = await worker.run('задача');
+
+    assert.strictEqual(provider.createWithTools.called, true);
+    assert.strictEqual(result.answer, 'ответ локальной модели');
   });
 });

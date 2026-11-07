@@ -17,6 +17,7 @@ import { loadRoleAgentsMd, getSkillTemplate } from '../../shared/RoleAgentsMdLoa
 import { calculateCost } from '../../providers/types';
 import { SessionEvent } from '../../shared/SessionLog';
 import { isAbortError } from '../../shared/RetryHandler';
+import { buildThinkingExtraBody } from '../../shared/thinking';
 
 /**
  * Роль агента: определяет поведение, доступные инструменты и модель.
@@ -157,6 +158,27 @@ export class AgentWorker {
 
     emit({ iteration: 0, type: 'info', message: `Worker '${this.role.name}' запущен. Задача: ${task.slice(0, 80)}... Модель: ${model}, Инструменты: ${toolSchemas.map((t: any) => t.function.name).join(', ')}` });
 
+    // Локальные модели (Ollama) в агентском цикле недостоверны: ≤8B выдумывают результат
+    // инструментов вместо чтения. По умолчанию цикл им запрещён (llmAssistant.local.toolLoop).
+    const isLocal = (this.provider as any).isLocal === true;
+    const toolLoopEnabled = config.get<boolean>('local.toolLoop', false);
+    if (isLocal && !toolLoopEnabled) {
+      const message =
+        'Локальная модель: агентский цикл выключен (llmAssistant.local.toolLoop = false). ' +
+        'Включите настройку, если понимаете, что модели до 8B выдумывают результаты инструментов.';
+      emit({ iteration: 0, type: 'error', message });
+      emitEvent('run/final', { status: 'error', error: message });
+      return {
+        answer: message,
+        steps,
+        iterations: 0,
+        inputTokens: 0,
+        outputTokens: 0,
+        cost: 0,
+        error: message,
+      };
+    }
+
     let messages: any[];
 
     if (initialMessages && initialMessages.length > 0) {
@@ -228,10 +250,14 @@ export class AgentWorker {
       }
 
       try {
-        // Вызов LLM с инструментами
+        // Вызов LLM с инструментами.
+        // extraBody гасит рассуждение у deepseek-моделей: иначе бюджет уходит в
+        // reasoning_content, а content приходит пустым (см. specs/thinking.md).
         const response = await this.provider.createWithTools(
           messages, model, toolSchemas,
           this.options.signal,
+          undefined,
+          buildThinkingExtraBody(model),
         );
 
         const choice = response.choices?.[0];

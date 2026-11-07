@@ -107,6 +107,94 @@ function createTimeoutSignal(userSignal: AbortSignal | undefined, timeoutMs: num
   return { signal: controller.signal, reset, cleanup };
 }
 
+/**
+ * Привести историю агента (формат OpenAI) к нативному виду `/api/chat`.
+ *
+ * Отличия, которые ломают второй шаг цикла, если их не учесть:
+ * - у assistant-сообщения `tool_calls[].function.arguments` — СТРОКА JSON, нативно нужен объект;
+ * - у нативного ответа нет `id`/`type`, поэтому при обратном маппинге они синтезируются;
+ * - сообщение роли `tool` несёт `tool_call_id`, нативно — `tool_name` (по возможности).
+ */
+export function toNativeMessages(messages: any[]): any[] {
+  return (messages ?? []).map((message) => {
+    if (message?.role === 'assistant' && Array.isArray(message.tool_calls) && message.tool_calls.length > 0) {
+      return {
+        role: 'assistant',
+        content: typeof message.content === 'string' ? message.content : '',
+        tool_calls: message.tool_calls.map((call: any) => {
+          const rawArgs = call?.function?.arguments;
+          let args: any = {};
+          if (typeof rawArgs === 'string') {
+            try {
+              args = JSON.parse(rawArgs);
+            } catch {
+              args = {};
+            }
+          } else if (rawArgs && typeof rawArgs === 'object') {
+            args = rawArgs;
+          }
+          return { function: { name: call?.function?.name, arguments: args } };
+        }),
+      };
+    }
+
+    if (message?.role === 'tool') {
+      const native: Record<string, any> = { role: 'tool', content: message.content };
+      const toolName = message.tool_name ?? message.name;
+      if (toolName) native.tool_name = toolName;
+      return native;
+    }
+
+    return { role: message.role, content: message.content };
+  });
+}
+
+/**
+ * Привести сообщения с изображениями к нативному виду.
+ * OpenAI-формат несёт `content: [{type:'text'},{type:'image_url', image_url:{url:'data:...;base64,XXX'}}]`,
+ * нативный ждёт base64 БЕЗ префикса `data:...;base64,` в поле `images: []`.
+ */
+export function toNativeVisionMessages(messages: any[]): any[] {
+  return (messages ?? []).map((message) => {
+    if (!Array.isArray(message?.content)) {
+      return { role: message.role, content: message.content };
+    }
+
+    const texts: string[] = [];
+    const images: string[] = [];
+    for (const part of message.content) {
+      if (part?.type === 'text' && typeof part.text === 'string') {
+        texts.push(part.text);
+      } else if (part?.type === 'image_url') {
+        const url: string = part?.image_url?.url ?? '';
+        const commaIndex = url.indexOf(',');
+        const base64 = url.startsWith('data:') && commaIndex >= 0 ? url.slice(commaIndex + 1) : url;
+        if (base64) images.push(base64);
+      }
+    }
+
+    const native: Record<string, any> = { role: message.role, content: texts.join('\n') };
+    if (images.length > 0) native.images = images;
+    return native;
+  });
+}
+
+/** Привести нативный ответ с инструментами к форме OpenAI (её ждёт AgentWorker). */
+export function toOpenAIToolCalls(toolCalls: any[] | undefined): any[] | undefined {
+  if (!Array.isArray(toolCalls) || toolCalls.length === 0) return undefined;
+  return toolCalls.map((call: any, index: number) => ({
+    id: call?.id ?? `call_ollama_${index}`,
+    type: 'function',
+    function: {
+      name: call?.function?.name,
+      arguments:
+        typeof call?.function?.arguments === 'string'
+          ? call.function.arguments
+          : JSON.stringify(call?.function?.arguments ?? {}),
+    },
+  }));
+}
+
 /** Разбор одной строки NDJSON — пустые строки и мусор пропускаем. */
 function parseLine(line: string): any | undefined {
   const trimmed = line.trim();
@@ -326,6 +414,137 @@ export class OllamaProvider extends BaseProvider {
         throw this.emptyContentError(thinking.length);
       }
       return content;
+    } finally {
+      cleanup();
+    }
+  }
+
+  /**
+   * Стриминговый запрос с изображениями (vision).
+   * Изображения передаются нативно (`images: [base64]`), а не как `image_url`.
+   */
+  async *chatWithVision(
+    messages: Array<{ role: string; content: any }>,
+    options: CompletionOptions,
+    signal?: AbortSignal,
+    onRetry?: RetryCallback,
+  ): AsyncIterable<string> {
+    const local = readOllamaLocalSettings();
+    const { signal: composed, reset, cleanup } = createTimeoutSignal(signal, local.requestTimeoutMs);
+
+    try {
+      const body: Record<string, any> = {
+        model: options.model,
+        messages: toNativeVisionMessages(messages),
+        stream: true,
+        think: local.think,
+        options: {
+          temperature: options.temperature ?? 0.7,
+          num_predict: options.maxTokens ?? 4096,
+          num_ctx: local.numCtx,
+        },
+      };
+
+      const response = local.retryEnabled
+        ? await withRetry(() => this.post('/api/chat', body, composed), {
+            signal: composed,
+            onRetry,
+            maxRetries: local.maxRetries,
+            requestTimeoutMs: local.requestTimeoutMs,
+          })
+        : await this.post('/api/chat', body, composed);
+
+      let contentChars = 0;
+      let thinkingChars = 0;
+      for await (const chunk of this.readNdjson(response, reset)) {
+        if (signal?.aborted) break;
+        const content: string = chunk?.message?.content ?? '';
+        if (chunk?.message?.thinking) thinkingChars += String(chunk.message.thinking).length;
+        if (content) {
+          contentChars += content.length;
+          yield content;
+        }
+        if (chunk?.done) break;
+      }
+
+      if (contentChars < MIN_CONTENT_CHARS && thinkingChars > 0) {
+        throw this.emptyContentError(thinkingChars);
+      }
+    } finally {
+      cleanup();
+    }
+  }
+
+  /**
+   * Агентский шаг с инструментами (нестриминговый).
+   *
+   * Возвращает объект в форме OpenAI (`choices[0].message.tool_calls`, `usage`),
+   * чтобы `AgentWorker` не менялся. `extraBody` принимается для совместимости с
+   * интерфейсом и игнорируется: рассуждение гасится флагом `think`.
+   */
+  async createWithTools(
+    messages: any[],
+    model: string,
+    tools: any[],
+    signal?: AbortSignal,
+    onRetry?: RetryCallback,
+    extraBody?: Record<string, any>,
+  ): Promise<any> {
+    const local = readOllamaLocalSettings();
+    if (extraBody) {
+      debugLog('[ollama] extraBody в createWithTools игнорируется: рассуждение гасится флагом think');
+    }
+    const { signal: composed, cleanup } = createTimeoutSignal(signal, local.requestTimeoutMs);
+
+    try {
+      const body: Record<string, any> = {
+        model,
+        messages: toNativeMessages(messages),
+        stream: false,
+        think: local.think,
+        options: {
+          temperature: 0.3,
+          num_ctx: local.numCtx,
+        },
+      };
+      if (Array.isArray(tools) && tools.length > 0) body.tools = tools;
+
+      const response = local.retryEnabled
+        ? await withRetry(() => this.post('/api/chat', body, composed), {
+            signal: composed,
+            onRetry,
+            maxRetries: local.maxRetries,
+            requestTimeoutMs: local.requestTimeoutMs,
+          })
+        : await this.post('/api/chat', body, composed);
+
+      const json: any = await response.json();
+      const message = json?.message ?? {};
+      const content: string = message.content ?? '';
+      const thinking: string = message.thinking ?? '';
+
+      if (!content && thinking && !message.tool_calls) {
+        throw this.emptyContentError(thinking.length);
+      }
+
+      return {
+        choices: [
+          {
+            index: 0,
+            message: {
+              role: 'assistant',
+              content,
+              tool_calls: toOpenAIToolCalls(message.tool_calls),
+            },
+            finish_reason: message.tool_calls ? 'tool_calls' : 'stop',
+          },
+        ],
+        usage: {
+          prompt_tokens: json?.prompt_eval_count ?? 0,
+          completion_tokens: json?.eval_count ?? 0,
+          total_tokens: (json?.prompt_eval_count ?? 0) + (json?.eval_count ?? 0),
+        },
+      };
     } finally {
       cleanup();
     }

@@ -7,6 +7,7 @@ import * as sinon from 'sinon';
 import * as vscode from 'vscode';
 import * as assert from 'assert';
 import { ProviderManager } from '../../src/providers/manager';
+import { OpenAIProvider } from '../../src/providers/openai';
 
 suite('ProviderManager', () => {
   let sandbox: sinon.SinonSandbox;
@@ -229,4 +230,70 @@ suite('ProviderManager', () => {
 
       assert.deepStrictEqual(models, ['gpt-4o', 'gpt-4o-mini'], 'Модели должны совпадать с конфигурацией');
     });
+});
+
+// ─────────── Stage 5 / AC OAI-1.1: extraBody в createWithTools ───────────
+// SDK подменяется на уровне своего клиента: тело запроса проверяем по аргументу create(),
+// сеть не участвует (SDK кэширует fetch при импорте, глобальная подмена не сработает).
+suite('OpenAIProvider.createWithTools — extraBody', () => {
+  let sandbox: sinon.SinonSandbox;
+
+  function makeProvider(): { provider: OpenAIProvider; create: sinon.SinonStub } {
+    const provider = new OpenAIProvider({
+      name: 'deepseek',
+      baseUrl: 'https://api.deepseek.com/v1',
+      apiKey: 'sk-test',
+      models: ['deepseek-v4-flash'],
+    });
+    const create = sinon.stub().resolves({ choices: [{ message: { content: 'ok' } }], usage: {} });
+    (provider as any).client = { chat: { completions: { create } } };
+    return { provider, create };
+  }
+
+  function stubConfig(): void {
+    const values: Record<string, unknown> = { 'retry.enabled': false };
+    const mockConfig = {
+      get: (key: string, defaultValue?: unknown) => (key in values ? values[key] : defaultValue),
+      has: () => false,
+      inspect: () => undefined,
+      update: () => Promise.resolve(),
+    };
+    sandbox.stub(vscode.workspace, 'getConfiguration').returns(mockConfig as any);
+  }
+
+  setup(() => {
+    sandbox = sinon.createSandbox();
+    stubConfig();
+  });
+
+  teardown(() => {
+    sandbox.restore();
+  });
+
+  test('OAI-1.1: extraBody уходит в тело запроса вместе с tools', async () => {
+    const { provider, create } = makeProvider();
+
+    await provider.createWithTools(
+      [{ role: 'user', content: 'задача' }],
+      'deepseek-v4-flash',
+      [{ type: 'function', function: { name: 'read_file', description: 'x', parameters: {} } }],
+      undefined,
+      undefined,
+      { thinking: { type: 'disabled' } },
+    );
+
+    const request = create.firstCall.args[0];
+    assert.deepStrictEqual(request.thinking, { type: 'disabled' });
+    assert.strictEqual(request.tool_choice, 'auto');
+    assert.ok(Array.isArray(request.tools));
+  });
+
+  test('OAI-1.1: без extraBody тело как в 0.13.0', async () => {
+    const { provider, create } = makeProvider();
+
+    await provider.createWithTools([{ role: 'user', content: 'задача' }], 'deepseek-v4-flash', []);
+
+    const request = create.firstCall.args[0];
+    assert.strictEqual(request.thinking, undefined);
+  });
 });

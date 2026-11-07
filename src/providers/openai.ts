@@ -159,22 +159,25 @@ export class OpenAIProvider extends BaseProvider {
     tools: any[],
     signal?: AbortSignal,
     onRetry?: RetryCallback,
+    extraBody?: Record<string, any>,
   ): Promise<any> {
     const retryConfig = getRetryConfig();
+    // extraBody — дополнительные поля тела (например thinking:{type:'disabled'}):
+    // без него агентский шаг deepseek тратит бюджет на рассуждение и возвращает пустой content.
+    const request = {
+      model,
+      messages,
+      tools: tools as any,
+      tool_choice: 'auto' as const,
+      ...(extraBody ?? {}),
+    };
 
     if (!retryConfig.enabled) {
-      return this.client.chat.completions.create(
-        { model, messages, tools: tools as any, tool_choice: 'auto' },
-        { signal },
-      );
+      return this.client.chat.completions.create(request, { signal });
     }
 
     return withRetry(
-      (retrySignal) =>
-        this.client.chat.completions.create(
-          { model, messages, tools: tools as any, tool_choice: 'auto' },
-          { signal: retrySignal },
-        ),
+      (retrySignal) => this.client.chat.completions.create(request, { signal: retrySignal }),
       {
         signal,
         onRetry,
