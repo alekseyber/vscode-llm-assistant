@@ -30,7 +30,7 @@ version: 0.14.29
 | HistoryViewProvider | `src/modes/history/HistoryViewProvider.ts` | — | — |
 | OrchestratorViewProvider | `src/modes/orchestrator/OrchestratorViewProvider.ts` | `test/suite/orchestratorView.test.ts` | MA-4.1–MA-4.5 |
 | OpenAIProvider | `src/providers/openai.ts` | `test/suite/providers.test.ts` | AC-9.4, OAI-1.1 |
-| OllamaProvider | `src/providers/ollama.ts` | `test/suite/ollamaProviderLocal.test.ts` | OLL-1.1–OLL-8.1 (все, кроме OLL-4.2 частично) |
+| OllamaProvider | `src/providers/ollama.ts` | `test/suite/ollamaProviderLocal.test.ts`, `test/suite/contextGuard.test.ts` | OLL-1.1–OLL-9.4 (все, кроме OLL-4.2 частично) |
 | thinking | `src/shared/thinking.ts` | `test/suite/thinking.test.ts` | TH-1.1–TH-1.4 |
 | ProviderManager | `src/providers/manager.ts` | `test/suite/providers.test.ts`, `test/suite/providerManagerLocal.test.ts` | AC-9.4, PRM-1.1–PRM-1.5 |
 | Streaming | `src/shared/streaming.ts` | `test/suite/streaming.test.ts` | AC-9.3 |
@@ -67,6 +67,11 @@ version: 0.14.29
 | OLL-6.4 / AW-1.3 | `ollamaProviderLocal.test.ts` → «local.requestTimeout ограничивает ожидание» | ✅ |
 | OLL-7.1 | `providerManagerLocal.test.ts` → «type "ollama" создаёт OllamaProvider с isLocal» | ✅ |
 | OLL-8.1 | `ollamaProviderLocal.test.ts` → «tool_calls в форме OpenAI… usage из eval_count» | ✅ |
+| OLL-9.1 | `ollamaProviderLocal.test.ts` → «prompt_eval_count == num_ctx → предупреждение об обрезке» | ✅ |
+| OLL-9.2 | `ollamaProviderLocal.test.ts` → «prompt_eval_count заметно меньше окна → предупреждения нет» | ✅ |
+| OLL-9.3 | `ollamaProviderLocal.test.ts` → «предупреждение один раз на модель, другая модель — предупреждает» | ✅ |
+| OLL-9.4 | `ollamaProviderLocal.test.ts` → «debug-строка с фактическим prompt_eval_count пишется на каждый ответ» | ✅ |
+| CG-1..3 | `contextGuard.test.ts` → «граница включительно…», «нет данных о токенах — null», «текст называет оба числа и обе ручки» | ✅ |
 | TH-1.1 | `thinking.test.ts` → «deepseek + disableThinking:true»; «disableThinking:false»; «не-deepseek модель» | ✅ |
 | TH-1.2 | `thinking.test.ts` → «локальная модель не получает extraBody (гасится нативно)» | ✅ |
 | TH-1.3 | `thinking.test.ts` → «shouldDisableThinking — таблица решений» | ✅ |

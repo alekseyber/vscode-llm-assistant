@@ -7,7 +7,14 @@ import * as sinon from 'sinon';
 import * as vscode from 'vscode';
 import * as assert from 'assert';
 import * as http from 'http';
-import { OllamaProvider, describeLocalServer, toNativeMessages, toNativeVisionMessages, toOpenAIToolCalls } from '../../src/providers/ollama';
+import {
+  OllamaProvider,
+  describeLocalServer,
+  toNativeMessages,
+  toNativeVisionMessages,
+  toOpenAIToolCalls,
+  __resetTruncationWarningState,
+} from '../../src/providers/ollama';
 
 interface Captured {
   body: any;
@@ -23,6 +30,8 @@ suite('OllamaProvider (нативный /api/chat)', () => {
   let hits: Record<string, number> = {};
   // Поведение сервера настраивается в каждом тесте
   let handler: (req: http.IncomingMessage, res: http.ServerResponse, body: any) => void;
+  // Шпион за предупреждениями UI (OLL-9.x): мок не пишет вызовы сам, поэтому оборачиваем
+  let warnSpy: sinon.SinonSpy;
 
   const localSettings: Record<string, unknown> = {};
 
@@ -32,7 +41,7 @@ suite('OllamaProvider (нативный /api/chat)', () => {
       get: (key: string, defaultValue?: unknown) => {
         if (key in localSettings) return localSettings[key];
         if (key === 'retry.enabled') return localSettings['retry.enabled'] ?? false;
-        if (key === 'debug') return false;
+        if (key === 'debug') return localSettings['debug'] ?? false;
         return defaultValue;
       },
       has: () => false,
@@ -48,6 +57,9 @@ suite('OllamaProvider (нативный /api/chat)', () => {
     hits = {};
     for (const key of Object.keys(localSettings)) delete localSettings[key];
     stubConfig();
+    // Сброс module-level состояния предупреждений: иначе тесты влияют друг на друга (R2 ревью)
+    __resetTruncationWarningState();
+    warnSpy = sandbox.spy(vscode.window, 'showWarningMessage') as sinon.SinonSpy;
 
     server = http.createServer((req, res) => {
       const pathName = (req.url ?? '').split('?')[0];
@@ -548,5 +560,82 @@ suite('OllamaProvider (нативный /api/chat)', () => {
 
     const models = await new OllamaProvider({ name: 'local', baseUrl, models: [] }).models();
     assert.deepStrictEqual(models, ['custom:latest'], 'при незнании capabilities модель остаётся');
+  });
+
+  /** NDJSON с финальным чанком, несущим prompt_eval_count. */
+  function chatWithUsage(promptEvalCount?: number) {
+    handler = (_req, res) =>
+      ndjson(res, [
+        { message: { role: 'assistant', content: 'ок' }, done: false },
+        {
+          message: { role: 'assistant', content: '' },
+          done: true,
+          ...(promptEvalCount === undefined ? {} : { prompt_eval_count: promptEvalCount }),
+        },
+      ]);
+  }
+
+  async function drain(p: OllamaProvider, model = 'qwen3:8b'): Promise<void> {
+    for await (const _ of p.chat([{ role: 'user', content: 'q' }], { model })) {
+      /* consume */
+    }
+  }
+
+  test('OLL-9.1: prompt_eval_count == num_ctx → предупреждение об обрезке', async () => {
+    localSettings['local.numCtx'] = 4096;
+    chatWithUsage(4096);
+
+    await drain(provider());
+
+    assert.strictEqual(warnSpy.callCount, 1, 'предупреждение должно быть ровно одно');
+    const text = String(warnSpy.firstCall.args[0]);
+    assert.match(text, /вероятно, обрезан/);
+    assert.match(text, /4096/);
+  });
+
+  test('OLL-9.2: prompt_eval_count заметно меньше окна → предупреждения нет', async () => {
+    localSettings['local.numCtx'] = 4096;
+    chatWithUsage(2950);
+
+    await drain(provider());
+
+    assert.strictEqual(warnSpy.callCount, 0, 'промпт доехал целиком — молчим');
+  });
+
+  test('OLL-9.3: предупреждение один раз на модель, другая модель — предупреждает', async () => {
+    localSettings['local.numCtx'] = 4096;
+    chatWithUsage(4100);
+    const p = provider();
+
+    await drain(p, 'qwen3:8b');
+    await drain(p, 'qwen3:8b');
+    assert.strictEqual(warnSpy.callCount, 1, 'вторая попытка той же модели не дублирует');
+
+    await drain(p, 'gemma3:4b');
+    assert.strictEqual(warnSpy.callCount, 2, 'другая модель предупреждает отдельно');
+  });
+
+  test('OLL-9.4: debug-строка с фактическим prompt_eval_count пишется на каждый ответ', async () => {
+    localSettings['local.numCtx'] = 4096;
+    localSettings['debug'] = true;
+    const logSpy = sandbox.stub(console, 'log');
+    chatWithUsage(4100);
+
+    await drain(provider());
+    const lines = logSpy.getCalls().map((c) => String(c.args[0] ?? ''));
+    assert.ok(
+      lines.some((l) => l.includes('[ollama] prompt_eval_count=4100 num_ctx=4096 model=qwen3:8b')),
+      `нет debug-строки: ${lines.join(' | ')}`,
+    );
+
+    // Поле отсутствует — пишем "?", предупреждения нет
+    logSpy.resetHistory();
+    __resetTruncationWarningState();
+    warnSpy.resetHistory();
+    chatWithUsage(undefined);
+    await drain(provider());
+    const lines2 = logSpy.getCalls().map((c) => String(c.args[0] ?? ''));
+    assert.ok(lines2.some((l) => l.includes('prompt_eval_count=?')), 'отсутствие поля должно быть видно');
+    assert.strictEqual(warnSpy.callCount, 0, 'без данных предупреждения нет');
   });
 });

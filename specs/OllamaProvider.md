@@ -1,6 +1,6 @@
 ---
 component: OllamaProvider
-version: 0.15.0
+version: 0.15.1
 status: beta
 since: 0.14.0
 ---
@@ -153,10 +153,10 @@ Discovery: `GET /api/tags` → имена моделей. Кэш на 30 с. П�
 | OLL-6.3 | Отмена прерывает поток немедленно | ✅ |
 | OLL-7.1 | `isLocal === true` | ✅ |
 | OLL-8.1 | `usage` заполняется из `prompt_eval_count`/`eval_count`; стоимость = 0 через `pricingMap` | ✅ |
-| OLL-9.1 | `prompt_eval_count >= num_ctx - 16` → предупреждение «промпт, вероятно, обрезан» с числами N и M | ⏳ planned |
-| OLL-9.2 | `prompt_eval_count` заметно меньше порога → предупреждения нет | ⏳ planned |
-| OLL-9.3 | Предупреждение один раз на модель за сессию; другая модель — предупреждает | ⏳ planned |
-| OLL-9.4 | Debug-строка `prompt_eval_count=N num_ctx=M model=X` пишется на каждый ответ (все четыре пути), включая `0`/отсутствие поля | ⏳ planned |
+| OLL-9.1 | `prompt_eval_count >= num_ctx - 16` → предупреждение «промпт, вероятно, обрезан» с числами N и M | ✅ |
+| OLL-9.2 | `prompt_eval_count` заметно меньше порога → предупреждения нет | ✅ |
+| OLL-9.3 | Предупреждение один раз на модель за сессию; другая модель — предупреждает | ✅ |
+| OLL-9.4 | Debug-строка `prompt_eval_count=N num_ctx=M model=X` пишется на каждый ответ (все четыре пути), включая `0`/отсутствие поля | ✅ |
 
 ## Тесты (`test/suite/ollamaProviderLocal.test.ts`, 8 тестов)
 
@@ -183,6 +183,12 @@ Discovery: `GET /api/tags` → имена моделей. Кэш на 30 с. П�
 | команда проверки: сервер недоступен → подсказка, а не падение | OLL-4.2 | ✅ |
 | vision: `image_url` → `images: [base64]` | OLL-5.1 | ⏳ Stage 3 |
 | `usage` из `prompt_eval_count`/`eval_count` | OLL-8.1 | ⏳ Stage 5 |
+| `prompt_eval_count == num_ctx` → предупреждение об обрезке | OLL-9.1 | ✅ |
+| `prompt_eval_count` заметно меньше окна → тишина | OLL-9.2 | ✅ |
+| предупреждение раз на модель; другая модель — предупреждает | OLL-9.3 | ✅ |
+| debug-строка с N (в т.ч. `?` при отсутствии поля) на каждый ответ | OLL-9.4 | ✅ |
+| граница порога `numCtx-16` / `numCtx-17`, `0`/`undefined`/`NaN` → `null` | CG-1, CG-2 | ✅ (`contextGuard.test.ts`) |
+| текст предупреждения называет N, M, `local.numCtx`, `OLLAMA_CONTEXT_LENGTH` | CG-3 | ✅ (`contextGuard.test.ts`) |
 
 ## Связи
 
@@ -194,6 +200,7 @@ Discovery: `GET /api/tags` → имена моделей. Кэш на 30 с. П�
 
 | Версия | Дата | Изменения |
 |--------|------|-----------|
+| 0.15.1 | 2026-11-09 | Пункт A: `buildTruncationWarning` (чистая функция) + `notePromptUsage` в четырёх путях ответа, разовое предупреждение на модель, debug-строка с N/M; тесты `OLL-9.1..9.4`, `CG-1..3`; 580 → 587 |
 | 0.15.0 | 2026-11-09 | Контракты окна: эффективное окно = min(`local.numCtx`, серверный `OLLAMA_CONTEXT_LENGTH`), деление окна между слотами при `NUM_PARALLEL > 1`; AC `OLL-9.1..9.4` (диагностика молчаливой обрезки), `OLL-6.2` — новый текст про намеренно остановленный сервер |
 | 0.14.8 | 2026-11-07 | `capabilities()` используется как источник правды о vision: ручной `supportsVision` не требуется |
 | 0.14.7 | 2026-11-07 | Диагностический лог `createWithTools` (model / messages / tools) |

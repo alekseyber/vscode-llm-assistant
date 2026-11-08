@@ -19,6 +19,43 @@ const DEFAULT_LOCAL_TIMEOUT_MS = 300_000;
 const MIN_CONTENT_CHARS = 1;
 /** Сколько живёт кэш списка моделей (мс). */
 const MODELS_CACHE_TTL_MS = 30_000;
+/**
+ * Запас у верхней границы окна: сервер считает промпт теми же токенами, но
+ * последние токены буфера дают ±несколько единиц, поэтому «упёрся в окно»
+ * — это `prompt_eval_count >= numCtx - TRUNCATION_MARGIN`.
+ */
+const TRUNCATION_MARGIN = 16;
+
+/**
+ * Модели, для которых предупреждение об обрезке уже показано в этой сессии.
+ * Ключ `providerName:model`. Живёт на уровне модуля намеренно: `ProviderManager.refresh()`
+ * пересоздаёт провайдера на любое изменение settings, и поле экземпляра давало бы
+ * предупреждение заново после каждой правки конфига.
+ */
+const truncationWarned = new Set<string>();
+
+/** Сброс состояния предупреждений — только для тестов (в проде не вызывается). */
+export function __resetTruncationWarningState(): void {
+  truncationWarned.clear();
+}
+
+/**
+ * Текст предупреждения о упоре промпта в окно контекста, либо `null`.
+ * Чистая функция: проверяется без сервера и VS Code.
+ */
+export function buildTruncationWarning(args: {
+  model: string;
+  promptTokens?: number | null;
+  numCtx: number;
+}): string | null {
+  const { promptTokens, numCtx } = args;
+  if (typeof promptTokens !== 'number' || !Number.isFinite(promptTokens)) return null;
+  if (promptTokens < numCtx - TRUNCATION_MARGIN) return null;
+  return (
+    `Промпт, вероятно, обрезан: сервер обработал ${promptTokens} токенов при лимите ${numCtx}. ` +
+    'Проверьте llmAssistant.local.numCtx и OLLAMA_CONTEXT_LENGTH на сервере.'
+  );
+}
 
 /** Возможности модели по данным /api/show. */
 export interface OllamaCapabilities {
@@ -333,6 +370,27 @@ export class OllamaProvider extends BaseProvider {
     }
   }
 
+  /**
+   * Учёт обработанных промпт-токенов: debug-строка на каждый ответ и одно
+   * предупреждение на модель за сессию, если промпт упёрся в окно.
+   * Ограничение: если `numCtx` больше серверного лимита, счётчик упирается в
+   * серверный кап и оказывается меньше numCtx — такой случай ловится только по
+   * debug-строке (см. P19 в бэклоге).
+   */
+  private notePromptUsage(model: string, payload: any, numCtx: number): void {
+    const raw = payload?.prompt_eval_count;
+    const promptTokens = typeof raw === 'number' ? raw : undefined;
+    debugLog(
+      `[ollama] prompt_eval_count=${promptTokens ?? '?'} num_ctx=${numCtx} model=${model}`,
+    );
+    const warning = buildTruncationWarning({ model, promptTokens, numCtx });
+    if (!warning) return;
+    const key = `${this.name}:${model}`;
+    if (truncationWarned.has(key)) return;
+    truncationWarned.add(key);
+    void vscode.window.showWarningMessage(warning);
+  }
+
   /** Расшифровка пустого content при непустом thinking — самая частая ловушка локальных моделей. */
   private emptyContentError(thinkingChars: number): Error {
     return new Error(
@@ -379,7 +437,10 @@ export class OllamaProvider extends BaseProvider {
           contentChars += content.length;
           yield content;
         }
-        if (chunk?.done) break;
+        if (chunk?.done) {
+          this.notePromptUsage(options.model, chunk, local.numCtx);
+          break;
+        }
       }
 
       if (contentChars < MIN_CONTENT_CHARS && thinkingChars > 0) {
@@ -412,6 +473,7 @@ export class OllamaProvider extends BaseProvider {
         : await this.post('/api/chat', body, composed);
 
       const json: any = await response.json();
+      this.notePromptUsage(options.model, json, local.numCtx);
       const content: string = json?.message?.content ?? '';
       const thinking: string = json?.message?.thinking ?? '';
       if (!content && thinking) {
@@ -468,7 +530,10 @@ export class OllamaProvider extends BaseProvider {
           contentChars += content.length;
           yield content;
         }
-        if (chunk?.done) break;
+        if (chunk?.done) {
+          this.notePromptUsage(options.model, chunk, local.numCtx);
+          break;
+        }
       }
 
       if (contentChars < MIN_CONTENT_CHARS && thinkingChars > 0) {
@@ -526,6 +591,7 @@ export class OllamaProvider extends BaseProvider {
         : await this.post('/api/chat', body, composed);
 
       const json: any = await response.json();
+      this.notePromptUsage(model, json, local.numCtx);
       const message = json?.message ?? {};
       const content: string = message.content ?? '';
       const thinking: string = message.thinking ?? '';
