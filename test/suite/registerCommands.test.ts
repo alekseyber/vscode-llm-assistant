@@ -54,7 +54,7 @@ suite('registerCommands', () => {
       'llmAssistant.apply.start',
       'llmAssistant.autocomplete.toggle',
       'llmAssistant.chat.addSelection',
-      'llmAssistant.chat.focus',
+      'llmAssistant.chat.open',
       'llmAssistant.checkLocalServer',
       'llmAssistant.clearAllSessions',
       'llmAssistant.edit.selection',
@@ -75,13 +75,13 @@ suite('registerCommands', () => {
     assert.strictEqual(deps.context.subscriptions.push.callCount, 12);
   });
 
-  test('chat.focus: reveal контейнера + revealChat (вместо легаси ChatPanel)', async () => {
+  test('chat.open: reveal контейнера + revealChat (вместо легаси ChatPanel)', async () => {
     const deps = makeDeps();
     deps.revealChat = sandbox.stub();
     const executeCommand = sandbox.stub(vscode.commands, 'executeCommand').resolves(undefined);
     registerCommands(deps);
 
-    const handler = registerSpy.getCalls().find(c => c.args[0] === 'llmAssistant.chat.focus')?.args[1];
+    const handler = registerSpy.getCalls().find(c => c.args[0] === 'llmAssistant.chat.open')?.args[1];
     assert.ok(handler, 'chat.focus зарегистрирован');
     await handler();
 
@@ -154,6 +154,23 @@ suite('registerCommands', () => {
     await handler();
 
     assert.ok(executeCommand.calledWith('llmAssistant.history.focus'), 'фокусируется вкладка История');
-    assert.ok(!executeCommand.calledWith('llmAssistant.chat.focus'), 'Чат не фокусируется');
+    assert.ok(!executeCommand.calledWith('llmAssistant.chat.open'), 'Чат не фокусируется');
+  });
+});
+
+// ─────────── Идентификаторы команд не конфликтуют с авто-командами VS Code ───────────
+suite('package.json / id команд и view', () => {
+  test('CMD-1: ни одна наша команда не совпадает с <viewId>.focus', () => {
+    const pkg = require('../../../package.json');
+    const views = Object.values(pkg.contributes.views ?? {}).flat() as any[];
+    const viewIds = views.map((v) => v.id);
+    const reserved = viewIds.map((id) => `${id}.focus`);
+
+    const ours = pkg.contributes.commands.map((c: any) => c.command);
+    const clashes = ours.filter((id: string) => reserved.includes(id));
+    assert.deepStrictEqual(clashes, [], `конфликт с авто-командой VS Code: ${JSON.stringify(clashes)}`);
+
+    // «Открыть чат» должен существовать под своим id (иначе палитра показывает только «Focus on Чат View»)
+    assert.ok(ours.includes('llmAssistant.chat.open'), 'llmAssistant.chat.open объявлен');
   });
 });

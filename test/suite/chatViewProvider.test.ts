@@ -619,7 +619,7 @@ suite('visionUnsupportedWarning', () => {
 });
 
 // ─────────── CVP-1.8: «Открыть чат» ставит курсор в поле ввода ───────────
-suite('ChatViewProvider / reveal (chat.focus)', () => {
+suite('ChatViewProvider / reveal (chat.open)', () => {
   test('CVP-1.8: reveal() раскрывает панель и посылает focusInput', () => {
     const postMessage = sinon.stub();
     const show = sinon.stub();

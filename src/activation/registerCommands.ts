@@ -1,6 +1,6 @@
 // registerCommands.ts — централизованная регистрация всех команд расширения
 // Регистрирует 6 команд в Command Palette с горячими клавишами (keybindings в package.json):
-//   1. llmAssistant.chat.focus          (Ctrl+Shift+L) — открыть чат
+//   1. llmAssistant.chat.open           (Ctrl+Shift+L) — открыть чат
 //   2. llmAssistant.chat.addSelection   — добавить выделение в контекст чата
 //   3. llmAssistant.edit.selection      (Ctrl+I)       — редактировать выделенный код
 //   4. llmAssistant.autocomplete.toggle — вкл/выкл автокомплит
@@ -51,7 +51,7 @@ export interface CommandDependencies {
   sessionLog: SessionLog;
   /** Колбэк обновления списка сессий в WebView (для fork) */
   refreshSessions?: () => void;
-  /** Колбэк показа/фокуса вкладки чата (для llmAssistant.chat.focus) */
+  /** Колбэк показа/фокуса вкладки чата (для llmAssistant.chat.open) */
   revealChat?: () => void;
 }
 
@@ -65,9 +65,9 @@ export interface CommandDependencies {
 export function registerCommands(deps: CommandDependencies): void {
   const { context, providerManager, conversationManager, editController, autocompleteController, runHistoryStore, historyViewProvider, reviewViewProvider, sessionLog, refreshSessions, revealChat } = deps;
 
-  // ── 1. llmAssistant.chat.focus (Ctrl+Shift+L) — открыть/сфокусировать чат ──
+  // ── 1. llmAssistant.chat.open (Ctrl+Shift+L) — открыть/сфокусировать чат ──
   context.subscriptions.push(
-    vscode.commands.registerCommand('llmAssistant.chat.focus', async () => {
+    vscode.commands.registerCommand('llmAssistant.chat.open', async () => {
       // Показываем контейнер сайдбара (резолвит WebView чата, если он ещё не создан)
       await vscode.commands.executeCommand('workbench.view.extension.llmAssistant');
       // Фокусируем вкладку чата (вместо легаси ChatPanel — один чат-поверхность)
@@ -181,7 +181,7 @@ export function registerCommands(deps: CommandDependencies): void {
     })
   );
 
-  console.log('[registerCommands] Зарегистрировано 12 команд: chat.focus, chat.addSelection, edit.selection, autocomplete.toggle, apply.start, selectProvider, openHistory, review.file, exportSession, forkSession, clearAllSessions, checkLocalServer');
+  console.log('[registerCommands] Зарегистрировано 12 команд: chat.open, chat.addSelection, edit.selection, autocomplete.toggle, apply.start, selectProvider, openHistory, review.file, exportSession, forkSession, clearAllSessions, checkLocalServer');
 }
 
 /**

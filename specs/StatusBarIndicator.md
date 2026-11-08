@@ -1,6 +1,6 @@
 ---
 component: StatusBarIndicator
-version: 0.9.0
+version: 0.14.14
 status: planned
 since: 0.9.0
 ---
@@ -43,12 +43,12 @@ since: 0.9.0
 | Агент вызывает инструмент (tool_call) | `thinking` |
 | Ошибка запроса | `error` |
 | Завершение стриминга | `idle` |
-| Клик по индикатору | Фокус на чат-панель (`llmAssistant.chat.focus`) |
+| Клик по индикатору | Фокус на чат-панель (`llmAssistant.chat.open`) |
 
 ## Детали реализации
 
 - **VS Code API:** `vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100)`
-- **Команда:** `command: 'llmAssistant.chat.focus'`
+- **Команда:** `command: 'llmAssistant.chat.open'`
 - **Инициализация:** в `extension.ts`, сохраняется в `ExtensionContext.subscriptions`
 - **Доступ:** через глобальный синглтон или передаётся в `ChatViewProvider`
 - **Анимация:** `$(sync~spin)` и `$(loading~spin)` — встроенные Codicon-анимации
@@ -78,4 +78,5 @@ since: 0.9.0
 
 | Версия | Дата | Изменения |
 |--------|------|-----------|
+| 0.14.14 | 2026-11-08 | Клик по индикатору вызывает `llmAssistant.chat.open` (id сменился из-за конфликта с авто-командой VS Code) |
 | 0.9.0 | 2026-08-07 | Начальная спецификация |

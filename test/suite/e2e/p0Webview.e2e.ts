@@ -15,7 +15,7 @@ suite('E2E: P0 WebView smoke', () => {
 
     // Открытие чата триггерит getHtmlForWebview() — чтение index.html + стилей + скриптов.
     // Падение здесь = ошибка чтения webview-ресурса (недостающий файл/путь).
-    await vscode.commands.executeCommand('llmAssistant.chat.focus');
+    await vscode.commands.executeCommand('llmAssistant.chat.open');
 
     assert.strictEqual(ext.isActive, true, 'расширение активно после открытия чата');
   });

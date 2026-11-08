@@ -1,6 +1,6 @@
 ---
 component: CodeActionsProvider
-version: 0.9.0
+version: 0.14.14
 status: planned
 since: 0.9.0
 ---
@@ -64,7 +64,7 @@ since: 0.9.0
 Действия:
 1. `postMessage({ type: 'externalPrompt', text: prompt })` — показать в WebView
 2. `handleSendMessage(prompt, 'agent')` — запустить агента
-3. `commands.executeCommand('llmAssistant.chat.focus')` — фокус
+3. `commands.executeCommand('llmAssistant.chat.open')` — фокус
 
 ## Тесты
 
@@ -93,4 +93,5 @@ since: 0.9.0
 
 | Версия | Дата | Изменения |
 |--------|------|-----------|
+| 0.14.14 | 2026-11-08 | Быстрое действие вызывает `llmAssistant.chat.open` (id сменился из-за конфликта с авто-командой VS Code) |
 | 0.9.0 | 2026-08-07 | Начальная спецификация |

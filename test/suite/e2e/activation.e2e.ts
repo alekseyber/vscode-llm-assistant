@@ -20,7 +20,7 @@ suite('E2E: активация и команды', () => {
 
     const commands = await vscode.commands.getCommands(true);
     const expected = [
-      'llmAssistant.chat.focus',
+      'llmAssistant.chat.open',
       'llmAssistant.chat.addSelection',
       'llmAssistant.edit.selection',
       'llmAssistant.autocomplete.toggle',
