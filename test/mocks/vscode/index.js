@@ -121,6 +121,12 @@ class RelativePattern {
 
 const OverviewRulerLane = { Left: 1, Center: 2, Right: 4, Full: 7 };
 
+const languages = {
+  registerInlineCompletionItemProvider() { return { dispose() {} }; },
+  registerCompletionItemProvider() { return { dispose() {} }; },
+  createDiagnosticCollection() { return { set() {}, clear() {}, dispose() {} }; },
+};
+
 const window = {
   activeTextEditor: undefined,
   showInformationMessage(msg) { return Promise.resolve(); },
@@ -140,6 +146,7 @@ const window = {
   createTextEditorDecorationType(options) {
     return { key: 'decoration', dispose() {} };
   },
+  registerWebviewViewProvider() { return { dispose() {} }; },
   withProgress(options, task) {
     const progress = { report: () => {} };
     const token = { isCancellationRequested: false, onCancellationRequested: () => {} };
@@ -177,6 +184,7 @@ module.exports = {
   Position,
   workspace,
   window,
+  languages,
   OverviewRulerLane,
   RelativePattern,
   ExtensionContext,

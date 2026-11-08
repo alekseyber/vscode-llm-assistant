@@ -60,11 +60,13 @@ export function activate(context: vscode.ExtensionContext) {
     const registrySessions = conversationManager.session.listSessions();
     const pruned = sessionLog.pruneUnknown(registrySessions.map(s => s.id));
     console.warn(`[LLM Assistant] Ре-консиляция логов: сессий в реестре=${registrySessions.length}, удалено сирот=${pruned}`);
+    // Инициализация хранилища истории запусков — ДО EditController:
+    // он получает store в конструкторе, а обращение к переменной выше её let-объявления
+    // даёт TDZ-ошибку при активации и расширение не загружается
+    runHistoryStore = new RunHistoryStore(context.globalState);
+
     editController = new EditController(providerManager, runHistoryStore);
     autocompleteController = new AutocompleteController(providerManager);
-
-    // Инициализация хранилища истории запусков (слой 07 Product Shell)
-    runHistoryStore = new RunHistoryStore(context.globalState);
 
     // Регистрация провайдера вкладки «История» (Activity Bar) — ДО ChatViewProvider
     historyViewProvider = new HistoryViewProvider(runHistoryStore);
