@@ -11,7 +11,7 @@ import 'mocha';
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 import * as vscode from 'vscode';
-import { AgentWorker, AgentRole } from '../../src/modes/apply/AgentWorker';
+import { AgentWorker, DEFAULT_MAX_ITERATIONS, AgentRole } from '../../src/modes/apply/AgentWorker';
 
 /**
  * Создать мок-провайдера для тестов.
@@ -517,5 +517,16 @@ suite('AgentWorker / отказы пользователя', () => {
     assert.strictEqual(onConfirm.callCount, 2, 'останавливаемся на втором отказе, а не крутимся');
     assert.match(String(result.answer), /отклонил инструменты/i);
     assert.match(String(result.error), /Правки не внесены/i);
+  });
+});
+
+// ─────────── Лимит шагов агента ───────────
+suite('AgentWorker / лимит шагов', () => {
+  test('ITER-1: дефолтный лимит 15 и совпадает с настройкой llmAssistant.agent.maxIterations', () => {
+    const pkg = require('../../../package.json');
+    const props = pkg.contributes.configuration.properties
+      ?? pkg.contributes.configuration[0].properties;
+    assert.strictEqual(DEFAULT_MAX_ITERATIONS, 15);
+    assert.strictEqual(props['llmAssistant.agent.maxIterations'].default, DEFAULT_MAX_ITERATIONS);
   });
 });

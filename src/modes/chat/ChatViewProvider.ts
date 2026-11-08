@@ -567,7 +567,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   /** ReAct-цикл с инструментами (только для агентного режима).
    *  Делегирует выполнение AgentWorker — общему движку для чат-агента и оркестратора. */
   private async runAgentLoop(provider: any, model: string, messages: any[], onRetry?: (attempt: number, maxRetries: number, delayMs: number, errorMsg: string) => void, sessionId?: string, signal?: AbortSignal): Promise<{ inputTokens: number; outputTokens: number; iterations: number } | undefined> {
-    const MAX_ITER = 5;
+    // Лимит шагов агента: был захардкожен (5) и обрывал реальные задачи
+    const MAX_ITER = vscode.workspace.getConfiguration('llmAssistant').get<number>('agent.maxIterations', 15);
     const allowListConfig = loadToolAllowListConfig();
 
     // --- Загрузка MCP-инструментов (только для интерактивного агента) ---

@@ -111,6 +111,9 @@ export interface AgentWorkerOptions {
 /** Сколько отказов подряд терпим перед остановкой прогона. */
 const MAX_DENIALS = 2;
 
+/** Лимит шагов агента по умолчанию (совпадает с llmAssistant.agent.maxIterations). */
+export const DEFAULT_MAX_ITERATIONS = 15;
+
 export class AgentWorker {
   /** Роль агента */
   readonly role: AgentRole;
@@ -231,7 +234,7 @@ export class AgentWorker {
     // Сколько раз пользователь отказал: на втором отказе прогон останавливаем
     let denials = 0;
 
-    for (let i = 1; i <= (this.options.maxIterations || 10); i++) {
+    for (let i = 1; i <= (this.options.maxIterations || DEFAULT_MAX_ITERATIONS); i++) {
       if (this.options.signal?.aborted) {
         emit({ iteration: i, type: 'info', message: 'Выполнение отменено.' });
         const abortErr: any = new Error('Request was aborted');

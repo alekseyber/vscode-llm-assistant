@@ -1,6 +1,6 @@
 ---
 component: AgentWorker
-version: 0.14.3
+version: 0.14.12
 status: stable
 since: 0.7.0
 ---
@@ -145,6 +145,7 @@ since: 0.7.0
 
 | Версия | Дата | Изменения |
 |--------|------|-----------|
+| 0.14.12 | 2026-11-08 | `DEFAULT_MAX_ITERATIONS = 15` (было 10 в коде, а чат вообще резал на 5); лимит читается из `llmAssistant.agent.maxIterations`; второй отказ подряд останавливает прогон |
 | 0.14.3 | 2026-11-07 | `AgentWorkerOptions.model`: выбранная в панели модель доходит до воркера (было: `local` + `qwen3:8b` → запрос с моделью silicon → 404) |
 | 0.14.2 | 2026-11-07 | Фикс по ручному прогону: `cost = 0` для `isLocal` (раньше локальный прогон считался по DEFAULT_PRICING) |
 | 0.14.1 | 2026-11-07 | Stage 5: `buildThinkingExtraBody(model)` передаётся шестым аргументом; при `isLocal` и `local.toolLoop:false` цикл не стартует (ошибка + `run/final`), возврат `WorkerResult` с `iterations: 0`; 4 теста |
