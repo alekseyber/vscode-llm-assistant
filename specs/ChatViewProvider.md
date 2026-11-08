@@ -1,6 +1,6 @@
 ---
 component: ChatViewProvider
-version: 0.14.5
+version: 0.14.12
 status: stable
 since: 0.1.0
 ---
@@ -142,6 +142,7 @@ since: 0.1.0
 
 | Версия | Дата | Изменения |
 |--------|------|-----------|
+| 0.14.12 | 2026-11-08 | Лимит шагов агента читается из `llmAssistant.agent.maxIterations` (в коде было зашито 5); сводка «Изменено файлов: N» в ответе |
 | 0.13.0 | 2026-08-22 | P0 Этап 1: тулбар ⋮ + «Удалить все» — WebView шлёт `clearAllSessions` → `executeCommand('llmAssistant.clearAllSessions')`; `getHtmlForWebview` инжектит `toolbar.js` (`{{TOOLBAR}}`) |
 | 0.13.0 | 2026-08-22 | P0 Этап 2: сайдбар сессий — `sessionList` с `preview` (getSessionPreview) + обработчик `toggleFavorite` |
 | 0.13.0 | 2026-08-22 | P0 Этап 3: activity-feed — `toolActivity.start` несёт `args`, инжект `toolActivity.js` (`{{TOOLACTIVITY}}`) |
