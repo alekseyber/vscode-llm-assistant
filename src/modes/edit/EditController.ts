@@ -294,6 +294,17 @@ export class EditController {
     }
   }
 
+  /** URI из вкладки: обычный текстовый редактор или diff (original/modified). */
+  public tabUris(tab: any): vscode.Uri[] {
+    const input: any = tab && tab.input;
+    if (!input) return [];
+    const uris: vscode.Uri[] = [];
+    if (input.uri) uris.push(input.uri);
+    if (input.modified) uris.push(input.modified);
+    if (input.original) uris.push(input.original);
+    return uris;
+  }
+
   /**
    * Найти живой редактор для документа сессии.
    *
@@ -325,15 +336,18 @@ export class EditController {
     const closedUris: string[] = [];
     for (const group of vscode.window.tabGroups.all) {
       for (const tab of group.tabs) {
-        const input: any = tab.input;
-        const uri: vscode.Uri | undefined = input && input.uri ? input.uri : undefined;
-        if (uri && uri.scheme === PROPOSAL_SCHEME) {
-          closedUris.push(uri.toString());
-          try {
-            await vscode.window.tabGroups.close(tab);
-          } catch {
-            // вкладку уже закрыли — не мешает
-          }
+        // Вкладка diff-редактора — это TabInputTextDiff с полями original/modified,
+        // а не TabInputText с единственным `uri`: проверять только `uri` бесполезно,
+        // окно предпросмотра так и остаётся открытым
+        const uris = this.tabUris(tab);
+        const ours = uris.filter((u) => u.scheme === PROPOSAL_SCHEME);
+        if (ours.length === 0) continue;
+
+        closedUris.push(...ours.map((u) => u.toString()));
+        try {
+          await vscode.window.tabGroups.close(tab);
+        } catch {
+          // вкладку уже закрыли — не мешает
         }
       }
     }

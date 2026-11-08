@@ -1,6 +1,6 @@
 ---
 component: EditController
-version: 0.14.39
+version: 0.14.40
 status: beta
 since: 0.1.0
 ---
@@ -79,6 +79,7 @@ since: 0.1.0
 
 | Версия | Дата | Изменения |
 |--------|------|-----------|
+| 0.14.40 | 2026-11-08 | `closeProposalDiff` учитывает вкладку diff (`original`/`modified`), а не только `input.uri`: раньше окно предпросмотра оставалось висеть после Принять/Отклонить; тест EDH-9.1 (RED-проверен) |
 | 0.14.39 | 2026-11-08 | Diff открывается в соседней колонке без перехвата фокуса (`ViewColumn.Beside`); Accept берёт живой редактор через `resolveLiveEditor` (иначе «TextEditor#edit not possible on closed editors»); Accept и Reject закрывают окно предпросмотра (`closeProposalDiff`); тесты EDH-8/8.1/9/10 |
 | 0.14.38 | 2026-11-08 | Предложение открывается в diff-редакторе (`showProposalDiff`): слева файл как есть, справа результат замены; настройка `edit.showProposalDiff`; тесты PP-1..4, EDH-6/7 |
 | 0.14.37 | 2026-11-08 | Текст уведомления вынесен в buildProposalMessage (диапазон, счётчики, первая непустая строка, обрезка 80 симв.); тесты EDH-4/4.1/4.2/5 |

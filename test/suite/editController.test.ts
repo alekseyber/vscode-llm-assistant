@@ -205,6 +205,29 @@ suite('EditController / приём и уборка предпросмотра', 
     assert.deepStrictEqual(closed, [proposalTab], 'закрыта только вкладка предпросмотра');
   });
 
+  test('EDH-9.1: diff-вкладка (original/modified) тоже закрывается', async () => {
+    const controller: any = new EditController({ getDefault: () => undefined } as any);
+    const closed: any[] = [];
+    // Реальная вкладка diff не имеет input.uri — только original/modified
+    const diffTab = {
+      input: {
+        original: { scheme: 'llma-proposal', toString: () => 'llma-proposal:/p-before.js' },
+        modified: { scheme: 'llma-proposal', toString: () => 'llma-proposal:/p-after.js' },
+      },
+    };
+    const origGroups = vscode.window.tabGroups;
+    vscode.window.tabGroups = {
+      all: [{ tabs: [diffTab] }],
+      close(tab: any) { closed.push(tab); return Promise.resolve(true); },
+    };
+    try {
+      await controller.closeProposalDiff();
+    } finally {
+      vscode.window.tabGroups = origGroups;
+    }
+    assert.deepStrictEqual(closed, [diffTab], 'diff-вкладка закрыта');
+  });
+
   test('EDH-10: отклонение закрывает diff-окно и чистит сессию', () => {
     const controller: any = new EditController({ getDefault: () => undefined } as any);
     const sinon = require('sinon');
