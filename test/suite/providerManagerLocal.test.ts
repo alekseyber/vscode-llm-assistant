@@ -152,6 +152,30 @@ suite('ProviderManager — локальный провайдер', () => {
     assert.strictEqual(manager.getProvider('local')!.toolLoopOverride, undefined);
   });
 
+  test('PRM-3.2: numCtx у локального openai-провайдера → предупреждение один раз', () => {
+    const warn = sinon.stub(vscode.window, 'showWarningMessage').resolves(undefined as any);
+    const { __resetIgnoredSettingsWarnings } = require('../../src/providers/manager');
+    __resetIgnoredSettingsWarnings();
+    createMockVscodeConfig({
+      providers: {
+        'local-llamacpp': {
+          type: 'openai',
+          baseUrl: 'http://127.0.0.1:8080/v1',
+          models: ['qwen3-8b'],
+          numCtx: 16384,
+        },
+      },
+    });
+
+    new ProviderManager();
+    new ProviderManager();
+
+    assert.strictEqual(warn.callCount, 1, 'предупреждение показывается один раз за сессию');
+    assert.match(String(warn.firstCall.args[0]), /--ctx-size/);
+    assert.match(String(warn.firstCall.args[0]), /не применяются/);
+    warn.restore();
+  });
+
   test('PRM-1.4: setZeroPricing обнуляет модели, пришедшие из discovery', () => {
     createMockVscodeConfig({ providers: { local: { type: 'ollama', models: [] } } });
 

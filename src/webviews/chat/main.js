@@ -1163,7 +1163,8 @@
     for (const [name, cfg] of Object.entries(providers)) {
       const opt = document.createElement('option');
       opt.value = name;
-      opt.textContent = name;
+      // Человеческое имя из конфига («Ollama (локально)»); ключ провайдера остаётся value
+      opt.textContent = cfg?.title || name;
       if (name === defaultProvider) opt.selected = true;
       providerSelect.appendChild(opt);
     }

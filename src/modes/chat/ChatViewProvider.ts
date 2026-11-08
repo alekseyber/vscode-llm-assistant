@@ -30,14 +30,28 @@ import { parseSlashCommand, getSlashCommand, SLASH_COMMANDS } from './SlashComma
  * Чистая функция: используется и в фоновом обновлении, и в тестах —
  * локальный провайдер помечается `isLocal`, чтобы WebView мог отличать его от облачного.
  */
+/**
+ * Человеческое имя провайдера для селектора.
+ * Явный `title` побеждает; локальный без title получает суффикс «(локально)»,
+ * иначе `local-llamacpp` с `type: 'openai'` читается как облачный OpenAI.
+ */
+export function providerDisplayTitle(name: string, cfg: any, isLocal: boolean): string {
+  const explicit = typeof cfg?.title === 'string' ? cfg.title.trim() : '';
+  if (explicit) return explicit;
+  return isLocal ? `${name} (локально)` : name;
+}
+
 export function buildProviderListFromConfig(
   providersConfig: Record<string, any>,
-): Record<string, { models: string[]; isLocal?: boolean }> {
-  const providers: Record<string, { models: string[]; isLocal?: boolean }> = {};
+): Record<string, { models: string[]; isLocal?: boolean; title?: string }> {
+  const providers: Record<string, { models: string[]; isLocal?: boolean; title?: string }> = {};
   for (const [name, cfg] of Object.entries(providersConfig ?? {})) {
     const models: string[] = Array.isArray(cfg?.models) ? cfg.models : [];
     // Локальность — по адресу: у llama.cpp/LM Studio `type: 'openai'` на loopback
-    providers[name] = cfg?.type === 'ollama' || isLocalBaseUrl(cfg?.baseUrl) ? { models, isLocal: true } : { models };
+    const isLocal = cfg?.type === 'ollama' || isLocalBaseUrl(cfg?.baseUrl);
+    providers[name] = isLocal
+      ? { models, isLocal: true, title: providerDisplayTitle(name, cfg, true) }
+      : { models, title: providerDisplayTitle(name, cfg, false) };
   }
   return providers;
 }
@@ -1155,7 +1169,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     // Discovery — фоновым проходом, без блокировки рендера
     void (async () => {
       try {
-        const withDiscovery: Record<string, { models: string[]; isLocal?: boolean }> = {};
+        const withDiscovery: Record<string, { models: string[]; isLocal?: boolean; title?: string }> = {};
         let changed = false;
         for (const [name, cfg] of Object.entries(providersConfig)) {
           const provider: any = this.providerManager.getProvider(name);
@@ -1173,7 +1187,9 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
           if (localCfg && provider?.isLocal) {
             this.providerManager.setZeroPricing(models);
           }
-          withDiscovery[name] = localCfg ? { models, isLocal: true } : { models };
+          withDiscovery[name] = localCfg
+            ? { models, isLocal: true, title: providerDisplayTitle(name, cfg, true) }
+            : { models, title: providerDisplayTitle(name, cfg, false) };
         }
         if (changed && this.view) {
           this.postMessage({ type: 'providerList', providers: withDiscovery, defaultProvider });

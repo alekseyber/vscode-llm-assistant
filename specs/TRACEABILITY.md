@@ -76,6 +76,9 @@ version: 0.14.29
 | OVL-1..3 | `localOverrides.test.ts` → «override побеждает глобальную настройку», «без override берётся глобальная», «невалидный override игнорируется» | ✅ |
 | PRM-2.1..2.3 | `providerManagerLocal.test.ts` → «type openai на loopback — isLocal и нулевая цена (llama.cpp)», «облачный адрес остаётся платным», «toolLoop из записи провайдера» | ✅ |
 | LZ-1..3 | `localAddress.test.ts` → «loopback в любых формах — локальный», «облачные и неоднозначные адреса — не локальные», «путь и query не влияют на вердикт» | ✅ |
+| PRM-3.2 | `providerManagerLocal.test.ts` → «numCtx у локального openai-провайдера → предупреждение один раз» | ✅ |
+| CVP-3.1 / TIT-1 | `chatViewProvider.test.ts` → «человеческое имя — title побеждает, локальный без title получает «(локально)»»; `chatWebview.test.ts` → «в селекторе видно человеческое имя провайдера» | ✅ |
+| OAI-2.1/2.2 | `providerErrors.test.ts` → «локальный движок — подсказка про намеренный запуск», «облачный провайдер — нейтральный текст, HTTP-ошибки не оборачиваются» | ✅ |
 | TH-1.1 | `thinking.test.ts` → «deepseek + disableThinking:true»; «disableThinking:false»; «не-deepseek модель» | ✅ |
 | TH-1.2 | `thinking.test.ts` → «локальная модель не получает extraBody (гасится нативно)» | ✅ |
 | TH-1.3 | `thinking.test.ts` → «shouldDisableThinking — таблица решений» | ✅ |

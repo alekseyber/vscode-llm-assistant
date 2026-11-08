@@ -20,6 +20,11 @@ export interface ProviderConfig {
   /** Поддержка vision (изображений) */
   supportsVision?: boolean;
   /**
+   * Человеческое имя для селектора («Ollama (локально)», «llama.cpp (локально)»).
+   * Ключ в `llmAssistant.providers` остаётся машинным (`local-llamacpp`), в UI виден title.
+   */
+  title?: string;
+  /**
    * Переопределения локальных настроек на уровне провайдера
    * (`llmAssistant.local.*` остаются дефолтом). Приоритет: провайдер → глобальная
    * настройка → встроенный дефолт. Осмысленны для локальных движков: у llama.cpp

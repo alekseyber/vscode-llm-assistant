@@ -559,6 +559,18 @@ suite('buildProviderListFromConfig', () => {
     assert.strictEqual(providers.cloud.isLocal, undefined);
   });
 
+  test('CVP-3.1: человеческое имя — title побеждает, локальный без title получает «(локально)»', () => {
+    const providers = buildProviderListFromConfig({
+      'local-llamacpp': { type: 'openai', baseUrl: 'http://127.0.0.1:8080/v1', models: ['qwen3-8b'] },
+      local: { type: 'ollama', baseUrl: 'http://127.0.0.1:11434', models: [], title: 'Ollama (локально)' },
+      deepseek: { baseUrl: 'https://api.deepseek.com/v1', models: ['deepseek-chat'] },
+    });
+
+    assert.strictEqual(providers['local-llamacpp'].title, 'local-llamacpp (локально)', 'локальный openai не должен читаться как облачный');
+    assert.strictEqual(providers.local.title, 'Ollama (локально)', 'явный title не перетирается');
+    assert.strictEqual(providers.deepseek.title, 'deepseek', 'у облачного имя без суффикса');
+  });
+
   test('CVP-1.1: пустая конфигурация не роняет сборку', () => {
     assert.deepStrictEqual(buildProviderListFromConfig({}), {});
   });

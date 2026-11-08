@@ -29,6 +29,34 @@ function getRetryConfig(): RetryConfig {
   };
 }
 
+/**
+ * Ошибки соединения у OpenAI-совместимых провайдеров приходят из SDK как
+ * `APIConnectionError: Connection error.` — по такому тексту пользователь не понимает,
+ * что локальный движок просто не запущен. Оборачиваем только сетевой класс:
+ * HTTP-ошибки (401/404/429) обязаны дойти до RetryHandler нетронутыми, со `status`.
+ */
+export function toProviderError(error: any, baseUrl: string, isLocal: boolean): Error {
+  if (error?.status) return error;
+  const code: string =
+    error?.code || error?.cause?.code || (error?.name === 'APIConnectionError' ? 'ECONNREFUSED' : 'NETWORK_ERROR');
+  const rawMessage = error?.message || String(error);
+  const isConnection =
+    error?.name === 'APIConnectionError' ||
+    /connection error|fetch failed|ECONNREFUSED|ENOTFOUND|ETIMEDOUT|EAI_AGAIN/i.test(rawMessage) ||
+    !!error?.cause?.code;
+  if (!isConnection) return error;
+
+  const message = isLocal
+    ? `Не удалось подключиться к локальному серверу (${baseUrl}) (${code}). ` +
+      'Сервер мог быть остановлен намеренно — запустите его перед запросом. ' +
+      'Проверьте также, что baseUrl верный.'
+    : `Не удалось подключиться к провайдеру (${code}): ${rawMessage.replace(/\.$/, '')}. Проверьте сеть и baseUrl.`;
+  const wrapped: any = new Error(message);
+  wrapped.code = code;
+  wrapped.cause = error;
+  return wrapped;
+}
+
 export class OpenAIProvider extends BaseProvider {
   private client: OpenAI;
   public readonly supportsVision: boolean;
@@ -58,6 +86,18 @@ export class OpenAIProvider extends BaseProvider {
   }
 
   /**
+   * Единственная точка вызова API: сетевые ошибки превращаются в человеческий текст,
+   * HTTP-ошибки проходят как есть (по `status` их классифицирует `RetryHandler`).
+   */
+  private async call(request: any, signal?: AbortSignal): Promise<any> {
+    try {
+      return await this.client.chat.completions.create(request, { signal });
+    } catch (error: any) {
+      throw toProviderError(error, this.baseUrl, this.isLocal === true);
+    }
+  }
+
+  /**
    * Стриминговый чат-запрос с опциональными ретраями.
    * Ретраит только первоначальный запрос (создание стрима).
    * Если стрим уже начался и оборвался — ошибка пробрасывается без ретрая.
@@ -73,7 +113,7 @@ export class OpenAIProvider extends BaseProvider {
     const stream = retryConfig.enabled
       ? await withRetry(
           (retrySignal) =>
-            this.client.chat.completions.create(
+            this.call(
               {
                 model: options.model,
                 messages: messages.map((m) => ({ role: m.role, content: m.content })),
@@ -82,7 +122,7 @@ export class OpenAIProvider extends BaseProvider {
                 stream: true,
                 ...(options.extraBody ?? {}),
               },
-              { signal: retrySignal },
+              retrySignal,
             ),
           {
             signal,
@@ -91,7 +131,7 @@ export class OpenAIProvider extends BaseProvider {
             requestTimeoutMs: retryConfig.requestTimeout * 1000,
           },
         )
-      : await this.client.chat.completions.create(
+      : await this.call(
           {
             model: options.model,
             messages: messages.map((m) => ({ role: m.role, content: m.content })),
@@ -100,7 +140,7 @@ export class OpenAIProvider extends BaseProvider {
             stream: true,
             ...(options.extraBody ?? {}),
           },
-          { signal },
+          signal,
         );
 
     for await (const chunk of stream) {
@@ -125,7 +165,7 @@ export class OpenAIProvider extends BaseProvider {
     const stream = retryConfig.enabled
       ? await withRetry(
           (retrySignal) =>
-            this.client.chat.completions.create(
+            this.call(
               {
                 model: options.model,
                 messages: messages as any,
@@ -133,7 +173,7 @@ export class OpenAIProvider extends BaseProvider {
                 max_tokens: options.maxTokens ?? 4096,
                 stream: true,
               },
-              { signal: retrySignal },
+              retrySignal,
             ),
           {
             signal,
@@ -142,7 +182,7 @@ export class OpenAIProvider extends BaseProvider {
             requestTimeoutMs: retryConfig.requestTimeout * 1000,
           },
         )
-      : await this.client.chat.completions.create(
+      : await this.call(
           {
             model: options.model,
             messages: messages as any,
@@ -150,7 +190,7 @@ export class OpenAIProvider extends BaseProvider {
             max_tokens: options.maxTokens ?? 4096,
             stream: true,
           },
-          { signal },
+          signal,
         );
 
     for await (const chunk of stream) {
@@ -184,11 +224,11 @@ export class OpenAIProvider extends BaseProvider {
     };
 
     if (!retryConfig.enabled) {
-      return this.client.chat.completions.create(request, { signal });
+      return this.call(request, signal);
     }
 
     return withRetry(
-      (retrySignal) => this.client.chat.completions.create(request, { signal: retrySignal }),
+      (retrySignal) => this.call(request, retrySignal),
       {
         signal,
         onRetry,
@@ -213,7 +253,7 @@ export class OpenAIProvider extends BaseProvider {
     const response = retryConfig.enabled
       ? await withRetry(
           (retrySignal) =>
-            this.client.chat.completions.create(
+            this.call(
               {
                 model: options.model,
                 messages: messages.map((m) => ({ role: m.role, content: m.content })),
@@ -221,7 +261,7 @@ export class OpenAIProvider extends BaseProvider {
                 max_tokens: options.maxTokens ?? 2048,
                 stream: false,
               },
-              { signal: retrySignal },
+              retrySignal,
             ),
           {
             signal,
@@ -230,7 +270,7 @@ export class OpenAIProvider extends BaseProvider {
             requestTimeoutMs: retryConfig.requestTimeout * 1000,
           },
         )
-      : await this.client.chat.completions.create(
+      : await this.call(
           {
             model: options.model,
             messages: messages.map((m) => ({ role: m.role, content: m.content })),
@@ -238,7 +278,7 @@ export class OpenAIProvider extends BaseProvider {
             max_tokens: options.maxTokens ?? 2048,
             stream: false,
           },
-          { signal },
+          signal,
         );
 
     return response.choices?.[0]?.message?.content ?? '';

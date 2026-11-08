@@ -7,6 +7,32 @@ import { debugLog } from '../shared/logger';
 
 /** Адрес Ollama по умолчанию, если в конфиге не задан baseUrl. */
 export const DEFAULT_OLLAMA_BASE_URL = 'http://127.0.0.1:11434';
+
+/** Провайдеры, которым уже сказали «эта настройка к движку не применяется» (раз за сессию). */
+const ignoredSettingsWarned = new Set<string>();
+
+/** Сброс состояния предупреждений — только для тестов. */
+export function __resetIgnoredSettingsWarnings(): void {
+  ignoredSettingsWarned.clear();
+}
+
+/**
+ * Предупредить, что `numCtx`/`think` в записи локального openai-провайдера не действуют:
+ * у llama.cpp контекст и рассуждение задаются флагами сервера (`--ctx-size`, `--reasoning`).
+ * Молчать нельзя — иначе «поставил numCtx 16384» выглядит работающим.
+ */
+function warnIgnoredLocalSettings(name: string, overrides: { numCtx?: number; think?: boolean }): void {
+  if (ignoredSettingsWarned.has(name)) return;
+  ignoredSettingsWarned.add(name);
+  const fields = [overrides.numCtx !== undefined ? 'numCtx' : null, overrides.think !== undefined ? 'think' : null]
+    .filter(Boolean)
+    .join(' и ');
+  const text =
+    `Провайдер «${name}»: ${fields} задаются флагами сервера (llama.cpp: --ctx-size, --reasoning), ` +
+    'настройки плагина к этому движку не применяются.';
+  debugLog(`[manager] ${text}`);
+  void vscode.window.showWarningMessage(text);
+}
 import { OpenAIProvider } from './openai';
 import { OllamaProvider } from './ollama';
 import { isLocalBaseUrl } from './base';
@@ -145,6 +171,12 @@ export class ProviderManager {
         // Тот же дефект, что ловили на gemma3:4b: локальный движок с type:'openai'
         // без обнуления цен попадает в DEFAULT_PRICING и показывает выдуманную стоимость.
         this.setZeroPricing(modelNames);
+        // num_ctx/think у OpenAI-совместимого локального движка задаются флагами сервера
+        // (llama.cpp: --ctx-size, --reasoning). Настройки плагина к нему не применяются —
+        // молчать об этом нельзя, иначе «поставил numCtx 16384» выглядит рабочим.
+        if (overrides.numCtx !== undefined || overrides.think !== undefined) {
+          warnIgnoredLocalSettings(name, overrides);
+        }
       }
     }
   }

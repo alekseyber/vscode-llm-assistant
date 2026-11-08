@@ -688,6 +688,23 @@ suite('WebView — выбор провайдера и модели', () => {
     );
   });
 
+  test('TIT-1: в селекторе видно человеческое имя провайдера, значение остаётся ключом', () => {
+    const view = loadWebview();
+    const providerSelect = view.document.getElementById('provider-select') as HTMLSelectElement;
+
+    view.dispatch({
+      type: 'providerList',
+      providers: {
+        'local-llamacpp': { models: ['qwen3-8b'], isLocal: true, title: 'llama.cpp (локально)' },
+      },
+      defaultProvider: 'local-llamacpp',
+    });
+
+    const option = providerSelect.querySelector('option') as HTMLOptionElement;
+    assert.strictEqual(option.textContent, 'llama.cpp (локально)', 'подпись человеческая');
+    assert.strictEqual(option.value, 'local-llamacpp', 'значение — ключ провайдера');
+  });
+
   test('CVP-1.4: выбранная модель переживает обновление списка', () => {
     const view = loadWebview();
     const providerSelect = view.document.getElementById('provider-select') as HTMLSelectElement;
