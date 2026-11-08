@@ -6,7 +6,7 @@ import * as sinon from 'sinon';
 import * as vscode from 'vscode';
 import * as assert from 'assert';
 import * as path from 'path';
-import { ChatViewProvider, buildProviderListFromConfig } from '../../src/modes/chat/ChatViewProvider';
+import { ChatViewProvider, buildProviderListFromConfig, resolveModelForProvider } from '../../src/modes/chat/ChatViewProvider';
 import { ConversationManager } from '../../src/modes/chat/ConversationManager';
 import { RunHistoryStore } from '../../src/shared/RunHistoryStore';
 import { PlanModeManager } from '../../src/modes/chat/PlanModeManager';
@@ -561,5 +561,28 @@ suite('buildProviderListFromConfig', () => {
 
   test('CVP-1.1: пустая конфигурация не роняет сборку', () => {
     assert.deepStrictEqual(buildProviderListFromConfig({}), {});
+  });
+});
+
+// ─────────── CVP-1.5: выбор модели не уезжает другому провайдеру ───────────
+suite('resolveModelForProvider', () => {
+  test('CVP-1.5: явный выбор пользователя не трогаем', async () => {
+    const provider = { models: async () => ['gemma3:4b', 'qwen3:8b'] };
+    assert.strictEqual(await resolveModelForProvider(provider, 'qwen3:8b', 'deepseek-flash', 'local'), 'qwen3:8b');
+  });
+
+  test('CVP-1.5: пустой выбор + провайдер → первая модель провайдера, а не глобальный default', async () => {
+    const provider = { models: async () => ['gemma3:4b'] };
+    assert.strictEqual(
+      await resolveModelForProvider(provider, '', 'deepseek-ai/DeepSeek-V4-Flash-0731', 'local'),
+      'gemma3:4b',
+    );
+  });
+
+  test('CVP-1.5: провайдер без моделей / discovery упал → глобальный default', async () => {
+    assert.strictEqual(await resolveModelForProvider({ models: async () => [] }, '', 'gpt-4o', 'local'), 'gpt-4o');
+    const broken = { models: async () => { throw new Error('offline'); } };
+    assert.strictEqual(await resolveModelForProvider(broken, '', 'gpt-4o', 'local'), 'gpt-4o');
+    assert.strictEqual(await resolveModelForProvider(undefined, '', 'gpt-4o', undefined), 'gpt-4o');
   });
 });

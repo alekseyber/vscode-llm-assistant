@@ -1,6 +1,6 @@
 ---
 component: AgentWorker
-version: 0.14.2
+version: 0.14.3
 status: stable
 since: 0.7.0
 ---
@@ -82,6 +82,7 @@ since: 0.7.0
 | SK-3.2 | `SkillsLoader.loadSkillsSummary()` инжектится в system prompt воркера | planned |
 | AW-1.1 | `createWithTools` вызывается с `buildThinkingExtraBody(model)` — рассуждение гасится в агентском цикле | ✅ |
 | AW-1.2 | Локальный провайдер (`isLocal`) при `llmAssistant.local.toolLoop: false` (по умолчанию) не запускает инструменты, а отдаёт предупреждение с инструкцией, как включить | ✅ |
+| AW-1.5 | Модель из `AgentWorkerOptions.model` приоритетнее `config.defaultModel` (иначе агент уходит на модель другого провайдера → 404) | ✅ |
 | AW-1.4 | Стоимость прогона на локальном провайдере = 0 (иначе `calculateCost` без карты цен берёт DEFAULT_PRICING) | ✅ |
 | AW-1.3 | Для `isLocal` применяется `llmAssistant.local.requestTimeout` (300 с), а не глобальные 60 с — таймаут живёт в `OllamaProvider` (Stage 2), воркер его не переопределяет | ✅ |
 
@@ -144,6 +145,7 @@ since: 0.7.0
 
 | Версия | Дата | Изменения |
 |--------|------|-----------|
+| 0.14.3 | 2026-11-07 | `AgentWorkerOptions.model`: выбранная в панели модель доходит до воркера (было: `local` + `qwen3:8b` → запрос с моделью silicon → 404) |
 | 0.14.2 | 2026-11-07 | Фикс по ручному прогону: `cost = 0` для `isLocal` (раньше локальный прогон считался по DEFAULT_PRICING) |
 | 0.14.1 | 2026-11-07 | Stage 5: `buildThinkingExtraBody(model)` передаётся шестым аргументом; при `isLocal` и `local.toolLoop:false` цикл не стартует (ошибка + `run/final`), возврат `WorkerResult` с `iterations: 0`; 4 теста |
 | 0.14.0 | 2026-11-07 | `extraBody` в `createWithTools` (гашение рассуждения), предупреждение при `local.toolLoop:false`, локальный профиль таймаутов |

@@ -1139,8 +1139,18 @@
   const modelSelect = document.getElementById('model-select');
   let providersData = {};
 
+  /**
+   * Обновить списки провайдеров и моделей.
+   *
+   * Выбор пользователя сохраняется: список приходит дважды — сразу из конфигурации
+   * и повторно после discovery (Ollama /api/tags). Без сохранения вторая посылка
+   * сбрасывала селектор на `defaultProvider`, и выбор провайдера «не срабатывал».
+   */
   function updateProviderList(providers, defaultProvider) {
     if (!providerSelect) return;
+    const prevProvider = providerSelect.value;
+    const prevModel = modelSelect ? modelSelect.value : '';
+
     providersData = providers;
     providerSelect.innerHTML = '';
     for (const [name, cfg] of Object.entries(providers)) {
@@ -1150,8 +1160,17 @@
       if (name === defaultProvider) opt.selected = true;
       providerSelect.appendChild(opt);
     }
-    // Заполняем модели для выбранного провайдера
+
+    // Возвращаем выбор пользователя, если такой провайдер ещё существует
+    if (prevProvider && providers[prevProvider]) providerSelect.value = prevProvider;
+
     updateModelList();
+
+    // И выбранную модель, если она есть у этого провайдера
+    if (prevModel && modelSelect) {
+      const exists = Array.from(modelSelect.options).some((o) => o.value === prevModel);
+      if (exists) modelSelect.value = prevModel;
+    }
   }
 
   function updateModelList() {

@@ -475,4 +475,20 @@ suite('AgentWorker — локальный провайдер и extraBody', () =
     assert.strictEqual(result.cost, 0, 'локальный прогон бесплатен');
     assert.ok(result.inputTokens > 0, 'токены при этом считаются');
   });
+
+  test('AW-1.5: модель из опций воркера приоритетнее config.defaultModel', async () => {
+    stubConfig({ defaultModel: 'deepseek-ai/DeepSeek-V4-Flash-0731', 'local.toolLoop': true });
+    const provider = {
+      isLocal: true,
+      createWithTools: sinon.stub().resolves({ choices: [{ message: { content: 'ок' } }], usage: {} }),
+    };
+    const worker = new AgentWorker({ name: 't', systemPrompt: 'Тест' }, provider as any, {
+      maxIterations: 2,
+      model: 'qwen3:8b',
+    });
+
+    await worker.run('задача');
+
+    assert.strictEqual(provider.createWithTools.firstCall.args[1], 'qwen3:8b', 'ушла выбранная модель, а не defaultModel');
+  });
 });

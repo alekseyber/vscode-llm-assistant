@@ -652,3 +652,54 @@ suite('WebView — индикатор стоимости', () => {
     assert.match(badge!.textContent || '', /\$2\.5000/, 'для gpt-4o fallback-таблица даёт $2.50 за 1M');
   });
 });
+
+// ─────────── Селекторы провайдера/модели: выбор не должен сбрасываться ───────────
+suite('WebView — выбор провайдера и модели', () => {
+  const listFromConfig = {
+    silicon: { models: ['deepseek-ai/DeepSeek-V4-Flash-0731'] },
+    local: { models: [], isLocal: true },
+  };
+  const listAfterDiscovery = {
+    silicon: { models: ['deepseek-ai/DeepSeek-V4-Flash-0731'] },
+    local: { models: ['gemma3:4b', 'qwen3:8b'], isLocal: true },
+  };
+
+  test('CVP-1.4: повторный providerList после discovery не сбрасывает выбор пользователя', () => {
+    const view = loadWebview();
+    const providerSelect = view.document.getElementById('provider-select') as HTMLSelectElement;
+    const modelSelect = view.document.getElementById('model-select') as HTMLSelectElement;
+
+    // Первая посылка — из конфигурации: провайдер `local` без моделей (models: [])
+    view.dispatch({ type: 'providerList', providers: listFromConfig, defaultProvider: 'silicon' });
+    assert.strictEqual(providerSelect.value, 'silicon', 'по умолчанию выбран defaultProvider');
+
+    // Пользователь переключился на local; моделей пока нет, поэтому модель пустая
+    providerSelect.value = 'local';
+    providerSelect.dispatchEvent(new (view.window as any).Event('change'));
+
+    // Пришла вторая посылка — уже с моделями из /api/tags
+    view.dispatch({ type: 'providerList', providers: listAfterDiscovery, defaultProvider: 'silicon' });
+
+    assert.strictEqual(providerSelect.value, 'local', 'выбор провайдера сохранён');
+    assert.deepStrictEqual(
+      Array.from(modelSelect.options).map((o) => o.value),
+      ['gemma3:4b', 'qwen3:8b'],
+      'список моделей обновился',
+    );
+  });
+
+  test('CVP-1.4: выбранная модель переживает обновление списка', () => {
+    const view = loadWebview();
+    const providerSelect = view.document.getElementById('provider-select') as HTMLSelectElement;
+    const modelSelect = view.document.getElementById('model-select') as HTMLSelectElement;
+
+    view.dispatch({ type: 'providerList', providers: listAfterDiscovery, defaultProvider: 'silicon' });
+    providerSelect.value = 'local';
+    providerSelect.dispatchEvent(new (view.window as any).Event('change'));
+    modelSelect.value = 'qwen3:8b';
+
+    view.dispatch({ type: 'providerList', providers: listAfterDiscovery, defaultProvider: 'silicon' });
+
+    assert.strictEqual(modelSelect.value, 'qwen3:8b', 'модель не сброшена на первую из списка');
+  });
+});

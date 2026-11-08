@@ -90,6 +90,13 @@ export interface AgentWorkerOptions {
   onEvent?: (event: SessionEvent) => void;
   /** ID сессии для session-log (F1) — без него события не эмитятся */
   sessionId?: string;
+  /**
+   * Модель, выбранная пользователем в панели. Имеет приоритет над
+   * `config.defaultModel`: иначе агент молча уходит на модель другого провайдера
+   * (найдено ручным прогоном: провайдер `local`, модель `qwen3:8b` в UI,
+   * а запрос уходил с `deepseek-ai/DeepSeek-V4-Flash-0731` → 404 от Ollama).
+   */
+  model?: string;
 }
 
 /**
@@ -144,7 +151,7 @@ export class AgentWorker {
 
     // Определяем модель
     const config = vscode.workspace.getConfiguration('llmAssistant');
-    const model = this.role.model || config.get<string>('defaultModel') || 'gpt-4o';
+    const model = this.options.model || this.role.model || config.get<string>('defaultModel') || 'gpt-4o';
 
     // Получаем схемы инструментов: unfiltered для Plan Mode/оркестратора, filtered для чат-агента
     const baseToolSchemas = this.options.skipGlobalAllowList

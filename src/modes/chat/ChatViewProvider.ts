@@ -39,6 +39,34 @@ export function buildProviderListFromConfig(
   return providers;
 }
 
+/**
+ * Выбрать модель для запроса.
+ *
+ * Правила (по итогам ручного прогона 0.14.x):
+ * 1. Явный выбор пользователя в панели — приоритет.
+ * 2. Если выбор пустой, а провайдер указан — берём первую модель ЭТОГО провайдера,
+ *    а не глобальный `defaultModel`: иначе модель одного провайдера уезжает другому
+ *    (провайдер `local` + модель silicon → 404 от Ollama).
+ * 3. Иначе — глобальный `defaultModel`.
+ */
+export async function resolveModelForProvider(
+  provider: any,
+  explicitModel: string,
+  defaultModel: string,
+  providerName?: string,
+): Promise<string> {
+  if (explicitModel) return explicitModel;
+  if (providerName && provider && typeof provider.models === 'function') {
+    try {
+      const available: string[] = await provider.models();
+      if (Array.isArray(available) && available.length > 0) return available[0];
+    } catch {
+      // discovery недоступен — падаем на глобальный defaultModel
+    }
+  }
+  return defaultModel;
+}
+
 export class ChatViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = 'llmAssistant.chat';
   private view?: vscode.WebviewView;
@@ -214,7 +242,13 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     // Определяем провайдера и модель
     const provider = providerName ? this.providerManager.getProvider(providerName) : this.providerManager.getDefault();
     if (!provider) { this.postMessage({ type: 'error', text: 'Провайдер не настроен.' }); return; }
-    const model = (typeof modelName === 'object' && modelName !== null ? (modelName as any).name : modelName) || config.get<string>('defaultModel') || 'gpt-4o';
+    const explicitModel = (typeof modelName === 'object' && modelName !== null ? (modelName as any).name : modelName) || '';
+    const model = await resolveModelForProvider(
+      provider,
+      explicitModel,
+      config.get<string>('defaultModel') || 'gpt-4o',
+      providerName,
+    );
 
     // --- @orchestrate: запуск multi-agent оркестратора ---
     const orchestrateMatch = text.match(/^@orchestrate\s+(.+)/);
@@ -532,6 +566,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       provider,
       {
         maxIterations: MAX_ITER,
+        model,
         extraTools: mcpTools,
         enableSummary: true,
         signal,
