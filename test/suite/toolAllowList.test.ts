@@ -321,3 +321,37 @@ suite('isConfirmationRequired / patch_file', () => {
     assert.strictEqual(isConfirmationRequired('read_file', cfg), false);
   });
 });
+
+// ─────────── ALW-3: мастер-выключатель подтверждений ───────────
+suite('ToolAllowList / master switch', () => {
+  const sinon = require('sinon');
+  let sandbox: any;
+  setup(() => { sandbox = sinon.createSandbox(); });
+  teardown(() => sandbox.restore());
+
+  function stubConfig(agentRequire: boolean | undefined, arr: string[] | undefined) {
+    sandbox.stub(vscode.workspace, 'getConfiguration').returns({
+      get: (key: string, def?: any) => {
+        if (key === 'agent.requireConfirmation') return agentRequire === undefined ? (def ?? true) : agentRequire;
+        if (key === 'apply.requireConfirmation') return arr;
+        if (key === 'apply.allowedTools') return undefined;
+        return def;
+      },
+    } as any);
+    sandbox.stub(vscode.workspace, 'workspaceFolders').value([]);
+  }
+
+  test('ALW-3.1: agent.requireConfirmation=false → подтверждения выключены', () => {
+    stubConfig(false, ['write_file', 'patch_file']);
+    const cfg = loadToolAllowListConfig();
+    assert.deepStrictEqual(cfg.requireConfirmation, []);
+    assert.strictEqual(isConfirmationRequired('write_file', cfg), false);
+  });
+
+  test('ALW-3.2: agent.requireConfirmation=true → список инструментов работает как раньше', () => {
+    stubConfig(true, ['write_file', 'patch_file']);
+    const cfg = loadToolAllowListConfig();
+    assert.deepStrictEqual(cfg.requireConfirmation, ['write_file', 'patch_file']);
+    assert.strictEqual(isConfirmationRequired('write_file', cfg), true);
+  });
+});

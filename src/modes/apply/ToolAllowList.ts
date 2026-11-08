@@ -43,9 +43,12 @@ export function loadToolAllowListConfig(): ToolAllowListConfig {
   // Источник 1: .vscode/llm-assistant.json (приоритет над глобальными настройками)
   const workspaceConfig = loadWorkspaceConfig();
   if (workspaceConfig) {
+    const masterOn = vscode.workspace.getConfiguration('llmAssistant').get<boolean>('agent.requireConfirmation', true);
     return {
       allowedTools: workspaceConfig.allowedTools ?? undefined,
-      requireConfirmation: workspaceConfig.requireConfirmation ?? DEFAULT_CONFIG.requireConfirmation,
+      requireConfirmation: masterOn === false
+        ? []
+        : (workspaceConfig.requireConfirmation ?? DEFAULT_CONFIG.requireConfirmation),
     };
   }
 
@@ -53,6 +56,12 @@ export function loadToolAllowListConfig(): ToolAllowListConfig {
   const vsConfig = vscode.workspace.getConfiguration('llmAssistant');
   const allowedTools = vsConfig.get<string[]>('apply.allowedTools');
   const requireConfirmation = vsConfig.get<string[]>('apply.requireConfirmation');
+
+  // Мастер-выключатель: false — не спрашивать подтверждения вообще.
+  // Раньше настройка была объявлена в манифесте, но кодом не читалась (мёртвая).
+  if (vsConfig.get<boolean>('agent.requireConfirmation', true) === false) {
+    return { allowedTools: allowedTools && allowedTools.length > 0 ? allowedTools : undefined, requireConfirmation: [] };
+  }
 
   console.warn(`[ToolAllowList] Global config: allowedTools=${JSON.stringify(allowedTools)}, requireConfirmation=${JSON.stringify(requireConfirmation)}`);
 

@@ -1,6 +1,6 @@
 ---
 document: TRACEABILITY
-version: 0.14.0
+version: 0.14.14
 ---
 
 # Матрица трассировки: spec → AC → тест → код
@@ -12,9 +12,9 @@ version: 0.14.0
 | AgentWorker | `src/modes/apply/AgentWorker.ts` | `test/suite/agentWorker.test.ts` | MA-1.1–MA-1.10 |
 | AgentOrchestrator | `src/modes/apply/AgentOrchestrator.ts` | `test/suite/agentOrchestrator.test.ts` | MA-2.1–MA-2.6 |
 | AgentSharedContext | `src/modes/apply/AgentSharedContext.ts` | `test/suite/agentCommunication.test.ts` | MA-3.1, MA-3.3 |
-| AgentController | `src/modes/apply/AgentController.ts` | — | — |
+| AgentController | `src/modes/apply/AgentController.ts` | `test/suite/agentController.test.ts` | CNF-1–CNF-3 |
 | ToolSystem | `src/modes/apply/ToolSystem.ts` | `test/suite/tools.test.ts` | AC-9.5 |
-| ToolDefinitions | `src/modes/apply/ToolDefinitions.ts` | — | — |
+| ToolDefinitions | `src/modes/apply/ToolDefinitions.ts` | `test/suite/writeFileIdempotent.test.ts` | WF-1–WF-3 |
 | ToolAllowList | `src/modes/apply/ToolAllowList.ts` | `test/suite/toolAllowList.test.ts` | AC-4.1–AC-4.4 |
 | McpClient | `src/modes/apply/McpClient.ts` | `test/suite/mcpClient.test.ts` | AC-5.1–AC-5.5 |
 | ChatViewProvider | `src/modes/chat/ChatViewProvider.ts` | `test/suite/chatWebview.test.ts` | CVP-1.1 (planned) |
@@ -92,3 +92,5 @@ version: 0.14.0
 ## Правило обновления
 
 При изменении любого `.ts` файла — обновляется соответствующая строка в этой матрице (версия, дата изменения).
+
+| RunSummary | `src/shared/runSummary.ts` | `test/suite/runSummary.test.ts` | SUM-1–SUM-6 |

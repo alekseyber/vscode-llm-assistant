@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.14.15 (2026-11-08)
+
+### Документация и настройки перед публикацией
+
+- **`llmAssistant.agent.requireConfirmation` была мёртвой**: объявлена в манифесте и описана в README, но код её не читал. Теперь это мастер-выключатель подтверждений (`false` — не спрашивать ни о чём); список `apply.requireConfirmation` при этом игнорируется
+- README: дефолт `apply.requireConfirmation` дополнен `patch_file`; добавлена строка `agent.maxIterations` (15)
+- Спеки: `ToolDefinitions` (идемпотентность `write_file`), `AgentWorker` (стоп на втором отказе, лимит 15), `ToolAllowList` (мастер-выключатель), `AgentController` (`onConfirm`), `ChatViewProvider` (лимит из настроек, `focusInput`, сводка), `RunSummary` (новый компонент), `TRACEABILITY` (CNF, WF, SUM)
+- Тесты: 532 → 534
+
+## 0.14.14 (2026-11-08)
+
+### Исправлено
+
+- **Команда «Открыть чат» не отображалась в Command Palette.** Её id `llmAssistant.chat.focus` совпадал с авто-командой VS Code `<viewId>.focus` для вьюхи `llmAssistant.chat` — в палитре показывалась системная «Focus on Чат View». Команда переименована в `llmAssistant.chat.open` (заголовок и `Ctrl+Shift+L` прежние). Затронуты индикатор статуса и быстрые действия
+- **«Открыть чат» не ставила курсор в поле ввода.** `reveal()` только раскрывал панель; теперь посылает фронтенду `focusInput`
+
+### Под капотом
+
+- Страж-тесты манифеста команд: `CMD-1` (id не пересекаются с `<viewId>.focus`), `CMD-2` (манифест ↔ `registerCommands` в обе стороны), `CMD-3` (заголовки и keybindings), `CMD-4` (нет скрытия из палитры)
+- Тесты: 527 → 532
+
 ## 0.14.12 (2026-11-08)
 
 Релиз закрывает дефекты, найденные ручным прогоном 0.14.0 (P15) и проверкой Apply.

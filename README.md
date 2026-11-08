@@ -218,10 +218,11 @@ code --install-extension vscode-llm-assistant-0.13.0.vsix
 | Ключ | Тип | По умолчанию | Описание |
 |------|-----|-------------|----------|
 | `agent.model` | string | `"gpt-4o"` | Модель агентного режима (если не задана — `defaultModel`) |
-| `agent.requireConfirmation` | boolean | `true` | Подтверждение перед записью/изменением файлов |
+| `agent.requireConfirmation` | boolean | `true` | Мастер-выключатель подтверждений: `false` — не спрашивать ни о чём (список ниже игнорируется) |
+| `agent.maxIterations` | number | `15` | Максимум шагов агента в чате (было зашито 5) |
 | `apply.allowedTools` | string[] | `[]` (все) | Список разрешённых инструментов агента |
 | `apply.maxIterations` | number | `20` | Максимум шагов агента |
-| `apply.requireConfirmation` | string[] | `["write_file","replace_in_file","run_terminal"]` | Инструменты, требующие подтверждения |
+| `apply.requireConfirmation` | string[] | `["write_file","replace_in_file","patch_file","run_terminal"]` | Инструменты, требующие подтверждения (в apply-режиме — модальное окно с аргументами) |
 
 **Инструменты агента:** `read_file`, `write_file`, `replace_in_file`, `patch_file`, `list_files`, `search_files`, `run_terminal`, `web_fetch`, `ask_user`, `delegate_to_agent`.
 
