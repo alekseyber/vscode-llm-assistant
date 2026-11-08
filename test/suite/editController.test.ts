@@ -94,3 +94,63 @@ suite('EditController / уведомление о правке', () => {
     assert.deepStrictEqual(controller.getProposalLenses(), [], 'после отклонения линз нет');
   });
 });
+
+// ─────────── EDH-6/7: предложение правки открывается в diff-редакторе ───────────
+suite('EditController / diff-предпросмотр предложения', () => {
+  const makeEditor = () => {
+    const lines = ['function sum(a, b) {', '  return a + b;', '}', ''];
+    return {
+      document: {
+        fileName: '/tmp/demo/scratch.js',
+        uri: { path: '/tmp/demo/scratch.js', toString: () => 'file:///tmp/demo/scratch.js', scheme: 'file' },
+        languageId: 'javascript',
+        getText: () => lines.join('\n'),
+        offsetAt: (pos: any) => {
+          let off = 0;
+          for (let i = 0; i < pos.line; i++) off += lines[i].length + 1;
+          return off + (pos.character || 0);
+        },
+      },
+    } as any;
+  };
+
+  test('EDH-6: правка открывается в diff — команда vscode.diff получает документы «до» и «после»', async () => {
+    const controller: any = new EditController({ getDefault: () => undefined } as any);
+    const calls: any[] = [];
+    const sinon = require('sinon');
+    const stub = sinon.stub(require('vscode').commands, 'executeCommand').callsFake(async (...args: any[]) => { calls.push(args); });
+
+    const editor = makeEditor();
+    const selection = { start: { line: 1, character: 2 }, end: { line: 1, character: 4 } };
+    let ok = false;
+    try {
+      ok = await controller.showProposalDiff(editor, selection, '  return Number(a) + Number(b);');
+    } finally {
+      stub.restore();
+    }
+
+    assert.strictEqual(ok, true, 'предпросмотр открыт');
+    const diff = calls.find((c) => c[0] === 'vscode.diff');
+    assert.ok(diff, 'вызвана команда vscode.diff');
+    assert.ok(String(diff[3]).includes('scratch.js'), `заголовок без имени файла: ${diff[3]}`);
+  });
+
+  test('EDH-7: настройка edit.showProposalDiff=false отключает предпросмотр', async () => {
+    const controller: any = new EditController({ getDefault: () => undefined } as any);
+    const vscode = require('vscode');
+    const sinon = require('sinon');
+    const getConf = vscode.workspace.getConfiguration;
+    const stub = sinon.stub(vscode.workspace, 'getConfiguration').returns({
+      get: (key: string, def?: any) => (key === 'edit.showProposalDiff' ? false : def),
+    } as any);
+
+    let ok = true;
+    try {
+      ok = await controller.showProposalDiff(makeEditor(), { start: { line: 1, character: 2 }, end: { line: 1, character: 4 } }, 'x');
+    } finally {
+      stub.restore();
+      if (getConf) vscode.workspace.getConfiguration = getConf;
+    }
+    assert.strictEqual(ok, false, 'предпросмотр отключён настройкой');
+  });
+});

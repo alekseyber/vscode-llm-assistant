@@ -71,6 +71,10 @@ class EventEmitter {
 // --- Workspace ---
 const workspace = {
   workspaceFolders: [{ uri: Uri.file('/fake/workspace'), name: 'test', index: 0 }],
+  registerTextDocumentContentProvider() { return { dispose() {} }; },
+  registerCodeLensProvider() { return { dispose() {} }; },
+  applyEdit() { return Promise.resolve(true); },
+  onDidChangeConfiguration() { return { dispose() {} }; },
   getConfiguration(section) {
     return {
       get(key, defaultValue) {

@@ -3,7 +3,7 @@
   "displayName": "LLM Assistant — AI Agent for VS Code",
   "description": "AI-ассистент для VS Code: чат, inline-правки, автокомплит, ReAct-агент с инструментами и MCP. Облако BYOK или локальные модели (Ollama) — код не покидает машину.",
   "publisher": "alekseyber",
-  "version": "0.14.37",
+  "version": "0.14.38",
   "icon": "media/icon.png",
   "repository": {
     "type": "git",
@@ -320,6 +320,11 @@
           "type": "number",
           "default": 15,
           "description": "Лимит шагов агента в чате (было 5, зашито в коде и обрывало задачи)"
+        },
+        "llmAssistant.edit.showProposalDiff": {
+          "type": "boolean",
+          "default": true,
+          "description": "Открывать предлагаемую правку в diff-редакторе (слева — как есть, справа — результат)"
         }
       }
     },

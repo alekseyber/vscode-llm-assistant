@@ -7,6 +7,8 @@ import { computeDiff, applyDiffDecorations, clearDiffDecorations, acceptChanges 
 import { cleanLlmResponse } from '../../shared/cleanLlmResponse';
 import { buildThinkingExtraBody } from '../../shared/thinking';
 import { RunHistoryStore, RunEntry, generateRunId } from '../../shared/RunHistoryStore';
+import { buildProposalPreview } from './proposalPreview';
+import { ProposalContentProvider, PROPOSAL_SCHEME } from './ProposalContentProvider';
 import { calculateCost } from '../../providers/types';
 
 /**
@@ -38,6 +40,10 @@ export class EditController {
   /** CodeLens с кнопками «Принять / Отклонить» над предлагаемой правкой */
   private codeLensDisposable: vscode.Disposable | null = null;
   private codeLensEmitter: vscode.EventEmitter<void> = new vscode.EventEmitter<void>();
+
+  /** Виртуальные документы для diff-предпросмотра */
+  private proposalProvider: ProposalContentProvider | null = null;
+  private proposalRegistration: vscode.Disposable | null = null;
 
   /**
    * @param providerManager - менеджер провайдеров
@@ -239,6 +245,52 @@ export class EditController {
   }
 
   /**
+   * Показать предлагаемую правку в родном diff-редакторе VS Code.
+   *
+   * Слева — файл как есть, справа — файл с заменённым выделением. Это единственный способ
+   * увидеть сам новый код: декорации в исходном файле показывают только места вставки.
+   *
+   * @returns true, если предпросмотр открыт
+   */
+  public async showProposalDiff(editor: vscode.TextEditor, selection: vscode.Selection, newText: string): Promise<boolean> {
+    const config = vscode.workspace.getConfiguration('llmAssistant');
+    if (config.get<boolean>('edit.showProposalDiff') === false) return false;
+
+    const document = editor.document;
+    const preview = buildProposalPreview(
+      document.getText(),
+      document.offsetAt(selection.start),
+      document.offsetAt(selection.end),
+      newText,
+    );
+
+    if (!this.proposalProvider) this.proposalProvider = new ProposalContentProvider();
+    if (!this.proposalRegistration) this.proposalRegistration = this.proposalProvider.register();
+
+    const fileName = document.fileName || document.uri.path || 'code.txt';
+    const dot = fileName.lastIndexOf('.');
+    const ext = dot >= 0 ? fileName.slice(dot) : '.txt';
+    const base = `${PROPOSAL_SCHEME}:/preview/${Date.now()}`;
+    const beforeUri = vscode.Uri.parse(`${base}-before${ext}`);
+    const afterUri = vscode.Uri.parse(`${base}-after${ext}`);
+
+    this.proposalProvider.set(beforeUri, preview.before);
+    this.proposalProvider.set(afterUri, preview.after);
+
+    try {
+      await vscode.commands.executeCommand(
+        'vscode.diff',
+        beforeUri,
+        afterUri,
+        `LLM Assistant: предлагаемая правка — ${fileName.split(/[\\/]/).pop()}`,
+      );
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
    * Текст уведомления о предлагаемой правке.
    *
    * Содержит диапазон заменяемых строк и первую непустую строку нового кода:
@@ -282,7 +334,7 @@ export class EditController {
     this.disposeProposalCodeLens();
     const targetUri = editor.document.uri.toString();
     this.codeLensDisposable = vscode.languages.registerCodeLensProvider(
-      { scheme: editor.document.uri.scheme, language: editor.document.languageId },
+      { scheme: editor.document.uri.scheme },
       {
         onDidChangeCodeLenses: this.codeLensEmitter.event,
         provideCodeLenses: (document: vscode.TextDocument) => {
@@ -351,6 +403,9 @@ export class EditController {
 
     // Кнопки прямо у кода: без них при частичном выделении непонятно, что предлагается
     this.registerProposalCodeLens(editor);
+
+    // Главное: показать сам результат правки в diff-редакторе (слева «до», справа «после»)
+    void this.showProposalDiff(editor, selection, newText);
 
     // Показываем уведомление с кнопками Accept / Reject
     vscode.window.showInformationMessage(
