@@ -20,9 +20,19 @@
     'gpt-4o': { input: 2.50, output: 10.00 },
   };
 
-  function showTokenUsage(msg) {
+  /**
+   * Стоимость считает бэкенд (`cost` в сообщении): у WebView нет карты цен провайдеров,
+   * а хардкод-таблица с fallback $0.50/$1.00 за 1M показывала деньги за локальную модель.
+   * MODEL_PRICES оставлена как fallback для очень старых сообщений.
+   */
+  function resolveCost(msg) {
+    if (typeof msg.cost === 'number') return msg.cost;
     const price = MODEL_PRICES[msg.model] || { input: 0.5, output: 1.0 };
-    const cost = ((msg.inputTokens / 1_000_000) * price.input + (msg.outputTokens / 1_000_000) * price.output);
+    return (msg.inputTokens / 1_000_000) * price.input + (msg.outputTokens / 1_000_000) * price.output;
+  }
+
+  function showTokenUsage(msg) {
+    const cost = resolveCost(msg);
 
     // Обновляем индикатор в шапке
     const tokenText = document.querySelector('.token-text');

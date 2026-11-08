@@ -840,7 +840,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     this.postMessage({ type: 'done' }, sessionId);
 
     // Токены оркестратора в индикатор
-    this.postMessage({ type: 'tokens', inputTokens: result.totalInputTokens, outputTokens: result.totalOutputTokens, model, maxTokens: this.getMaxContextTokens() }, sessionId);
+    this.postMessage({ type: 'tokens', inputTokens: result.totalInputTokens, outputTokens: result.totalOutputTokens, model, maxTokens: this.getMaxContextTokens(), cost: this.computeCost(provider, model, result.totalInputTokens, result.totalOutputTokens) }, sessionId);
 
     // Сохраняем ответ в историю (user-сообщение уже записано в начале оркестрации)
     this.conversationManager.addMessageTo(sessionId, { role: 'assistant', content: result.summary });
@@ -903,7 +903,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   private postTokens(messages: any[], fullResponse: string, model: string): void {
     const inTokens = Math.ceil(messages.reduce((s: number, m: any) => s + (typeof m.content === 'string' ? m.content.length : JSON.stringify(m.content).length), 0) / 4);
     const outTokens = Math.ceil(fullResponse.length / 4);
-    this.postMessage({ type: 'tokens', inputTokens: inTokens, outputTokens: outTokens, model, maxTokens: this.getMaxContextTokens() });
+    this.postMessage({ type: 'tokens', inputTokens: inTokens, outputTokens: outTokens, model, maxTokens: this.getMaxContextTokens(), cost: this.computeCost(undefined, model, inTokens, outTokens) });
   }
 
   private async getSystemPrompt(mode: string, providerName?: string): Promise<string> {
@@ -1004,7 +1004,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     if (!sid) return;
     const last = this.runHistoryStore.getRuns().find((r) => r.sessionId === sid && r.status !== 'running');
     if (last) {
-      this.postMessage({ type: 'tokens', inputTokens: last.tokensIn, outputTokens: last.tokensOut, model: last.model, maxTokens: this.getMaxContextTokens() });
+      this.postMessage({ type: 'tokens', inputTokens: last.tokensIn, outputTokens: last.tokensOut, model: last.model, maxTokens: this.getMaxContextTokens(), cost: last.cost });
     } else {
       this.postMessage({ type: 'tokens', inputTokens: 0, outputTokens: 0, model: '', maxTokens: this.getMaxContextTokens() });
     }
@@ -1037,6 +1037,19 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
    * 2. Затем, если у провайдера есть discovery (локальный Ollama), список обновляется
    *    моделями с сервера. Ошибка discovery не ломает панель: остаётся конфиг.
    */
+  /**
+   * Стоимость запроса для индикатора в шапке панели.
+   *
+   * Считается на бэкенде, а не в WebView: у WebView была своя хардкод-таблица цен с
+   * fallback $0.50/$1.00 за 1M, из-за которой локальная модель показывала «≈ $0.0005».
+   * Для локального провайдера стоимость всегда 0.
+   */
+  private computeCost(provider: any, model: string, tokensIn: number, tokensOut: number): number {
+    if (provider?.isLocal) return 0;
+    // Без провайдера цена всё равно нулевая для локальной модели: нули лежат в pricingMap
+    return calculateCost(model, tokensIn, tokensOut, this.providerManager.pricingMap);
+  }
+
   private sendProviderListToWebview(): void {
     if (!this.view) return;
     const config = vscode.workspace.getConfiguration('llmAssistant');

@@ -616,3 +616,39 @@ suite('ChatWebview (jsdom)', () => {
     assert.strictEqual(msg.text, '@orchestrate построй проект', 'префикс @orchestrate добавлен');
   });
 });
+
+// ─────────── Стоимость запроса: считает бэкенд, WebView только отображает ───────────
+suite('WebView — индикатор стоимости', () => {
+  test('CVP-1.3: присланный cost используется как есть (локальная модель = 0)', () => {
+    const view = loadWebview();
+    view.dispatch({
+      type: 'tokens',
+      inputTokens: 768,
+      outputTokens: 67,
+      model: 'gemma3:4b',
+      maxTokens: 4092,
+      cost: 0,
+    });
+
+    const badge = view.document.querySelector('.token-badge');
+    const tokenText = view.document.querySelector('.token-text');
+
+    assert.ok(badge, 'бейдж токенов отрисован');
+    assert.match(badge!.textContent || '', /\$0\.0000/, 'локальная модель не показывает деньги');
+    assert.match(tokenText!.textContent || '', /\$0\.0000/);
+  });
+
+  test('CVP-1.3: старый формат без cost — fallback на встроенную таблицу', () => {
+    const view = loadWebview();
+    view.dispatch({
+      type: 'tokens',
+      inputTokens: 1_000_000,
+      outputTokens: 0,
+      model: 'gpt-4o',
+      maxTokens: 4092,
+    });
+
+    const badge = view.document.querySelector('.token-badge');
+    assert.match(badge!.textContent || '', /\$2\.5000/, 'для gpt-4o fallback-таблица даёт $2.50 за 1M');
+  });
+});
