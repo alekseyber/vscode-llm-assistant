@@ -5,7 +5,9 @@
 ![VS Marketplace Version](https://img.shields.io/visual-studio-marketplace/v/alekseyber.vscode-llm-assistant)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
-**AI-агент для VS Code, который умеет работать полностью локально.** Чат, inline-правки, автокомплит и ReAct-агент с инструментами — через любой OpenAI-совместимый API **или** через Ollama на твоей машине, без единого токена наружу.
+**AI-агент для VS Code с любым провайдером по своему ключу.** Чат, inline-правки, автокомплит и ReAct-агент с инструментами поверх любого OpenAI-совместимого API — DeepSeek, OpenAI, OpenRouter, SiliconFlow и других.
+
+Локальные модели (Ollama, llama.cpp) — **опция**, а не замена облаку: нужна, когда код не должен покидать машину или важно `$0`. Работает, но качество и скорость задаёт железо — на 8B-моделях это диалог «на подумать», для работы остаётся облачный ключ.
 
 ```bash
 code --install-extension alekseyber.vscode-llm-assistant
