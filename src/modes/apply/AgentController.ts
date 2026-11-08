@@ -130,6 +130,7 @@ export class AgentController {
    */
   async run(options: AgentRunOptions): Promise<AgentResult> {
     const maxIterations = options.maxIterations ?? this.getMaxIterationsFromConfig();
+    let denials = 0;
     const steps: AgentStep[] = [];
     const emit = (step: AgentStep): void => {
       steps.push(step);
@@ -228,7 +229,14 @@ export class AgentController {
           if (options.onConfirm) {
             const approved = await options.onConfirm(toolCall.name, (toolCall.arguments ?? {}) as Record<string, unknown>);
             if (!approved) {
-              const denied = 'Операция отклонена пользователем.';
+              denials += 1;
+              if (denials >= 2) {
+                const msg = `Выполнение остановлено: пользователь отклонил инструменты ${denials} раза подряд. Правки не внесены.`;
+                emit({ iteration: i, type: 'error', message: msg });
+                return { answer: msg, steps, iterations: i, limitExceeded: false, cancelled: true };
+              }
+              const denied = 'Операция отклонена пользователем. Не повторяй этот инструмент и не заменяй его '
+                + 'аналогичным (например, другой командой терминала). Заверши работу и опиши, что осталось невыполненным.';
               emit({ iteration: i, type: 'error', message: `Операция ${toolCall.name} отклонена` });
               messages.push({ role: 'assistant' as const, content: responseText });
               messages.push({ role: 'user' as const, content: denied });

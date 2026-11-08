@@ -108,6 +108,9 @@ export interface AgentWorkerOptions {
  *   - Сжатие истории (summary) при включённом enableSummary
  *   - Передачу готового массива сообщений через initialMessages (для runAgentLoop)
  */
+/** Сколько отказов подряд терпим перед остановкой прогона. */
+const MAX_DENIALS = 2;
+
 export class AgentWorker {
   /** Роль агента */
   readonly role: AgentRole;
@@ -225,6 +228,9 @@ export class AgentWorker {
     const summaryApplied = false; // summary применяется однократно
 
     // ReAct-цикл
+    // Сколько раз пользователь отказал: на втором отказе прогон останавливаем
+    let denials = 0;
+
     for (let i = 1; i <= (this.options.maxIterations || 10); i++) {
       if (this.options.signal?.aborted) {
         emit({ iteration: i, type: 'info', message: 'Выполнение отменено.' });
@@ -328,9 +334,27 @@ export class AgentWorker {
           if (this.options.onConfirm) {
             const approved = await this.options.onConfirm(toolName, args);
             if (!approved) {
+              denials += 1;
+              // Отказ не должен превращаться в цикл: модель любит переспрашивать
+              // тот же инструмент или подменять его аналогичным (run_terminal → xxd/od).
+              if (denials >= MAX_DENIALS) {
+                const msg = `Выполнение остановлено: пользователь отклонил инструменты ${denials} раза подряд. `
+                  + 'Правки не внесены.';
+                emit({ iteration: i, type: 'error', message: msg });
+                return {
+                  answer: msg,
+                  steps,
+                  iterations: i,
+                  inputTokens: 0,
+                  outputTokens: 0,
+                  cost: 0,
+                  error: msg,
+                };
+              }
               messages.push({
                 role: 'tool', tool_call_id: tc.id,
-                content: 'Операция отклонена пользователем.',
+                content: 'Операция отклонена пользователем. Не повторяй этот инструмент и не заменяй его '
+                  + 'аналогичным (например, другой командой терминала). Заверши работу и опиши, что осталось невыполненным.',
               });
               emit({ iteration: i, type: 'error', message: `Операция ${toolName} отклонена` });
               continue;

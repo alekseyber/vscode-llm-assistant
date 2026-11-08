@@ -63,9 +63,18 @@ const writeFileTool: ChatTool = {
   },
   async execute(args) {
     const filePath = resolvePath(args.path as string);
+    const content = args.content as string;
+    // Идемпотентность: повторная запись того же содержимого — не изменение файла.
+    // Модель часто дублирует write_file «на всякий случай», и это выглядело как 2 правки.
+    try {
+      const current = new TextDecoder().decode(await vscode.workspace.fs.readFile(vscode.Uri.file(filePath)));
+      if (current === content) {
+        return `Файл не изменён: содержимое уже совпадает (${filePath})`;
+      }
+    } catch { /* файла нет — пишем */ }
     await vscode.workspace.fs.createDirectory(vscode.Uri.file(path.dirname(filePath)));
-    await vscode.workspace.fs.writeFile(vscode.Uri.file(filePath), new TextEncoder().encode(args.content as string));
-    return `Файл записан: ${filePath} (${(args.content as string).length} символов)`;
+    await vscode.workspace.fs.writeFile(vscode.Uri.file(filePath), new TextEncoder().encode(content));
+    return `Файл записан: ${filePath} (${content.length} символов)`;
   },
 };
 

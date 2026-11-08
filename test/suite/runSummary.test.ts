@@ -3,18 +3,34 @@
 
 import 'mocha';
 import * as assert from 'assert';
-import { countFileChanges, fileChangesSummary, WRITE_TOOLS } from '../../src/shared/runSummary';
+import { changedFiles, countFileChanges, fileChangesSummary, WRITE_TOOLS } from '../../src/shared/runSummary';
 
 suite('runSummary / изменения файлов', () => {
   test('SUM-1: успешная запись и патч считаются, чтение — нет', () => {
     const steps = [
       { type: 'tool_call', toolName: 'read_file' },
       { type: 'tool_result', toolName: 'read_file', toolResult: 'Файл: a.txt' },
-      { type: 'tool_result', toolName: 'write_file', toolResult: 'Файл записан: a.txt (8 символов)' },
+      { type: 'tool_result', toolName: 'write_file', toolResult: 'Файл записан: /w/a.txt (8 символов)' },
       { type: 'tool_result', toolName: 'patch_file', toolResult: 'Патч применён' },
     ];
     assert.strictEqual(countFileChanges(steps), 2);
     assert.strictEqual(fileChangesSummary(steps), '📝 Изменено файлов: 2');
+  });
+
+  test('SUM-5: повторная запись того же файла — одна правка, а не две', () => {
+    const steps = [
+      { type: 'tool_result', toolName: 'write_file', toolResult: 'Файл записан: /w/a.txt (8 символов)' },
+      { type: 'tool_result', toolName: 'write_file', toolResult: 'Файл записан: /w/a.txt (8 символов)' },
+    ];
+    assert.deepStrictEqual(changedFiles(steps), ['/w/a.txt']);
+    assert.strictEqual(fileChangesSummary(steps), '📝 Изменено файлов: 1');
+  });
+
+  test('SUM-6: «Файл не изменён» не считается правкой', () => {
+    const steps = [
+      { type: 'tool_result', toolName: 'write_file', toolResult: 'Файл не изменён: содержимое уже совпадает (/w/a.txt)' },
+    ];
+    assert.strictEqual(fileChangesSummary(steps), '📝 Файлы не изменялись');
   });
 
   test('SUM-2: прогон без правок даёт «Файлы не изменялись» (случай «Готово» без инструментов)', () => {

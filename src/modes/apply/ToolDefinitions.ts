@@ -154,6 +154,13 @@ const writeFileTool: Tool = {
   async execute(args: unknown): Promise<string> {
     const { path: filePath, content } = args as WriteFileArgs;
     const absPath = resolvePath(filePath);
+    // Идемпотентность: та же запись повторно — не изменение файла (модель любит дублировать)
+    try {
+      const current = await readFileText(absPath);
+      if (current === content) {
+        return `Файл не изменён: содержимое уже совпадает (${absPath})`;
+      }
+    } catch { /* файла нет — пишем */ }
     await writeFileText(absPath, content);
     return `Файл записан: ${absPath} (${content.length} символов)`;
   }

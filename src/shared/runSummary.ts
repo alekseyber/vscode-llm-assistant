@@ -25,13 +25,28 @@ function isFailure(text: string | undefined): boolean {
  * Считаются только шаги `tool_result` с инструментом записи и без признака ошибки/отказа.
  */
 export function countFileChanges(steps: readonly StepLike[] | undefined): number {
-  if (!steps || steps.length === 0) return 0;
-  return steps.filter(
-    (s) => s.type === 'tool_result'
-      && !!s.toolName
-      && WRITE_TOOLS.has(s.toolName)
-      && !isFailure(s.toolResult),
-  ).length;
+  return changedFiles(steps).length;
+}
+
+/**
+ * Пути, которые реально изменились за прогон (без повторов).
+ * Повторная запись того же файла — одна правка, а не две.
+ * Путь берётся из результата инструмента («Файл записан: <path> …»), если он там есть.
+ */
+export function changedFiles(steps: readonly StepLike[] | undefined): string[] {
+  if (!steps || steps.length === 0) return [];
+  const files = new Set<string>();
+  let unknown = 0;
+  for (const s of steps) {
+    if (s.type !== 'tool_result' || !s.toolName || !WRITE_TOOLS.has(s.toolName)) continue;
+    if (isFailure(s.toolResult)) continue;
+    // «Файл не изменён» — не правка
+    if (/не изменён/i.test(s.toolResult ?? '')) continue;
+    const m = /Файл записан:\s*(.+?)\s*\(/.exec(s.toolResult ?? '');
+    if (m) files.add(m[1]);
+    else unknown += 1;
+  }
+  return [...files, ...Array.from({ length: unknown }, (_, i) => `#${i}`)];
 }
 
 /**

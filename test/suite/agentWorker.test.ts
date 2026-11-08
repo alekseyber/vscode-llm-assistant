@@ -492,3 +492,30 @@ suite('AgentWorker — локальный провайдер и extraBody', () =
     assert.strictEqual(provider.createWithTools.firstCall.args[1], 'qwen3:8b', 'ушла выбранная модель, а не defaultModel');
   });
 });
+
+// ─────────── Отказ в подтверждении не должен превращаться в цикл ───────────
+suite('AgentWorker / отказы пользователя', () => {
+  test('DEN-1: второй отказ подряд останавливает прогон, инструмент не выполняется', async () => {
+    const sinon = require('sinon');
+    const role: AgentRole = { name: 't', systemPrompt: 'Тест' };
+    const makeToolCall = () => ({
+      choices: [{
+        message: {
+          role: 'assistant',
+          content: null,
+          tool_calls: [{ id: `c${Math.random()}`, type: 'function', function: { name: 'write_file', arguments: '{"path":"a.txt","content":"x"}' } }],
+        },
+      }],
+      usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+    });
+    const provider = createMockProvider([makeToolCall(), makeToolCall(), makeToolCall()]);
+    const onConfirm = sinon.stub().resolves(false);
+
+    const worker = new AgentWorker(role, provider as any, { maxIterations: 5, onConfirm });
+    const result = await worker.run('запиши файл');
+
+    assert.strictEqual(onConfirm.callCount, 2, 'останавливаемся на втором отказе, а не крутимся');
+    assert.match(String(result.answer), /отклонил инструменты/i);
+    assert.match(String(result.error), /Правки не внесены/i);
+  });
+});
