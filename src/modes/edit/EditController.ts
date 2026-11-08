@@ -283,10 +283,64 @@ export class EditController {
         beforeUri,
         afterUri,
         `LLM Assistant: предлагаемая правка — ${fileName.split(/[\\/]/).pop()}`,
+        // Соседняя колонка + без перехвата фокуса: иначе diff открывается на месте
+        // исходного редактора, тот закрывается и Accept падает с
+        // «TextEditor#edit not possible on closed editors»
+        { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true, preview: true },
       );
       return true;
     } catch {
       return false;
+    }
+  }
+
+  /**
+   * Найти живой редактор для документа сессии.
+   *
+   * `TextEditor` протухает, когда его вкладку закрывают, — обращения к нему падают
+   * с «TextEditor#edit not possible on closed editors».
+   */
+  public resolveLiveEditor(editor: vscode.TextEditor): vscode.TextEditor | undefined {
+    const document = editor.document;
+    if (document && !document.isClosed) {
+      const open = vscode.window.visibleTextEditors.find(
+        (e) => e.document.uri.toString() === document.uri.toString(),
+      );
+      if (open) return open;
+      return editor;
+    }
+    const byUri = vscode.window.visibleTextEditors.find(
+      (e) => document && e.document.uri.toString() === document.uri.toString(),
+    );
+    return byUri;
+  }
+
+  /**
+   * Закрыть окно diff-предпросмотра и освободить виртуальные документы.
+   *
+   * Без этого после «Отклонить» окно остаётся висеть, а после «Принять» —
+   * показывает уже неактуальное предложение.
+   */
+  public async closeProposalDiff(): Promise<void> {
+    const closedUris: string[] = [];
+    for (const group of vscode.window.tabGroups.all) {
+      for (const tab of group.tabs) {
+        const input: any = tab.input;
+        const uri: vscode.Uri | undefined = input && input.uri ? input.uri : undefined;
+        if (uri && uri.scheme === PROPOSAL_SCHEME) {
+          closedUris.push(uri.toString());
+          try {
+            await vscode.window.tabGroups.close(tab);
+          } catch {
+            // вкладку уже закрыли — не мешает
+          }
+        }
+      }
+    }
+    if (this.proposalProvider) {
+      for (const raw of closedUris) {
+        this.proposalProvider.delete(vscode.Uri.parse(raw));
+      }
     }
   }
 
@@ -481,9 +535,16 @@ export class EditController {
     this.disposeProposalCodeLens();
     if (!this.currentSession) return;
 
-    const { editor, selection, newText } = this.currentSession;
+    const { selection, newText } = this.currentSession;
+    // Открытие diff могло закрыть исходный редактор — тогда берём живой по тому же документу
+    const editor = this.resolveLiveEditor(this.currentSession.editor);
 
     try {
+      if (!editor) {
+        vscode.window.showErrorMessage('Редактор с файлом закрыт — правка не применена');
+        return;
+      }
+
       // Применяем изменения через TextEditor.edit()
       const success = await acceptChanges(editor, newText, selection);
 
@@ -499,6 +560,7 @@ export class EditController {
       } else {
         vscode.window.showErrorMessage('Не удалось применить изменения');
       }
+      await this.closeProposalDiff();
     } catch (error: any) {
       vscode.window.showErrorMessage(`Ошибка при применении изменений: ${error.message}`);
       console.error('[EditController] Ошибка Accept:', error);
@@ -515,10 +577,11 @@ export class EditController {
     this.disposeProposalCodeLens();
     if (!this.currentSession) return;
 
-    const { editor } = this.currentSession;
+    const editor = this.resolveLiveEditor(this.currentSession.editor);
 
     // Просто очищаем декорации
-    clearDiffDecorations(editor);
+    if (editor) clearDiffDecorations(editor);
+    void this.closeProposalDiff();
 
     // Показываем сообщение
     vscode.window.showInformationMessage('Изменения отклонены');

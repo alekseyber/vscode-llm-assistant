@@ -154,3 +154,76 @@ suite('EditController / diff-предпросмотр предложения', (
     assert.strictEqual(ok, false, 'предпросмотр отключён настройкой');
   });
 });
+
+// ─────────── EDH-8..10: закрытый редактор и уборка diff-окна ───────────
+suite('EditController / приём и уборка предпросмотра', () => {
+  const vscode = require('vscode');
+
+  function editorFor(uriStr: string, closed = false) {
+    return {
+      document: { uri: { toString: () => uriStr, scheme: 'file', path: '/a.js', fsPath: '/a.js' }, isClosed: closed, getText: () => '', save: () => Promise.resolve(true) },
+      edit: (cb: any) => Promise.resolve(true),
+    } as any;
+  }
+
+  test('EDH-8: протухший редактор заменяется живым по тому же документу', () => {
+    const controller: any = new EditController({ getDefault: () => undefined } as any);
+    const stale = editorFor('file:///a.js', true);
+    const fresh = editorFor('file:///a.js', false);
+
+    vscode.window.visibleTextEditors = [fresh];
+    const resolved = controller.resolveLiveEditor(stale);
+    vscode.window.visibleTextEditors = [];
+
+    assert.strictEqual(resolved, fresh, 'взят видимый редактор того же документа');
+  });
+
+  test('EDH-8.1: живого редактора нет — resolveLiveEditor вернёт undefined', () => {
+    const controller: any = new EditController({ getDefault: () => undefined } as any);
+    vscode.window.visibleTextEditors = [];
+    assert.strictEqual(controller.resolveLiveEditor(editorFor('file:///b.js', true)), undefined);
+  });
+
+  test('EDH-9: closeProposalDiff закрывает только вкладки схемы llma-proposal', async () => {
+    const controller: any = new EditController({ getDefault: () => undefined } as any);
+    const closed: any[] = [];
+    const proposalTab = { input: { uri: { scheme: 'llma-proposal', toString: () => 'llma-proposal:/p-after.js' } } };
+    const fileTab = { input: { uri: { scheme: 'file', toString: () => 'file:///a.js' } } };
+
+    const origGroups = vscode.window.tabGroups;
+    vscode.window.tabGroups = {
+      all: [{ tabs: [proposalTab, fileTab] }],
+      close(tab: any) { closed.push(tab); return Promise.resolve(true); },
+    };
+
+    try {
+      await controller.closeProposalDiff();
+    } finally {
+      vscode.window.tabGroups = origGroups;
+    }
+
+    assert.deepStrictEqual(closed, [proposalTab], 'закрыта только вкладка предпросмотра');
+  });
+
+  test('EDH-10: отклонение закрывает diff-окно и чистит сессию', () => {
+    const controller: any = new EditController({ getDefault: () => undefined } as any);
+    const sinon = require('sinon');
+    const closeSpy = sinon.stub(controller, 'closeProposalDiff').resolves();
+    vscode.window.visibleTextEditors = [editorFor('file:///a.js', false)];
+    controller.currentSession = {
+      editor: editorFor('file:///a.js', false),
+      selection: { start: { line: 0 }, end: { line: 0 } },
+      oldText: 'a', newText: 'b', diffResult: { addedCount: 1, removedCount: 0 },
+    };
+
+    try {
+      controller.handleReject();
+    } finally {
+      closeSpy.restore();
+      vscode.window.visibleTextEditors = [];
+    }
+
+    assert.strictEqual(closeSpy.calledOnce, true, 'окно предпросмотра закрывается');
+    assert.strictEqual(controller.currentSession, null, 'сессия очищена');
+  });
+});

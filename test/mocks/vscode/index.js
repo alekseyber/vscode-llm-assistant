@@ -131,8 +131,17 @@ const languages = {
   createDiagnosticCollection() { return { set() {}, clear() {}, dispose() {} }; },
 };
 
+const ViewColumn = { Active: -1, Beside: -2, One: 1, Two: 2 };
+
 const window = {
   activeTextEditor: undefined,
+  /** Живые редакторы (тесты подменяют список) */
+  visibleTextEditors: [],
+  /** Группы вкладок: нужны для закрытия diff-предпросмотра */
+  tabGroups: {
+    all: [],
+    close(tab) { return Promise.resolve(true); },
+  },
   showInformationMessage(msg) { return Promise.resolve(); },
   showErrorMessage(msg) { return Promise.resolve(); },
   showWarningMessage(msg) { return Promise.resolve(); },
@@ -188,6 +197,7 @@ module.exports = {
   Position,
   workspace,
   window,
+  ViewColumn,
   languages,
   OverviewRulerLane,
   RelativePattern,
