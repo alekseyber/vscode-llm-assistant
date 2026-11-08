@@ -288,7 +288,7 @@ suite('ToolAllowList — loadToolAllowListConfig (интеграция)', () => 
     assert.strictEqual(config.allowedTools, undefined);
     assert.deepStrictEqual(
       config.requireConfirmation,
-      ['write_file', 'replace_in_file', 'run_terminal'],
+      ['write_file', 'replace_in_file', 'patch_file', 'run_terminal'],
     );
   });
 
@@ -308,7 +308,16 @@ suite('ToolAllowList — loadToolAllowListConfig (интеграция)', () => 
     // requireConfirmation из дефолта (глобальные игнорируются при наличии workspace-конфига)
     assert.deepStrictEqual(
       config.requireConfirmation,
-      ['write_file', 'replace_in_file', 'run_terminal'],
+      ['write_file', 'replace_in_file', 'patch_file', 'run_terminal'],
     );
+  });
+});
+
+// ─────────── ALW-2: patch_file тоже требует подтверждения ───────────
+suite('isConfirmationRequired / patch_file', () => {
+  test('ALW-2.1: по умолчанию patch_file в списке подтверждения (как write_file)', () => {
+    const cfg = { allowList: [], requireConfirmation: ['write_file', 'replace_in_file', 'patch_file', 'run_terminal'] } as any;
+    assert.strictEqual(isConfirmationRequired('patch_file', cfg), true);
+    assert.strictEqual(isConfirmationRequired('read_file', cfg), false);
   });
 });

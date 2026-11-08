@@ -42,7 +42,7 @@ since: 0.4.0
 | Невалидный JSON | Fallback на глобальные |
 | Нет workspace | Глобальные настройки |
 
-## Default: `write_file`, `replace_in_file`, `run_terminal` требуют подтверждения.
+## Default: `write_file`, `replace_in_file`, `patch_file`, `run_terminal` требуют подтверждения.
 
 ## Связи
 
@@ -54,7 +54,7 @@ since: 0.4.0
 - **Workspace:** `.vscode/llm-assistant.json` → `JSON.parse` → валидация
 - **Глобальный:** `llmAssistant.apply.allowedTools/requireConfirmation`
 - **Приоритет:** workspace > глобальные > DEFAULT_CONFIG
-- **DEFAULT_CONFIG:** `requireConfirmation: ['write_file', 'replace_in_file', 'run_terminal']`
+- **DEFAULT_CONFIG:** `requireConfirmation: ['write_file', 'replace_in_file', 'patch_file', 'run_terminal']`
 
 
 ## Тесты (toolAllowList.test.ts, 12+ тестов)

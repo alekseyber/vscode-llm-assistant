@@ -29,7 +29,7 @@ export const ALL_TOOL_NAMES = [
 
 /** Конфиг по умолчанию: все инструменты разрешены, опасные требуют подтверждения */
 export const DEFAULT_CONFIG: ToolAllowListConfig = {
-  requireConfirmation: ['write_file', 'replace_in_file', 'run_terminal'],
+  requireConfirmation: ['write_file', 'replace_in_file', 'patch_file', 'run_terminal'],
 };
 
 /**
