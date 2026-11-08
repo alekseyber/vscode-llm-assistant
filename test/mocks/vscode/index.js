@@ -114,6 +114,8 @@ const workspace = {
 };
 
 // --- Window ---
+const OverviewRulerLane = { Left: 1, Center: 2, Right: 4, Full: 7 };
+
 const window = {
   activeTextEditor: undefined,
   showInformationMessage(msg) { return Promise.resolve(); },
@@ -128,6 +130,10 @@ const window = {
       show() {},
       dispose() {},
     };
+  },
+  /** Типы декораций: реальный API возвращает объект с dispose(), его подменяют в тестах */
+  createTextEditorDecorationType(options) {
+    return { key: 'decoration', dispose() {} };
   },
   withProgress(options, task) {
     const progress = { report: () => {} };
@@ -166,6 +172,7 @@ module.exports = {
   Position,
   workspace,
   window,
+  OverviewRulerLane,
   ExtensionContext,
   EventEmitter,
   commands,

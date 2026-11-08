@@ -255,13 +255,14 @@ export function applyDiffDecorations(
       }
       currentLineOffset++;
     } else if (change.type === 'removed') {
-      // Для удалённых строк — подсвечиваем их текущую позицию
+      // Удалённой строки в новом тексте нет, поэтому offset НЕ двигаем: иначе парная
+      // «added» строка уезжает на строку ниже и подсветка встаёт на пустую строку
+      // (воспроизведено на замене `minutes1 → minutes2`: зелёный оказывался на пустой).
       const lineNumber = selectionStartLine + currentLineOffset;
       if (lineNumber < editor.document.lineCount) {
         const range = new vscode.Range(lineNumber, 0, lineNumber, editor.document.lineAt(lineNumber).text.length);
         removedRanges.push(range);
       }
-      currentLineOffset++;
     } else {
       // Неизменённые строки — просто проходим мимо
       currentLineOffset++;

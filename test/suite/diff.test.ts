@@ -64,3 +64,65 @@ suite('computeDiff', () => {
     assert.strictEqual(r.removedCount, 0);
   });
 });
+
+// ─────────── Декорации Edit: старая подсветка не должна переживать новую правку ───────────
+suite('applyDiffDecorations / clearDiffDecorations', () => {
+  const sinon = require('sinon');
+  const vscode = require('vscode');
+  const diffMod = require('../../src/modes/edit/diff');
+
+  function fakeEditor(lines: string[]) {
+    const sets: Array<{ type: any; ranges: any[] }> = [];
+    return {
+      sets,
+      document: {
+        uri: { toString: () => 'file:///time.js' },
+        lineCount: lines.length,
+        lineAt: (n: number) => ({ text: lines[n] ?? '' }),
+        getText: () => lines.join('\n'),
+        getTextInRange: () => lines.join('\n'),
+      },
+      setDecorations: (type: any, ranges: any[]) => sets.push({ type, ranges }),
+    } as any;
+  }
+
+  let sandbox: any;
+  setup(() => {
+    sandbox = sinon.createSandbox();
+    let n = 0;
+    sandbox.stub(vscode.window, 'createTextEditorDecorationType').callsFake(() => ({ key: `deco-${++n}`, dispose() {} }));
+  });
+  teardown(() => sandbox.restore());
+
+  test('ED-1.1: вторая правка начинается со снятия декораций первой', () => {
+    const editor = fakeEditor(['a', 'b', 'c', 'd']);
+    const diff1 = diffMod.computeDiff('a\nb', 'A\nb');
+    diffMod.applyDiffDecorations(editor, diff1, 0);
+    const firstTypes = editor.sets.map((s: any) => s.type);
+
+    editor.sets.length = 0;
+    const diff2 = diffMod.computeDiff('a\nb', 'X\nb');
+    diffMod.applyDiffDecorations(editor, diff2, 0);
+
+    const cleared = editor.sets.filter((s: any) => Array.isArray(s.ranges) && s.ranges.length === 0).map((s: any) => s.type);
+    assert.ok(cleared.length >= 2, 'старые типы сброшены в пустой список');
+    assert.ok(firstTypes.every((t2: any) => cleared.includes(t2)), 'сброшены именно типы предыдущей правки');
+  });
+
+  test('ED-1.2: подсветка добавленной строки указывает на строку с новым текстом', () => {
+    // old → new: заменена одна строка (minutes1 → minutes2), остальное без изменений
+    const oldText = ['  const hours = pad2(now.getHours());', '  const minutes1 = pad2(now.getMinutes());', '', '  return x;'].join('\n');
+    const newText = ['  const hours = pad2(now.getHours());', '  const minutes2 = pad2(now.getMinutes());', '', '  return x;'].join('\n');
+    const lines = newText.split('\n');
+    const editor = fakeEditor(lines);
+    const diff = diffMod.computeDiff(oldText, newText);
+    diffMod.applyDiffDecorations(editor, diff, 0);
+
+    const added = editor.sets.find((s: any) => s.ranges.length > 0 && s.type.key === 'deco-1');
+    const addedLines = (added?.ranges || []).map((r: any) => r.start.line);
+    assert.ok(
+      addedLines.includes(1),
+      `добавленная строка подсвечена на строке с minutes2 (0-based 1), факт: ${JSON.stringify(addedLines)}`,
+    );
+  });
+});
