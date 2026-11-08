@@ -27,6 +27,64 @@ const MODELS_CACHE_TTL_MS = 30_000;
 const TRUNCATION_MARGIN = 16;
 
 /**
+ * Таймаут на УСТАНОВЛЕНИЕ соединения (до первых заголовков ответа).
+ * Отдельно от `local.requestTimeout`: недоступный хост (не отказ порта, а «тишина»)
+ * иначе висит до 300 с, а чат в это время ждёт. Значение меняется только тестами.
+ */
+const DEFAULT_CONNECT_TIMEOUT_MS = 10_000;
+let connectTimeoutMs = DEFAULT_CONNECT_TIMEOUT_MS;
+
+/** Переопределение таймаута соединения — только для тестов. */
+export function __setConnectTimeoutForTests(ms: number): void {
+  connectTimeoutMs = ms;
+}
+
+/** Вернуть продакшн-значение таймаута соединения (для тестов). */
+export function __resetConnectTimeout(): void {
+  connectTimeoutMs = DEFAULT_CONNECT_TIMEOUT_MS;
+}
+
+/**
+ * `fetch` с отдельным таймаутом на соединение.
+ * Таймер снимается сразу после получения заголовков, поэтому долгая генерация
+ * не обрывается; отмена пользователя и общий таймаут по-прежнему рвут тело ответа.
+ */
+export async function fetchWithConnectTimeout(
+  input: string,
+  init: RequestInit,
+  signal: AbortSignal | undefined,
+  timeoutMs: number,
+): Promise<Response> {
+  const controller = new AbortController();
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
+  if (typeof (timer as any).unref === 'function') (timer as any).unref();
+  const onOuterAbort = () => controller.abort();
+  if (signal) {
+    if (signal.aborted) controller.abort();
+    else signal.addEventListener('abort', onOuterAbort, { once: true });
+  }
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } catch (error: any) {
+    if (timedOut && !signal?.aborted) {
+      const err: any = new Error(
+        `Ollama не ответила за ${Math.round(timeoutMs / 1000 * 10) / 10} с: сервер недоступен или не отвечает. ` +
+          'Проверьте, что он запущен и baseUrl верный.',
+      );
+      err.code = 'CONNECT_TIMEOUT';
+      throw err;
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
  * Модели, для которых предупреждение об обрезке уже показано в этой сессии.
  * Ключ `providerName:model`. Живёт на уровне модуля намеренно: `ProviderManager.refresh()`
  * пересоздаёт провайдера на любое изменение settings, и поле экземпляра давало бы
@@ -307,13 +365,19 @@ export class OllamaProvider extends BaseProvider {
   private async post(path: string, body: unknown, signal: AbortSignal): Promise<Response> {
     let response: Response;
     try {
-      response = await fetch(`${this.baseUrl}${path}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+      response = await fetchWithConnectTimeout(
+        `${this.baseUrl}${path}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        },
         signal,
-      });
+        connectTimeoutMs,
+      );
     } catch (error: any) {
+      // Отдельный таймаут соединения: уже содержит подсказку и код, оборачивать не надо
+      if (error?.code === 'CONNECT_TIMEOUT') throw error;
       if (signal.aborted) throw error;
       throw toConnectionError(error);
     }
