@@ -3,7 +3,7 @@
   "displayName": "VS Code LLM Assistant",
   "description": "AI-ассистент: чат, редактирование, автокомплит, агентный кодинг",
   "publisher": "alekseyber",
-  "version": "0.14.19",
+  "version": "0.14.20",
   "icon": "media/icon.png",
   "repository": {
     "type": "git",
@@ -14,7 +14,7 @@
   },
   "categories": [
     "Programming Languages",
-    "Other"
+    "Machine Learning"
   ],
   "activationEvents": [
     "onStartupFinished"
@@ -361,5 +361,25 @@
     "ui": "tdd",
     "timeout": 10000,
     "color": true
-  }
+  },
+  "keywords": [
+    "ai",
+    "ai agent",
+    "agent",
+    "copilot alternative",
+    "ollama",
+    "local llm",
+    "offline",
+    "byok",
+    "deepseek",
+    "openrouter",
+    "openai compatible",
+    "mcp",
+    "autocomplete",
+    "code review",
+    "refactoring",
+    "chatgpt",
+    "llm",
+    "privacy"
+  ]
 }

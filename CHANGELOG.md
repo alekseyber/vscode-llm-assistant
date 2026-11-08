@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.14.20 (2026-11-08)
+
+### Видимость в Marketplace
+
+- **`keywords` (18 шт.)** — раньше поле отсутствовало, расширение находилось только по точному имени: `ai agent`, `ollama`, `local llm`, `offline`, `byok`, `deepseek`, `openrouter`, `openai compatible`, `mcp`, `code review`, `refactoring`, `privacy`
+- **Категории:** `Other` → `Machine Learning` (вторая осталась `Programming Languages`), чтобы попадать в фильтры
+- README перестроен под конверсию: команда установки и демо — на первом экране, блок «Почему этот, а не Copilot / Cursor / GigaCode», раздел локальных моделей поднят наверх
+- `media/demo.gif` — короткая анимация (чат → Edit → подтверждение → агент) из существующих скриншотов
+- Убран бейдж числа установок
+
 ## 0.14.19 (2026-11-08)
 
 ### Документация
