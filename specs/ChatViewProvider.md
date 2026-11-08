@@ -1,6 +1,6 @@
 ---
 component: ChatViewProvider
-version: 0.14.12
+version: 0.14.13
 status: stable
 since: 0.1.0
 ---
@@ -142,6 +142,7 @@ since: 0.1.0
 
 | Версия | Дата | Изменения |
 |--------|------|-----------|
+| 0.14.13 | 2026-11-08 | `reveal()` посылает `focusInput`: команда «Открыть чат» ставит курсор в поле ввода (раньше только раскрывала панель); тест `CVP-1.8` |
 | 0.14.12 | 2026-11-08 | Лимит шагов агента читается из `llmAssistant.agent.maxIterations` (в коде было зашито 5); сводка «Изменено файлов: N» в ответе |
 | 0.13.0 | 2026-08-22 | P0 Этап 1: тулбар ⋮ + «Удалить все» — WebView шлёт `clearAllSessions` → `executeCommand('llmAssistant.clearAllSessions')`; `getHtmlForWebview` инжектит `toolbar.js` (`{{TOOLBAR}}`) |
 | 0.13.0 | 2026-08-22 | P0 Этап 2: сайдбар сессий — `sessionList` с `preview` (getSessionPreview) + обработчик `toggleFavorite` |

@@ -260,6 +260,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   /** Показать/сфокусировать вкладку чата (для llmAssistant.chat.focus — вместо легаси ChatPanel) */
   public reveal(): void {
     this.view?.show(true);
+    // show(true) только раскрывает панель: курсор в поле ввода ставит фронтенд
+    this.postMessage({ type: 'focusInput' });
   }
 
   private async handleSendMessage(text: string, mode = 'chat', providerName?: string, modelName?: string, planMode?: boolean, sessionId?: string): Promise<void> {

@@ -617,3 +617,21 @@ suite('visionUnsupportedWarning', () => {
     assert.match(text, /gemma3:4b/);
   });
 });
+
+// ─────────── CVP-1.8: «Открыть чат» ставит курсор в поле ввода ───────────
+suite('ChatViewProvider / reveal (chat.focus)', () => {
+  test('CVP-1.8: reveal() раскрывает панель и посылает focusInput', () => {
+    const postMessage = sinon.stub();
+    const show = sinon.stub();
+    const { ChatViewProvider } = require('../../src/modes/chat/ChatViewProvider');
+    const provider: any = Object.create(ChatViewProvider.prototype);
+    provider.view = { webview: { postMessage }, show };
+    provider.postMessage = (m: any) => postMessage(m);
+
+    provider.reveal();
+
+    assert.strictEqual(show.calledOnce, true, 'панель раскрыта');
+    const types = postMessage.getCalls().map((c: any) => c.args[0]?.type);
+    assert.ok(types.includes('focusInput'), `ожидали focusInput, факт: ${JSON.stringify(types)}`);
+  });
+});

@@ -682,6 +682,13 @@
         appendStreamChunk(message.text);
         break;
 
+      case 'focusInput': {
+        // Команда «LLM Assistant: Открыть чат» — курсор сразу в поле ввода
+        const box = document.getElementById('message-input');
+        if (box) box.focus();
+        break;
+      }
+
       case 'toolActivity':
         // Ход выполнения (tool calls) — структурированные шаги
         handleToolActivity(message.activity);
