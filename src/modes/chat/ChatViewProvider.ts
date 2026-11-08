@@ -1,6 +1,7 @@
 // ChatViewProvider — WebviewViewProvider для боковой панели чата
 // Plan Mode: ветвление handleSendMessage → PlanModeManager (v0.9.0)
 
+import { fileChangesSummary } from '../../shared/runSummary';
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -643,10 +644,12 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     // worker.run с initialMessages — использует готовый массив (system + история + AGENTS.md)
     const result = await worker.run('', messages);
 
-    // Финальный ответ
-    this.postMessage({ type: 'streamChunk', text: result.answer }, sessionId);
+    // Финальный ответ + честная сводка по файлам (модель может соврать «готово»)
+    const summary = fileChangesSummary(result.steps);
+    const answerWithSummary = `${result.answer}\n\n${summary}`;
+    this.postMessage({ type: 'streamChunk', text: answerWithSummary }, sessionId);
     this.postMessage({ type: 'done' }, sessionId);
-    this.conversationManager.addMessageTo(sessionId, { role: 'assistant', content: result.answer });
+    this.conversationManager.addMessageTo(sessionId, { role: 'assistant', content: answerWithSummary });
     this.postTokens(messages, result.answer, model);
     return { inputTokens: result.inputTokens, outputTokens: result.outputTokens, iterations: result.iterations };
   }

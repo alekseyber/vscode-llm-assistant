@@ -9,6 +9,7 @@
 //
 // Связывает все 4 режима (chat, edit, autocomplete, apply) через единый entry point.
 
+import { fileChangesSummary } from '../shared/runSummary';
 import * as vscode from 'vscode';
 import { ProviderManager } from '../providers/manager';
 import { OllamaProvider, describeLocalServer } from '../providers/ollama';
@@ -420,6 +421,15 @@ async function startApplyMode(
       outputChannel.appendLine(`[INFO] Задача завершена за ${result.iterations} шагов`);
       vscode.window.showInformationMessage('Агент завершил задачу. Подробности в Output Channel "LLM Assistant — Агент".');
     }
+
+    // Сводка по фактическим изменениям файлов: модель может сказать «готово» без правок
+    const stepsForSummary = (result.steps ?? []).map((s: any) => ({
+      type: s.type,
+      toolName: s.tool ?? s.toolName,
+      toolResult: s.result ?? s.toolResult,
+    }));
+    const changesSummary = fileChangesSummary(stepsForSummary);
+    outputChannel.appendLine(`[INFO] ${changesSummary}`);
 
     // Запись в историю запусков (слой 07 Product Shell)
     const duration = Date.now() - startTime;
