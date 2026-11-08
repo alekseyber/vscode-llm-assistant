@@ -4,6 +4,36 @@
 import { ChatMessage, CompletionOptions, LLMProvider, RetryCallback } from './types';
 
 /**
+ * Локальный ли провайдер по адресу.
+ *
+ * Признак локальности вешается на АДРЕС, а не на `type`: рядом с Ollama живут
+ * другие движки с OpenAI-совместимым API (llama.cpp `llama-server`, LM Studio,
+ * vLLM), и они подключаются записью `type: 'openai'`. Раньше `isLocal` и
+ * нулевая цена выдавались только `type === 'ollama'`, поэтому локальный
+ * openai-провайдер попадал в `DEFAULT_PRICING` ($0.50/$1.00) и показывал
+ * выдуманную стоимость — тот же дефект, что ловили на `gemma3:4b` в 0.14.0.
+ *
+ * Loopback: `localhost`, `*.localhost`, `127.0.0.0/8`, `::1` — с портом и путём.
+ * Адрес может быть задан без схемы (`127.0.0.1:8080/v1`).
+ */
+export function isLocalBaseUrl(baseUrl?: string): boolean {
+  if (!baseUrl || typeof baseUrl !== 'string') return false;
+  let host: string;
+  try {
+    const candidate = /^[a-z][a-z0-9+.-]*:\/\//i.test(baseUrl) ? baseUrl : `http://${baseUrl}`;
+    host = new URL(candidate).hostname.toLowerCase().replace(/^\[|\]$/g, '');
+  } catch {
+    // Незаполненные ${ENV}-плейсхолдеры и прочий мусор локальными не считаем
+    return false;
+  }
+  if (!host) return false;
+  if (host === 'localhost' || host.endsWith('.localhost')) return true;
+  if (host === '::1') return true;
+  const v4 = /^127\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host);
+  return !!v4 && v4.slice(1).every((part) => Number(part) <= 255);
+}
+
+/**
  * Абстрактный BaseProvider — шаблон для всех OpenAI-совместимых провайдеров.
  * Содержит базовую конфигурацию (name, baseUrl, apiKey, models) и определяет
  * контракт методов chat() и models(), которые должны быть реализованы в подклассе.

@@ -19,6 +19,18 @@ export interface ProviderConfig {
   models: string[];
   /** Поддержка vision (изображений) */
   supportsVision?: boolean;
+  /**
+   * Переопределения локальных настроек на уровне провайдера
+   * (`llmAssistant.local.*` остаются дефолтом). Приоритет: провайдер → глобальная
+   * настройка → встроенный дефолт. Осмысленны для локальных движков: у llama.cpp
+   * контекст и рассуждение задаются флагами сервера, и глобальный `numCtx` к нему
+   * молча не применяется — но `toolLoop`/`timeout` остаются полезны.
+   */
+  numCtx?: number;
+  think?: boolean;
+  /** Таймаут шага в секундах (переопределяет `llmAssistant.local.requestTimeout`) */
+  timeout?: number;
+  toolLoop?: boolean;
 }
 
 /**
@@ -61,6 +73,12 @@ export interface LLMProvider {
    * по умолчанию выключен (llmAssistant.local.toolLoop).
    */
   readonly isLocal?: boolean;
+
+  /**
+   * Переопределение агентского цикла для этого провайдера (`providers.<name>.toolLoop`).
+   * `undefined` — берётся глобальная `llmAssistant.local.toolLoop`.
+   */
+  readonly toolLoopOverride?: boolean;
 
   /**
    * Отправить сообщения в чат и получить стриминг ответа

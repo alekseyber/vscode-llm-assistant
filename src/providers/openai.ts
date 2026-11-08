@@ -32,16 +32,27 @@ function getRetryConfig(): RetryConfig {
 export class OpenAIProvider extends BaseProvider {
   private client: OpenAI;
   public readonly supportsVision: boolean;
+  /**
+   * Локальный движок с OpenAI-совместимым API (llama.cpp, LM Studio, vLLM).
+   * Признак приходит из `ProviderManager` — он решает по АДРЕСУ, а не по `type`.
+   */
+  public readonly isLocal?: boolean;
+  /** Переопределение агентского цикла для этого провайдера */
+  public readonly toolLoopOverride?: boolean;
 
   constructor(config: {
     name: string;
     baseUrl: string;
-    apiKey: string;
+    apiKey: string
     models: string[];
     supportsVision?: boolean;
+    isLocal?: boolean;
+    toolLoop?: boolean;
   }) {
     super(config);
     this.supportsVision = config.supportsVision ?? false;
+    this.isLocal = config.isLocal === true;
+    this.toolLoopOverride = typeof config.toolLoop === 'boolean' ? config.toolLoop : undefined;
     // Отключаем встроенные ретраи OpenAI SDK — используем свои через withRetry
     this.client = new OpenAI({ apiKey: this.apiKey, baseURL: this.baseUrl, maxRetries: 0 });
   }

@@ -126,6 +126,15 @@ export interface OllamaCapabilities {
   vision: boolean;
 }
 
+/** Переопределения из записи провайдера (`providers.<name>.*`), приоритетнее глобальных */
+export interface LocalOverrides {
+  numCtx?: number;
+  think?: boolean;
+  /** Таймаут шага, секунды */
+  timeout?: number;
+  toolLoop?: boolean;
+}
+
 /** Настройки локального провайдера, читаемые из llmAssistant.local.* */
 export interface OllamaLocalSettings {
   /** Гасить рассуждение (`think` в теле запроса); false по умолчанию */
@@ -138,18 +147,28 @@ export interface OllamaLocalSettings {
   retryEnabled: boolean;
   /** Сколько ретраев делать дополнительно */
   maxRetries: number;
+  /** Агентский цикл для локальной модели (глобально или из записи провайдера) */
+  toolLoop: boolean;
 }
 
 /**
  * Прочитать настройки локального провайдера.
  * Читается при каждом запросе — изменение применяется без перезагрузки окна.
  */
-export function readOllamaLocalSettings(): OllamaLocalSettings {
+export function readOllamaLocalSettings(overrides: LocalOverrides = {}): OllamaLocalSettings {
   const config = vscode.workspace.getConfiguration('llmAssistant');
+  // Приоритет: запись провайдера → глобальная настройка → встроенный дефолт.
+  // Невалидное переопределение (0, отрицательное, NaN) игнорируется, а не ломает запрос.
+  const num = (value: number | undefined, fallback: number): number =>
+    typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : fallback;
+  const flag = (value: boolean | undefined, fallback: boolean): boolean =>
+    typeof value === 'boolean' ? value : fallback;
   return {
-    think: config.get<boolean>('local.think', false),
-    numCtx: config.get<number>('local.numCtx', DEFAULT_NUM_CTX),
-    requestTimeoutMs: config.get<number>('local.requestTimeout', DEFAULT_LOCAL_TIMEOUT_MS / 1000) * 1000,
+    think: flag(overrides.think, config.get<boolean>('local.think', false)),
+    numCtx: num(overrides.numCtx, config.get<number>('local.numCtx', DEFAULT_NUM_CTX)),
+    requestTimeoutMs:
+      num(overrides.timeout, config.get<number>('local.requestTimeout', DEFAULT_LOCAL_TIMEOUT_MS / 1000)) * 1000,
+    toolLoop: flag(overrides.toolLoop, config.get<boolean>('local.toolLoop', false)),
     retryEnabled: config.get<boolean>('retry.enabled', true),
     maxRetries: config.get<number>('retry.maxRetries', DEFAULT_RETRY_OPTIONS.maxRetries),
   };
@@ -321,6 +340,10 @@ export class OllamaProvider extends BaseProvider {
   private modelsCache?: { at: number; models: string[] };
   /** Кэш capabilities по модели (на время жизни провайдера). */
   private readonly capsCache = new Map<string, OllamaCapabilities>();
+  /** Переопределения из записи провайдера (приоритетнее `llmAssistant.local.*`) */
+  private readonly overrides: LocalOverrides;
+  /** Переопределение агентского цикла для этого провайдера */
+  public readonly toolLoopOverride?: boolean;
 
   constructor(config: {
     name: string;
@@ -328,9 +351,12 @@ export class OllamaProvider extends BaseProvider {
     models: string[];
     apiKey?: string;
     supportsVision?: boolean;
+    overrides?: LocalOverrides;
   }) {
     super({ name: config.name, baseUrl: config.baseUrl, apiKey: config.apiKey ?? '', models: config.models });
     this.supportsVision = config.supportsVision ?? false;
+    this.overrides = config.overrides ?? {};
+    this.toolLoopOverride = typeof config.overrides?.toolLoop === 'boolean' ? config.overrides.toolLoop : undefined;
   }
 
   /**
@@ -345,7 +371,7 @@ export class OllamaProvider extends BaseProvider {
     stream: boolean,
     tools?: any[],
   ): Record<string, any> {
-    const local = readOllamaLocalSettings();
+    const local = readOllamaLocalSettings(this.overrides);
     const body: Record<string, any> = {
       model,
       messages: messages.map((m: any) => ({ role: m.role, content: m.content })),
@@ -474,7 +500,7 @@ export class OllamaProvider extends BaseProvider {
     signal?: AbortSignal,
     onRetry?: RetryCallback,
   ): AsyncIterable<string> {
-    const local = readOllamaLocalSettings();
+    const local = readOllamaLocalSettings(this.overrides);
     const { signal: composed, reset, cleanup } = createTimeoutSignal(signal, local.requestTimeoutMs);
     if (options.extraBody) {
       debugLog('[ollama] extraBody игнорируется: нативный API не принимает произвольные поля');
@@ -523,7 +549,7 @@ export class OllamaProvider extends BaseProvider {
     signal?: AbortSignal,
     onRetry?: RetryCallback,
   ): Promise<string> {
-    const local = readOllamaLocalSettings();
+    const local = readOllamaLocalSettings(this.overrides);
     const { signal: composed, cleanup } = createTimeoutSignal(signal, local.requestTimeoutMs);
 
     try {
@@ -560,7 +586,7 @@ export class OllamaProvider extends BaseProvider {
     signal?: AbortSignal,
     onRetry?: RetryCallback,
   ): AsyncIterable<string> {
-    const local = readOllamaLocalSettings();
+    const local = readOllamaLocalSettings(this.overrides);
     const { signal: composed, reset, cleanup } = createTimeoutSignal(signal, local.requestTimeoutMs);
 
     try {
@@ -624,7 +650,7 @@ export class OllamaProvider extends BaseProvider {
     onRetry?: RetryCallback,
     extraBody?: Record<string, any>,
   ): Promise<any> {
-    const local = readOllamaLocalSettings();
+    const local = readOllamaLocalSettings(this.overrides);
     if (extraBody) {
       debugLog('[ollama] extraBody в createWithTools игнорируется: рассуждение гасится флагом think');
     }

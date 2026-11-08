@@ -9,6 +9,7 @@ import { debugLog } from '../shared/logger';
 export const DEFAULT_OLLAMA_BASE_URL = 'http://127.0.0.1:11434';
 import { OpenAIProvider } from './openai';
 import { OllamaProvider } from './ollama';
+import { isLocalBaseUrl } from './base';
 
 /**
  * ProviderManager — управляет всеми LLM-провайдерами.
@@ -98,6 +99,17 @@ export class ProviderManager {
       const type = (providerCfg as any).type as 'openai' | 'ollama' | undefined;
       const supportsVision = (providerCfg as any).supportsVision ?? false;
 
+      // Переопределения локальных настроек на уровне записи провайдера
+      const overrides = {
+        numCtx: (providerCfg as any).numCtx as number | undefined,
+        think: (providerCfg as any).think as boolean | undefined,
+        timeout: (providerCfg as any).timeout as number | undefined,
+        toolLoop: (providerCfg as any).toolLoop as boolean | undefined,
+      };
+      // Локальность — по АДРЕСУ, а не по типу: рядом с Ollama живут OpenAI-совместимые
+      // движки (llama.cpp, LM Studio, vLLM), и они подключаются записью type: 'openai'.
+      const localByAddress = isLocalBaseUrl(baseUrl);
+
       if (type === 'ollama') {
         const local = new OllamaProvider({
           name,
@@ -105,6 +117,7 @@ export class ProviderManager {
           apiKey,
           models: modelNames,
           supportsVision,
+          overrides,
         });
         this.providers.set(name, local);
         // Локальные модели ничего не стоят: иначе calculateCost() возьмёт DEFAULT_PRICING
@@ -124,8 +137,15 @@ export class ProviderManager {
         apiKey,
         models: modelNames, // Только имена моделей (строки)
         supportsVision,
+        isLocal: localByAddress,
+        toolLoop: overrides.toolLoop,
       });
       this.providers.set(name, provider);
+      if (localByAddress) {
+        // Тот же дефект, что ловили на gemma3:4b: локальный движок с type:'openai'
+        // без обнуления цен попадает в DEFAULT_PRICING и показывает выдуманную стоимость.
+        this.setZeroPricing(modelNames);
+      }
     }
   }
 

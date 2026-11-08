@@ -95,6 +95,63 @@ suite('ProviderManager — локальный провайдер', () => {
     assert.deepStrictEqual(pricing.get('deepseek-chat'), { input: 0.14, output: 0.28 }, 'облачная цена не затёрта');
   });
 
+  test('PRM-2.1: type "openai" на loopback — isLocal и нулевая цена (llama.cpp)', () => {
+    createMockVscodeConfig({
+      providers: {
+        'local-llamacpp': {
+          type: 'openai',
+          baseUrl: 'http://127.0.0.1:8080/v1',
+          models: ['qwen3-8b'],
+        },
+      },
+    });
+
+    const manager = new ProviderManager();
+    const provider = manager.getProvider('local-llamacpp') as OpenAIProvider;
+
+    assert.ok(provider instanceof OpenAIProvider, 'ключ type=openai → OpenAIProvider');
+    assert.strictEqual(provider.isLocal, true, 'loopback-адрес делает провайдера локальным');
+    assert.deepStrictEqual(manager.pricingMap.get('qwen3-8b'), { input: 0, output: 0 }, 'локальная — бесплатно');
+    assert.strictEqual(calculateCost('qwen3-8b', 10000, 5000, manager.pricingMap), 0, 'выдуманной стоимости нет');
+  });
+
+  test('PRM-2.2: облачный адрес с type "openai" остаётся платным и не локальным', () => {
+    createMockVscodeConfig({
+      providers: {
+        openaiCloud: { type: 'openai', baseUrl: 'https://api.openai.com/v1', models: ['gpt-4o'] },
+      },
+    });
+
+    const manager = new ProviderManager();
+    const provider = manager.getProvider('openaiCloud') as OpenAIProvider;
+
+    assert.strictEqual(provider.isLocal, false, 'облачный адрес не локальный');
+    assert.notDeepStrictEqual(
+      manager.pricingMap.get('gpt-4o'),
+      { input: 0, output: 0 },
+      'цена облачной модели не обнулена',
+    );
+    assert.ok(calculateCost('gpt-4o', 10000, 5000, manager.pricingMap) > 0, 'стоимость считается');
+  });
+
+  test('PRM-2.3: toolLoop из записи провайдера попадает в провайдера, глобальный — нет', () => {
+    createMockVscodeConfig({
+      providers: {
+        'local-llamacpp': {
+          type: 'openai',
+          baseUrl: 'http://127.0.0.1:8080/v1',
+          models: ['qwen3-8b'],
+          toolLoop: true,
+        },
+        local: { type: 'ollama', baseUrl: 'http://127.0.0.1:11434', models: ['qwen3:8b'] },
+      },
+    });
+
+    const manager = new ProviderManager();
+    assert.strictEqual(manager.getProvider('local-llamacpp')!.toolLoopOverride, true);
+    assert.strictEqual(manager.getProvider('local')!.toolLoopOverride, undefined);
+  });
+
   test('PRM-1.4: setZeroPricing обнуляет модели, пришедшие из discovery', () => {
     createMockVscodeConfig({ providers: { local: { type: 'ollama', models: [] } } });
 

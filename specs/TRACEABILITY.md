@@ -73,6 +73,9 @@ version: 0.14.29
 | OLL-9.4 | `ollamaProviderLocal.test.ts` → «debug-строка с фактическим prompt_eval_count пишется на каждый ответ» | ✅ |
 | CG-1..3 | `contextGuard.test.ts` → «граница включительно…», «нет данных о токенах — null», «текст называет оба числа и обе ручки» | ✅ |
 | OLL-10.1..10.4 | `ollamaConnectTimeout.test.ts` → «сервер принял соединение и молчит…», «заголовки пришли — медленная генерация не рвётся», «провайдер отдаёт CONNECT_TIMEOUT быстро и не ретраит», «отмена не маскируется под таймаут» | ✅ |
+| OVL-1..3 | `localOverrides.test.ts` → «override побеждает глобальную настройку», «без override берётся глобальная», «невалидный override игнорируется» | ✅ |
+| PRM-2.1..2.3 | `providerManagerLocal.test.ts` → «type openai на loopback — isLocal и нулевая цена (llama.cpp)», «облачный адрес остаётся платным», «toolLoop из записи провайдера» | ✅ |
+| LZ-1..3 | `localAddress.test.ts` → «loopback в любых формах — локальный», «облачные и неоднозначные адреса — не локальные», «путь и query не влияют на вердикт» | ✅ |
 | TH-1.1 | `thinking.test.ts` → «deepseek + disableThinking:true»; «disableThinking:false»; «не-deepseek модель» | ✅ |
 | TH-1.2 | `thinking.test.ts` → «локальная модель не получает extraBody (гасится нативно)» | ✅ |
 | TH-1.3 | `thinking.test.ts` → «shouldDisableThinking — таблица решений» | ✅ |

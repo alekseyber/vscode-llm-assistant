@@ -174,7 +174,8 @@ export class AgentWorker {
     // Локальные модели (Ollama) в агентском цикле недостоверны: ≤8B выдумывают результат
     // инструментов вместо чтения. По умолчанию цикл им запрещён (llmAssistant.local.toolLoop).
     const isLocal = (this.provider as any).isLocal === true;
-    const toolLoopEnabled = config.get<boolean>('local.toolLoop', false);
+    const toolLoopEnabled =
+      (this.provider as any).toolLoopOverride ?? config.get<boolean>('local.toolLoop', false);
     if (isLocal && !toolLoopEnabled) {
       const message =
         'Локальная модель: агентский цикл выключен (llmAssistant.local.toolLoop = false). ' +

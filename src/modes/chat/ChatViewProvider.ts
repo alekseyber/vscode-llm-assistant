@@ -6,6 +6,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { ProviderManager } from '../../providers/manager';
+import { isLocalBaseUrl } from '../../providers/base';
 import { ConversationManager } from './ConversationManager';
 import { ChatMessage, calculateCost } from '../../providers/types';
 import { loadAgentsMd } from '../../shared/AgentsMdLoader';
@@ -35,7 +36,8 @@ export function buildProviderListFromConfig(
   const providers: Record<string, { models: string[]; isLocal?: boolean }> = {};
   for (const [name, cfg] of Object.entries(providersConfig ?? {})) {
     const models: string[] = Array.isArray(cfg?.models) ? cfg.models : [];
-    providers[name] = cfg?.type === 'ollama' ? { models, isLocal: true } : { models };
+    // Локальность — по адресу: у llama.cpp/LM Studio `type: 'openai'` на loopback
+    providers[name] = cfg?.type === 'ollama' || isLocalBaseUrl(cfg?.baseUrl) ? { models, isLocal: true } : { models };
   }
   return providers;
 }
@@ -1167,10 +1169,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             }
           }
           // Локальные модели бесплатны: обнуляем цены и для пришедших из discovery
-          if (cfg?.type === 'ollama' && provider?.isLocal) {
+          const localCfg = cfg?.type === 'ollama' || isLocalBaseUrl(cfg?.baseUrl);
+          if (localCfg && provider?.isLocal) {
             this.providerManager.setZeroPricing(models);
           }
-          withDiscovery[name] = cfg?.type === 'ollama' ? { models, isLocal: true } : { models };
+          withDiscovery[name] = localCfg ? { models, isLocal: true } : { models };
         }
         if (changed && this.view) {
           this.postMessage({ type: 'providerList', providers: withDiscovery, defaultProvider });
