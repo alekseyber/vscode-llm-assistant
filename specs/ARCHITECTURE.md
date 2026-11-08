@@ -251,6 +251,7 @@ AgentController (Apply Mode)
 
 | Версия | Дата | Изменения |
 |--------|------|-----------|
+| 0.14.51 | 2026-11-09 | E2E для локального пути в реальном Extension Host (`E2E-1`, `E2E-2`); хост-раннер собирает e2e из каталога вместо захардкоженного списка |
 | 0.14.46 | 2026-11-09 | Локальность по адресу (`isLocalBaseUrl`), второй локальный движок (llama.cpp) без новых настроек, `title` и override-поля в записи провайдера, диагностика обрезки промпта, таймаут соединения 10 с |
 | 0.14.0 | 2026-11-07 | +OllamaProvider (planned): нативный /api/chat вместо /v1, type в конфиге провайдера, локальные цены 0, isLocal |
 | 0.13.0 | 2026-08-23 | +thinking.ts, SessionLog, PlanModeManager, SlashCommands, HistoryViewProvider в карту; сайдбар/toolbar/activity-feed/тумблеры; autocomplete async + thinking; 38 компонентов; убран jest.config.js (Mocha); agent max 20 |

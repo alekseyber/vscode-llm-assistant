@@ -459,7 +459,7 @@ ollama pull gemma3:4b        # ~3.4 ГБ, работает и с картинк�
 ## Разработка
 
 - **Стек:** TypeScript, VS Code Extension API, WebView, Webpack
-- **Тесты:** Mocha + Sinon (449 mocked), E2E в реальном VS Code (22 теста), GitHub Actions CI
+- **Тесты:** Mocha + Sinon (**610** mocked-тестов), E2E в реальном VS Code (**24** теста), GitHub Actions CI (юниты + e2e в xvfb)
 - **SDD:** 41 spec-файлов (`specs/`), валидатор, pre-commit + CI
 - **Репозиторий:** github.com/alekseyber/vscode-llm-assistant
 - **Спецификации:** [specs/](https://github.com/alekseyber/vscode-llm-assistant/tree/main/specs) — 38 компонентов (+3 мета-документа), интерфейсы, контракты, AC
@@ -469,7 +469,7 @@ ollama pull gemma3:4b        # ~3.4 ГБ, работает и с картинк�
 npm install
 npm run compile        # Сборка
 npm run lint           # Линтер
-npm run test:mocked    # Тесты без VS Code (551 шт.)
+npm run test:mocked    # Тесты без VS Code (610 шт.)
 node scripts/spec-validate.js  # Проверка SDD
 ```
 

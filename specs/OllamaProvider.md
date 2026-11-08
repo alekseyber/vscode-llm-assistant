@@ -167,7 +167,9 @@ Discovery: `GET /api/tags` → имена моделей. Кэш на 30 с. П�
 | OVL-2 | Без override берётся глобальная настройка | ✅ |
 | OVL-3 | Невалидный override (`0`, `NaN`) игнорируется, запрос не ломается | ✅ |
 
-## Тесты (`test/suite/ollamaProviderLocal.test.ts`, 8 тестов)
+## Тесты (`test/suite/ollamaProviderLocal.test.ts`, 28 тестов)
+
+Отдельные файлы: `contextGuard.test.ts` (3), `ollamaConnectTimeout.test.ts` (5), `localOverrides.test.ts` (3), `localAddress.test.ts` (3). E2E в реальном Extension Host: `test/suite/e2e/localEngines.e2e.ts` (2).
 
 Сервер поднимается внутри теста (`node:http`), живой Ollama не нужен, в сеть тест не ходит.
 
