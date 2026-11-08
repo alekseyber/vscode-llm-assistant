@@ -35,6 +35,10 @@ export class EditController {
   private acceptDisposable: vscode.Disposable | null = null;
   private rejectDisposable: vscode.Disposable | null = null;
 
+  /** CodeLens с кнопками «Принять / Отклонить» над предлагаемой правкой */
+  private codeLensDisposable: vscode.Disposable | null = null;
+  private codeLensEmitter: vscode.EventEmitter<void> = new vscode.EventEmitter<void>();
+
   /**
    * @param providerManager - менеджер провайдеров
    */
@@ -235,6 +239,56 @@ export class EditController {
   }
 
   /**
+   * Данные для CodeLens над предлагаемой правкой.
+   *
+   * Нужны, чтобы пользователь видел кнопки прямо у кода, а не только в уведомлении
+   * внизу справа: при частичном выделении зелёные строки визуально совпадают с тем,
+   * что уже есть в файле, и без подписи непонятно, что именно предлагается.
+   */
+  public getProposalLenses(): Array<{ line: number; title: string; command: string }> {
+    if (!this.currentSession) return [];
+    const line = this.currentSession.selection.start.line;
+    const added = this.currentSession.diffResult.addedCount;
+    const removed = this.currentSession.diffResult.removedCount;
+    return [
+      { line, title: `✓ Принять правку (+${added} / −${removed})`, command: 'llmAssistant.edit.accept' },
+      { line, title: '✕ Отклонить', command: 'llmAssistant.edit.reject' },
+      { line, title: 'Ⓘ Что изменится: заменяются выделенные строки, остальное не трогается', command: '' },
+    ];
+  }
+
+  /** Зарегистрировать CodeLens-провайдер для документа с активной правкой. */
+  private registerProposalCodeLens(editor: vscode.TextEditor): void {
+    this.disposeProposalCodeLens();
+    const targetUri = editor.document.uri.toString();
+    this.codeLensDisposable = vscode.languages.registerCodeLensProvider(
+      { scheme: editor.document.uri.scheme, language: editor.document.languageId },
+      {
+        onDidChangeCodeLenses: this.codeLensEmitter.event,
+        provideCodeLenses: (document: vscode.TextDocument) => {
+          if (document.uri.toString() !== targetUri) return [];
+          return this.getProposalLenses()
+            .filter((l) => l.command)
+            .map((l) => new vscode.CodeLens(new vscode.Range(l.line, 0, l.line, 0), {
+              title: l.title,
+              command: l.command,
+            }));
+        },
+      },
+    );
+    this.codeLensEmitter.fire();
+  }
+
+  /** Снять CodeLens (после accept/reject или новой правки). */
+  private disposeProposalCodeLens(): void {
+    if (this.codeLensDisposable) {
+      this.codeLensDisposable.dispose();
+      this.codeLensDisposable = null;
+    }
+    this.codeLensEmitter.fire();
+  }
+
+  /**
    * Показать diff между старым и новым кодом.
    *
    * Использует декорации (зелёный для добавленного, красный для удалённого)
@@ -275,10 +329,15 @@ export class EditController {
     // Регистрируем команды accept/reject
     this.registerAcceptRejectCommands();
 
+    // Кнопки прямо у кода: без них при частичном выделении непонятно, что предлагается
+    this.registerProposalCodeLens(editor);
+
     // Показываем уведомление с кнопками Accept / Reject
+    const previewLine = (newText.split('\n').find((l) => l.trim().length > 0) || '').trim().slice(0, 80);
     vscode.window.showInformationMessage(
       `Строки ${selection.start.line + 1}–${selection.end.line + 1}: `
-        + `+${diffResult.addedCount} / −${diffResult.removedCount}. Принять или отклонить?`,
+        + `+${diffResult.addedCount} / −${diffResult.removedCount}. `
+        + `Будет: ${previewLine}. Принять?`,
       'Принять (Accept)',
       'Отклонить (Reject)'
     ).then((action) => {
@@ -347,6 +406,7 @@ export class EditController {
    * Обработать Accept — применить изменения.
    */
   private async handleAccept(): Promise<void> {
+    this.disposeProposalCodeLens();
     if (!this.currentSession) return;
 
     const { editor, selection, newText } = this.currentSession;
@@ -380,6 +440,7 @@ export class EditController {
    * Обработать Reject — отклонить изменения.
    */
   private handleReject(): void {
+    this.disposeProposalCodeLens();
     if (!this.currentSession) return;
 
     const { editor } = this.currentSession;

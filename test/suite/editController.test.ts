@@ -26,3 +26,28 @@ suite('EditController / история и уведомление', () => {
     assert.doesNotThrow(() => controller.recordRun('a', 'b', 'c', Date.now()));
   });
 });
+
+// ─────────── EDH-3: кнопки «Принять/Отклонить» прямо у кода ───────────
+suite('EditController / CodeLens над правкой', () => {
+  test('EDH-3: при активной правке линзы содержат команды accept/reject и число строк', () => {
+    const controller: any = new EditController({ getDefault: () => undefined } as any);
+    assert.deepStrictEqual(controller.getProposalLenses(), [], 'без сессии линз нет');
+
+    controller.currentSession = {
+      editor: {},
+      selection: { start: { line: 4 }, end: { line: 4 } },
+      oldText: 'a',
+      newText: 'b',
+      diffResult: { addedCount: 3, removedCount: 1 },
+    };
+
+    const lenses = controller.getProposalLenses();
+    const titles = lenses.map((l: any) => l.title);
+    const commands = lenses.filter((l: any) => l.command).map((l: any) => l.command);
+
+    assert.ok(commands.includes('llmAssistant.edit.accept'), JSON.stringify(commands));
+    assert.ok(commands.includes('llmAssistant.edit.reject'), JSON.stringify(commands));
+    assert.ok(titles.some((x: string) => x.includes('+3') && x.includes('−1')), JSON.stringify(titles));
+    assert.ok(lenses.every((l: any) => l.line === 4), 'линзы на строке выделения');
+  });
+});
