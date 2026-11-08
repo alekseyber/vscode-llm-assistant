@@ -87,6 +87,15 @@ export async function resolveVisionSupport(provider: any, model: string): Promis
   return false;
 }
 
+/**
+ * Предупреждение: у модели нет capability `vision`, изображение не отправлено.
+ * Вынесено отдельно, чтобы проверялось тестом без поднятия всего провайдера.
+ */
+export function visionUnsupportedWarning(model: string): string {
+  return `⚠️ Модель «${model}» не поддерживает изображения — картинка не отправлена. `
+    + 'Выберите модель с capability vision (например, gemma3:4b).\n\n';
+}
+
 export class ChatViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = 'llmAssistant.chat';
   private view?: vscode.WebviewView;
@@ -403,7 +412,17 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
       // Vision: добавляем одно сообщение с текстом + изображением
       const openaiProvider = provider as any;
-      if (isVision && (await this.isVisionSupported(provider, model))) {
+      const visionSupported = isVision ? await this.isVisionSupported(provider, model) : false;
+      if (isVision && !visionSupported) {
+        // Картинку не отдаём молча: пользователь иначе видит ответ, будто изображения не было
+        this.postMessage({
+          type: 'streamChunk',
+          text: visionUnsupportedWarning(model),
+        }, sessionId);
+        this.debugChannel.appendLine(`[DEBUG] vision: модель ${model} без capability vision, изображение отброшено`);
+        this.pendingImage = null;
+      }
+      if (isVision && visionSupported) {
         const userMsg: any = { role: 'user', content: [
           { type: 'text', text },
           { type: 'image_url', image_url: { url: `data:${this.pendingImage!.mimeType};base64,${this.pendingImage!.base64}` } }

@@ -6,7 +6,7 @@ import * as sinon from 'sinon';
 import * as vscode from 'vscode';
 import * as assert from 'assert';
 import * as path from 'path';
-import { ChatViewProvider, buildProviderListFromConfig, resolveModelForProvider, resolveVisionSupport } from '../../src/modes/chat/ChatViewProvider';
+import { ChatViewProvider, buildProviderListFromConfig, resolveModelForProvider, resolveVisionSupport, visionUnsupportedWarning } from '../../src/modes/chat/ChatViewProvider';
 import { ConversationManager } from '../../src/modes/chat/ConversationManager';
 import { RunHistoryStore } from '../../src/shared/RunHistoryStore';
 import { PlanModeManager } from '../../src/modes/chat/PlanModeManager';
@@ -605,5 +605,15 @@ suite('resolveVisionSupport', () => {
     assert.strictEqual(await resolveVisionSupport({ supportsVision: false }, 'deepseek-chat'), false);
     const broken = { isLocal: true, capabilities: async () => { throw new Error('offline'); } };
     assert.strictEqual(await resolveVisionSupport(broken, 'gemma3:4b'), false);
+  });
+});
+
+// ─────────── CVP-1.7: картинка не уходит молча ───────────
+suite('visionUnsupportedWarning', () => {
+  test('CVP-1.7: предупреждение называет модель и подсказывает vision-модель', () => {
+    const text = visionUnsupportedWarning('qwen3:8b');
+    assert.match(text, /qwen3:8b/);
+    assert.match(text, /не поддерживает изображения/);
+    assert.match(text, /gemma3:4b/);
   });
 });
