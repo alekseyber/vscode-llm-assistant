@@ -82,6 +82,7 @@ const workspace = {
     readFile(uri) { return Promise.resolve(new Uint8Array()); },
     writeFile(uri, data) { return Promise.resolve(); },
     createDirectory(uri) { return Promise.resolve(); },
+    stat(uri) { return Promise.resolve({ size: 0, type: 1 }); },
   },
   onDidChangeConfiguration(listener) {
     return { dispose: () => {} };
@@ -114,6 +115,10 @@ const workspace = {
 };
 
 // --- Window ---
+class RelativePattern {
+  constructor(base, pattern) { this.base = base; this.pattern = pattern; }
+}
+
 const OverviewRulerLane = { Left: 1, Center: 2, Right: 4, Full: 7 };
 
 const window = {
@@ -173,6 +178,7 @@ module.exports = {
   workspace,
   window,
   OverviewRulerLane,
+  RelativePattern,
   ExtensionContext,
   EventEmitter,
   commands,

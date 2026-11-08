@@ -104,6 +104,70 @@ async function writeFileText(filePath: string, content: string): Promise<void> {
   await vscode.workspace.fs.writeFile(uri, new TextEncoder().encode(content));
 }
 
+
+// --- search_files: лимиты и ранжирование ---
+
+/** Потолок числа файлов, которые просматривает поиск (было 500 — обрезало большие репозитории). */
+const MAX_SCAN_FILES = 5000;
+/** Сколько совпадений собираем до ранжирования. */
+const MAX_COLLECT = 600;
+/** Сколько совпадений отдаём модели после ранжирования. */
+const MAX_MATCHES = 60;
+/** Файлы больше этого размера не читаем (обычно минифицированный код и артефакты). */
+const MAX_FILE_BYTES = 1_000_000;
+/** Что исключаем на уровне поиска файлов. */
+const SCAN_EXCLUDE_GLOB = '**/{node_modules,.git,dist,out,build,coverage,.next,vendor,.vscode-test}/**';
+
+export interface RankedMatch {
+  text: string;
+  score: number;
+}
+
+const DECLARATION_RE = /^\s*(export\s+)?(async\s+)?(function|class|interface|type|enum|const|let|var|def|struct|impl|trait|record)\b/;
+
+/** Оценка значимости строки-совпадения: чем «объявнее», тем выше. */
+export function lineScore(line: string, fileName: string, regex: RegExp): number {
+  let score = 1;
+  if (DECLARATION_RE.test(line)) score += 2;
+  if (regex.test(fileName)) score += 1;
+  // Строка-комментарий менее интересна, чем код
+  if (/^\s*(\/\/|#|\*|--)/.test(line)) score -= 1;
+  return score;
+}
+
+/** Разобрать .gitignore в список простых правил (без полноценного git-синтаксиса). */
+export function parseGitignore(text: string): string[] {
+  return text
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0 && !l.startsWith('#') && !l.startsWith('!'))
+    .map((l) => l.replace(/^\//, '').replace(/\/$/, ''));
+}
+
+/** Попадает ли путь под правила .gitignore (по префиксу каталога или шаблону с *). */
+export function isIgnored(relativePath: string, rules: readonly string[]): boolean {
+  const p = relativePath.replace(/\\/g, '/');
+  for (const rule of rules) {
+    if (rule.includes('*')) {
+      const rx = new RegExp('^' + rule.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*\*/g, '.*').replace(/\*/g, '[^/]*') + '($|/)');
+      if (rx.test(p)) return true;
+      continue;
+    }
+    if (p === rule || p.startsWith(rule + '/') || p.includes('/' + rule + '/')) return true;
+  }
+  return false;
+}
+
+/** Прочитать .gitignore из корня workspace (если есть). */
+async function loadGitignoreRules(root: string): Promise<string[]> {
+  try {
+    const text = await readFileText(path.join(root, '.gitignore'));
+    return parseGitignore(text);
+  } catch {
+    return [];
+  }
+}
+
 // --- Определения инструментов ---
 
 /** read_file: чтение содержимого файла с нумерацией строк */
@@ -231,41 +295,59 @@ const searchFilesTool: Tool = {
       return `Ошибка: невалидное регулярное выражение '${pattern}'`;
     }
 
-    // Ищем файлы в папке по glob-фильтру, исключая node_modules (лимит 500 файлов)
+    // Ищем файлы по glob-фильтру. Потолок поднят: раньше 500 файлов обрезали поиск
+    // на реальных репозиториях и агент получал «ничего не найдено» при существующем коде.
     const globPattern = new vscode.RelativePattern(searchDir, file_glob);
-    const files = await vscode.workspace.findFiles(globPattern, '**/node_modules/**', 500);
+    const files = await vscode.workspace.findFiles(globPattern, SCAN_EXCLUDE_GLOB, MAX_SCAN_FILES);
 
-    const matches: string[] = [];
-    const MAX_MATCHES = 200;
+    const ignore = await loadGitignoreRules(root);
+    const found: RankedMatch[] = [];
+    let skippedByIgnore = 0;
 
     for (const fileUri of files) {
-      // 1. Поиск по имени файла
-      const fileName = path.basename(fileUri.fsPath);
-      if (regex.test(fileName)) {
-        matches.push(`ФАЙЛ: ${fileUri.fsPath}`);
+      const relative = path.relative(root, fileUri.fsPath) || fileUri.fsPath;
+      if (isIgnored(relative, ignore)) {
+        skippedByIgnore += 1;
+        continue;
       }
 
-      // 2. Поиск по содержимому файла
+      const fileName = path.basename(fileUri.fsPath);
+      if (regex.test(fileName)) {
+        found.push({ text: `ФАЙЛ: ${fileUri.fsPath}`, score: 4 });
+      }
+
       try {
+        const stat = await vscode.workspace.fs.stat?.(fileUri);
+        if (stat && typeof stat.size === 'number' && stat.size > MAX_FILE_BYTES) continue;
+
         const content = await readFileText(fileUri.fsPath);
         const lines = content.split('\n');
         for (let i = 0; i < lines.length; i++) {
           if (regex.test(lines[i])) {
-            matches.push(`${fileUri.fsPath}:${i + 1}: ${lines[i].trim().slice(0, 200)}`);
-            if (matches.length >= MAX_MATCHES) break;
+            found.push({
+              text: `${fileUri.fsPath}:${i + 1}: ${lines[i].trim().slice(0, 200)}`,
+              score: lineScore(lines[i], fileName, regex),
+            });
+            if (found.length >= MAX_COLLECT) break;
           }
         }
       } catch {
         // Пропускаем файлы, которые не удалось прочитать (бинарные, без прав)
       }
 
-      if (matches.length >= MAX_MATCHES) break;
+      if (found.length >= MAX_COLLECT) break;
     }
 
-    if (matches.length === 0) {
+    if (found.length === 0) {
       return `По запросу '${pattern}' в '${searchDir}' (glob: ${file_glob}) ничего не найдено`;
     }
-    return `Найдено совпадений: ${matches.length}\n${matches.join('\n')}`;
+
+    // Ранжирование: объявления символов и совпадения в имени файла выше случайных вхождений
+    found.sort((a, b) => b.score - a.score);
+    const shown = found.slice(0, MAX_MATCHES).map((m) => m.text);
+    const rest = found.length > shown.length ? `\n…и ещё ${found.length - shown.length} совпадений` : '';
+    const ignoredNote = skippedByIgnore > 0 ? ` (${skippedByIgnore} файлов пропущено по .gitignore)` : '';
+    return `Найдено совпадений: ${found.length}${ignoredNote}\n${shown.join('\n')}${rest}`;
   }
 };
 
