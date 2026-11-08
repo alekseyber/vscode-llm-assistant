@@ -57,7 +57,8 @@ code --install-extension alekseyber.vscode-llm-assistant
 
 **Из `.vsix` (ручная установка):**
 ```bash
-code --install-extension vscode-llm-assistant-0.13.0.vsix
+# ставится самый свежий файл из текущей папки — версию не нужно держать в голове
+code --install-extension "$(ls -t vscode-llm-assistant-*.vsix | head -1)" --force
 ```
 
 **Быстрый старт:**
@@ -392,17 +393,21 @@ code --install-extension vscode-llm-assistant-0.13.0.vsix
 npm install
 npm run compile        # Сборка
 npm run lint           # Линтер
-npm run test:mocked    # Тесты без VS Code (449 шт.)
+npm run test:mocked    # Тесты без VS Code (539 шт.)
 node scripts/spec-validate.js  # Проверка SDD
 ```
 
 **Запуск в режиме разработки:** F5 → «Run Extension» → Extension Development Host.
 
-**Установка локальной сборки:**
+**Сборка и установка локально (любая версия, без указания номера):**
 ```bash
+npx @vscode/vsce package                       # → vscode-llm-assistant-<версия>.vsix
 rm -rf ~/.vscode-server/extensions/alekseyber.vscode-llm-assistant-*
-code --install-extension vscode-llm-assistant-0.13.0.vsix
+code --install-extension "$(ls -t vscode-llm-assistant-*.vsix | head -1)" --force
+code --list-extensions --show-versions | grep alekseyber   # проверить версию
 ```
+
+`ls -t … | head -1` берёт самый новый VSIX в папке, поэтому команда не устаревает вместе с номером версии. Если файл лежит в другой папке — подставь путь: `code --install-extension ~/projects/vscode-llm-assistant/vscode-llm-assistant-*.vsix` (берёт первый по алфавиту, лучше явный `ls -t`).
 
 ## Лицензия
 

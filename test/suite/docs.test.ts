@@ -67,3 +67,16 @@ suite('Документация / .llma', () => {
     assert.ok(checked.length >= 5, `сверено слишком мало настроек: ${checked.length}`);
   });
 });
+
+// ─────────── Команды установки без привязки к версии ───────────
+suite('Документация / установка VSIX', () => {
+  const fs3 = require('fs');
+  const path3 = require('path');
+  const ROOT3 = path3.resolve(__dirname, '../../..');
+  const readme3 = fs3.readFileSync(path3.join(ROOT3, 'README.md'), 'utf-8');
+
+  test('DOC-6: в README нет жёстко зашитой версии VSIX', () => {
+    const hardcoded = readme3.match(/vscode-llm-assistant-\d+\.\d+\.\d+\.vsix/g) ?? [];
+    assert.deepStrictEqual(hardcoded, [], `команда установки привязана к версии: ${JSON.stringify(hardcoded)}`);
+  });
+});
