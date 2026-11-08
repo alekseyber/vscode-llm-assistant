@@ -27,6 +27,8 @@ spec_for() {
     src/providers/ollama.ts)  echo "specs/OllamaProvider.md" ;;
     src/shared/logger.ts)     echo "specs/Logger.md" ;;
     src/shared/streaming.ts)  echo "specs/Streaming.md" ;;
+    src/shared/runSummary.ts) echo "specs/RunSummary.md" ;;
+    src/shared/promptGuard.ts) echo "specs/PromptGuard.md" ;;
     *)                        echo "specs/$(basename "$1" .ts).md" ;;
   esac
 }

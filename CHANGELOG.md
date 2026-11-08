@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.14.30 (2026-11-08)
+
+### CI
+
+- `scripts/sdd-check.sh`: в маппинг «src-файл → спека» добавлены `promptGuard.ts → PromptGuard.md` и `runSummary.ts → RunSummary.md`. Без этого CI падал на новом модуле: скрипт искал `specs/promptGuard.md` по basename
+
 ## 0.14.29 (2026-11-08)
 
 ### Защита от prompt injection (P11)
