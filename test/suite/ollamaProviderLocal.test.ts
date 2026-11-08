@@ -223,6 +223,10 @@ suite('OllamaProvider (нативный /api/chat)', () => {
       (err: any) => {
         assert.match(err.message, /Ollama/);
         assert.match(err.message, /туннель/);
+        // OLL-6.2 (0.15.2): стенд штатно погашен — подсказка про намеренную остановку
+        assert.match(err.message, /остановлен намеренно/);
+        assert.match(err.message, /запустите/i);
+        assert.match(err.message, /baseUrl/);
         assert.ok(err.code, 'код ошибки сохраняется для RetryHandler');
         return true;
       },
