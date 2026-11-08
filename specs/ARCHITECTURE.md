@@ -43,7 +43,7 @@ extension.ts (вход)
 │   │   ├── ToolSystem            [spec ✅] — реестр инструментов (не ChatAgentTools!)
 │   │   └── ToolDefinitions       [spec ✅] — createTools() (read/write/patch/search/terminal/web_fetch)
 │   │
-│   ├── ✏️ Edit Mode (Ctrl+I)
+│   ├── ✏️ Edit Mode (Ctrl+Alt+I)
 │   │   └── EditController        [spec ✅] — inline diff
 │   │
 │   ├── 💡 Code Actions

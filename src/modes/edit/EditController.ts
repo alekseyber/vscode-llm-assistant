@@ -1,4 +1,4 @@
-// EditController — управление Edit Mode (Ctrl+I)
+// EditController — управление Edit Mode (Ctrl+Alt+I)
 // Выделение кода → QuickPick (ввод инструкции) → LLM запрос → diff view → accept/reject
 
 import * as vscode from 'vscode';
@@ -12,7 +12,7 @@ import { buildThinkingExtraBody } from '../../shared/thinking';
  *
  * Flow:
  * 1. Пользователь выделяет код в редакторе
- * 2. Вызывает команду llmAssistant.edit.selection (Ctrl+I)
+ * 2. Вызывает команду llmAssistant.edit.selection (Ctrl+Alt+I)
  * 3. Появляется QuickPick для ввода инструкции
  * 4. Отправляется запрос к LLM: контекст (выделенный код) + инструкция пользователя
  * 5. LLM возвращает изменённый код

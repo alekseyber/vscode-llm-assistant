@@ -3,7 +3,7 @@
   "displayName": "VS Code LLM Assistant",
   "description": "AI-ассистент: чат, редактирование, автокомплит, агентный кодинг",
   "publisher": "alekseyber",
-  "version": "0.14.21",
+  "version": "0.14.22",
   "icon": "media/icon.png",
   "repository": {
     "type": "git",
@@ -79,7 +79,8 @@
       },
       {
         "command": "llmAssistant.edit.selection",
-        "key": "ctrl+i"
+        "key": "ctrl+alt+i",
+        "when": "editorTextFocus && !editorReadonly"
       },
       {
         "command": "llmAssistant.apply.start",
@@ -318,6 +319,25 @@
           "description": "Лимит шагов агента в чате (было 5, зашито в коде и обрывало задачи)"
         }
       }
+    },
+    "menus": {
+      "editor/context": [
+        {
+          "command": "llmAssistant.edit.selection",
+          "when": "editorHasSelection && !editorReadonly",
+          "group": "llmAssistant@1"
+        },
+        {
+          "command": "llmAssistant.chat.addSelection",
+          "when": "editorHasSelection",
+          "group": "llmAssistant@2"
+        },
+        {
+          "command": "llmAssistant.review.file",
+          "when": "editorHasSelection",
+          "group": "llmAssistant@3"
+        }
+      ]
     }
   },
   "scripts": {

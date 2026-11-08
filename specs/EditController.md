@@ -1,13 +1,13 @@
 ---
 component: EditController
-version: 0.13.0
+version: 0.14.22
 status: beta
 since: 0.1.0
 ---
 
 ## Назначение
 
-Режим редактирования (Ctrl+I): выделение текста → запрос к LLM → inline diff.
+Режим редактирования (Ctrl+Alt+I): выделение текста → запрос к LLM → inline diff.
 
 ## Интерфейс
 
@@ -79,6 +79,7 @@ since: 0.1.0
 
 | Версия | Дата | Изменения |
 |--------|------|-----------|
+| 0.14.22 | 2026-11-08 | Хоткей `Ctrl+Alt+I` вместо `Ctrl+I` (тот занят встроенным inline chat/Copilot); добавлен пункт в контекстное меню редактора |
 | 0.13.0 | 2026-08-23 | extraBody (thinking disabled для deepseek) |
 | 0.10.0 | 2026-08-20 | `cleanLlmResponse` вынесена в shared (убрано дублирование с AutocompleteController) |
 | 0.1.0 | 2026-08-04 | Базовая реализация |

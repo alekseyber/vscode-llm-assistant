@@ -2,7 +2,7 @@
 // Регистрирует 6 команд в Command Palette с горячими клавишами (keybindings в package.json):
 //   1. llmAssistant.chat.open           (Ctrl+Shift+L) — открыть чат
 //   2. llmAssistant.chat.addSelection   — добавить выделение в контекст чата
-//   3. llmAssistant.edit.selection      (Ctrl+I)       — редактировать выделенный код
+//   3. llmAssistant.edit.selection      (Ctrl+Alt+I)   — редактировать выделенный код
 //   4. llmAssistant.autocomplete.toggle — вкл/выкл автокомплит
 //   5. llmAssistant.apply.start         (Ctrl+Shift+A) — запустить агентный режим
 //   6. llmAssistant.selectProvider      — выбрать провайдера/модель через QuickPick
@@ -82,7 +82,7 @@ export function registerCommands(deps: CommandDependencies): void {
     })
   );
 
-  // ── 3. llmAssistant.edit.selection (Ctrl+I) — редактировать выделенный код ──
+  // ── 3. llmAssistant.edit.selection (Ctrl+Alt+I) — редактировать выделенный код ──
   context.subscriptions.push(
     vscode.commands.registerCommand('llmAssistant.edit.selection', () => {
       // Запускаем Edit Mode: выделение → QuickPick → LLM → diff → accept/reject
