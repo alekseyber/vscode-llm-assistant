@@ -67,6 +67,26 @@ export async function resolveModelForProvider(
   return defaultModel;
 }
 
+/**
+ * Умеет ли модель принимать изображения (для ветки vision в handleSendMessage).
+ *
+ * Приоритет: явный `supportsVision` в конфиге → capabilities локального провайдера
+ * (`/api/show`, кэшируется) → false. Без этого `gemma3:4b` с реальной capability
+ * `vision` картинки не получал, и модель отвечала «я не могу просматривать изображения».
+ */
+export async function resolveVisionSupport(provider: any, model: string): Promise<boolean> {
+  if (provider?.supportsVision) return true;
+  if (provider?.isLocal && typeof provider.capabilities === 'function') {
+    try {
+      const caps = await provider.capabilities(model);
+      return caps?.vision === true;
+    } catch {
+      return false;
+    }
+  }
+  return false;
+}
+
 export class ChatViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = 'llmAssistant.chat';
   private view?: vscode.WebviewView;
@@ -383,7 +403,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
       // Vision: добавляем одно сообщение с текстом + изображением
       const openaiProvider = provider as any;
-      if (isVision && openaiProvider.supportsVision) {
+      if (isVision && (await this.isVisionSupported(provider, model))) {
         const userMsg: any = { role: 'user', content: [
           { type: 'text', text },
           { type: 'image_url', image_url: { url: `data:${this.pendingImage!.mimeType};base64,${this.pendingImage!.base64}` } }
@@ -935,6 +955,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         }
       });
     });
+  }
+
+  /** Умеет ли выбранная модель принимать изображения (см. resolveVisionSupport). */
+  private isVisionSupported(provider: any, model: string): Promise<boolean> {
+    return resolveVisionSupport(provider, model);
   }
 
   /** Максимальный размер контекста из настроек (для индикатора токенов). */

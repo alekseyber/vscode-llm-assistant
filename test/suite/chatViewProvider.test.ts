@@ -6,7 +6,7 @@ import * as sinon from 'sinon';
 import * as vscode from 'vscode';
 import * as assert from 'assert';
 import * as path from 'path';
-import { ChatViewProvider, buildProviderListFromConfig, resolveModelForProvider } from '../../src/modes/chat/ChatViewProvider';
+import { ChatViewProvider, buildProviderListFromConfig, resolveModelForProvider, resolveVisionSupport } from '../../src/modes/chat/ChatViewProvider';
 import { ConversationManager } from '../../src/modes/chat/ConversationManager';
 import { RunHistoryStore } from '../../src/shared/RunHistoryStore';
 import { PlanModeManager } from '../../src/modes/chat/PlanModeManager';
@@ -584,5 +584,26 @@ suite('resolveModelForProvider', () => {
     const broken = { models: async () => { throw new Error('offline'); } };
     assert.strictEqual(await resolveModelForProvider(broken, '', 'gpt-4o', 'local'), 'gpt-4o');
     assert.strictEqual(await resolveModelForProvider(undefined, '', 'gpt-4o', undefined), 'gpt-4o');
+  });
+});
+
+// ─────────── CVP-1.6: vision-поддержка модели ───────────
+suite('resolveVisionSupport', () => {
+  test('CVP-1.6: явный supportsVision в конфиге — приоритет, capabilities не спрашиваем', async () => {
+    const provider = { supportsVision: true, isLocal: true, capabilities: async () => ({ vision: false }) };
+    assert.strictEqual(await resolveVisionSupport(provider, 'gemma3:4b'), true);
+  });
+
+  test('CVP-1.6: локальный провайдер без флага — решает capability vision', async () => {
+    const yes = { isLocal: true, capabilities: async () => ({ vision: true }) };
+    const no = { isLocal: true, capabilities: async () => ({ vision: false }) };
+    assert.strictEqual(await resolveVisionSupport(yes, 'gemma3:4b'), true);
+    assert.strictEqual(await resolveVisionSupport(no, 'qwen3:8b'), false);
+  });
+
+  test('CVP-1.6: облачный провайдер без supportsVision или ошибка capabilities → false', async () => {
+    assert.strictEqual(await resolveVisionSupport({ supportsVision: false }, 'deepseek-chat'), false);
+    const broken = { isLocal: true, capabilities: async () => { throw new Error('offline'); } };
+    assert.strictEqual(await resolveVisionSupport(broken, 'gemma3:4b'), false);
   });
 });

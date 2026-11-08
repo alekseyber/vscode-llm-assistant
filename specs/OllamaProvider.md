@@ -1,6 +1,6 @@
 ---
 component: OllamaProvider
-version: 0.14.7
+version: 0.14.8
 status: beta
 since: 0.14.0
 ---
@@ -21,7 +21,7 @@ since: 0.14.0
 | `baseUrl` | `string` | `http://127.0.0.1:11434` по умолчанию; trailing slash срезается |
 | `models` | `string[]` | Модели из конфига; может быть пустым — тогда работает discovery |
 | `apiKey` | `string` | Не используется (Ollama без аутентификации), принимается для совместимости с `BaseProvider` |
-| `supportsVision` | `boolean?` | Признак для WebView; фактическая поддержка проверяется по `/api/show` |
+| `supportsVision` | `boolean?` | Не обязателен: если не задан, поддержка изображений определяется по capability `vision` из `/api/show` (см. `resolveVisionSupport` в ChatViewProvider) |
 
 `readonly isLocal: boolean = true` — используется вызывающими (`AgentWorker`, `ChatViewProvider`) вместо угадывания по имени модели.
 
@@ -186,6 +186,7 @@ Discovery: `GET /api/tags` → имена моделей. Кэш на 30 с. П�
 
 | Версия | Дата | Изменения |
 |--------|------|-----------|
+| 0.14.8 | 2026-11-07 | `capabilities()` используется как источник правды о vision: ручной `supportsVision` не требуется |
 | 0.14.7 | 2026-11-07 | Диагностический лог `createWithTools` (model / messages / tools) |
 | 0.14.6 | 2026-11-07 | Фильтр эмбеддинг-моделей в discovery (по явной capability `embedding`), `completion`/`embedding` в `capabilities()`; +2 теста |
 | 0.14.5 | 2026-11-07 | Stage 6: тест на локальный таймаут (OLL-6.4 / AW-1.3), матрица «AC → тест» в `TRACEABILITY.md`; базлайн 449 → 492 |

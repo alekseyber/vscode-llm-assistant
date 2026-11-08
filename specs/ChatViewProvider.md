@@ -1,6 +1,6 @@
 ---
 component: ChatViewProvider
-version: 0.14.3
+version: 0.14.4
 status: stable
 since: 0.1.0
 ---
@@ -117,6 +117,7 @@ since: 0.1.0
 |----|----------|--------|
 | CVP-1.1 | `sendProviderListToWebview()` берёт модели у провайдера (`models()`), при ошибке — из конфига; рендер не блокируется (сначала уходит конфиг, затем обновление) | ✅ |
 | CVP-1.2 | В `providerList` есть признак локальности провайдера (`isLocal`) | ✅ |
+| CVP-1.6 | `resolveVisionSupport()`: vision-ветка включается по `supportsVision` **или** по capability `vision` локального провайдера (`/api/show`), а не только по флагу в конфиге | ✅ |
 | CVP-1.5 | `resolveModelForProvider()`: явный выбор приоритетен; пустой выбор + провайдер → первая модель провайдера, глобальный `defaultModel` — только последний fallback | ✅ |
 | CVP-1.3 | Сообщение `tokens` несёт `cost`, посчитанный на бэкенде (`provider.isLocal` → 0); WebView не считает деньги сам | ✅ |
 
@@ -154,6 +155,7 @@ since: 0.1.0
 | 0.10.0 | 2026-08-20 | `computeLineDiff` (git-diff диалога) вынесен в `lineDiff.js` (инлайнится в index.html через `{{LINEDIFF}}`) |
 | 0.10.0 | 2026-08-19 | Автокомплит команд: sendSlashCommandsToWebview (встроенные + скилы + @orchestrate, поле prefix) |
 | 0.9.0 | 2026-08-18 | Слэш-команды код-действий: /explain, /explain_stepbystep, /doc, /test, /review, /improve (интеграция SlashCommands) |
+| 0.14.4 | 2026-11-07 | Vision у локальных моделей определяется по capability `vision` (было: нужен ручной `supportsVision`, иначе `gemma3:4b` картинки не получал); 3 теста |
 | 0.14.3 | 2026-11-07 | `resolveModelForProvider()` — модель не уезжает другому провайдеру; 3 теста |
 | 0.14.2 | 2026-11-07 | Фикс по ручному прогону: `cost` в сообщении `tokens` считается на бэкенде; локальная модель показывает `$0.0000` (было «≈ $0.0005» из хардкод-таблицы WebView) |
 | 0.14.1 | 2026-11-07 | Stage 3: реализован неблокирующий `providerList` (конфиг → discovery), `isLocal` в сообщении, `buildProviderListFromConfig`, обнуление цен после discovery; 3 теста |
