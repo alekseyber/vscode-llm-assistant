@@ -50,6 +50,7 @@ version: 0.14.0
 | PRM-1.3 | `providerManagerLocal.test.ts` → «type описан в конфиге; отсутствие baseUrl даёт адрес по умолчанию» | ✅ |
 | PRM-1.4 | `providerManagerLocal.test.ts` → «локальные модели стоят 0…»; «setZeroPricing обнуляет модели из discovery» | ✅ |
 | PRM-1.5 | `providerManagerLocal.test.ts` → «неизвестный type пропускает провайдера, остальные создаются» | ✅ |
+| PRM-1.6 | `providerManagerLocal.test.ts` → «нули переживают refresh() после правки настроек» (дефект «768+40 = 0.0004» из ручного прогона) | ✅ |
 | OLL-1.1 | `ollamaProviderLocal.test.ts` → «стримит content из NDJSON в правильном порядке» | ✅ |
 | OLL-1.2 | `ollamaProviderLocal.test.ts` → «think:false по умолчанию, think:true при настройке» | ✅ |
 | OLL-1.3 | `ollamaProviderLocal.test.ts` → «maxTokens → num_predict, local.numCtx → num_ctx» | ✅ |
@@ -57,7 +58,7 @@ version: 0.14.0
 | OLL-2.1 | `ollamaProviderLocal.test.ts` → «пустой content при непустом thinking…»; «в агентском шаге пустой content без tool_calls…» | ✅ |
 | OLL-3.1 | `ollamaProviderLocal.test.ts` → «tool_calls в форме OpenAI, arguments — строка JSON, usage из eval_count» | ✅ |
 | OLL-3.2 | `ollamaProviderLocal.test.ts` → «история агента конвертируется в нативный вид»; «конвертация — чистые функции, крайние случаи» | ✅ |
-| OLL-4.1 | `ollamaProviderLocal.test.ts` → «/api/tags → список моделей, конфиг первым, кэш 30 с»; «сервер недоступен → модели из конфига» | ✅ |
+| OLL-4.1 | `ollamaProviderLocal.test.ts` → «/api/tags → список моделей, конфиг первым, кэш 30 с»; «сервер недоступен → модели из конфига»; «эмбеддинг-модели не попадают в чат-селектор»; «пустые capabilities / недоступный /api/show — модель не выбрасываем» | ✅ |
 | OLL-4.2 | `ollamaProviderLocal.test.ts` → «/api/show → capabilities, повторный вызов из кэша»; «/api/show упал → undefined»; «команда проверки…» (2 теста) | ✅ |
 | OLL-5.1 | `ollamaProviderLocal.test.ts` → «image_url data-url → нативное images: [base64]»; «конвертер изображений — крайние случаи» | ✅ |
 | OLL-6.1 | `ollamaProviderLocal.test.ts` → «404 model not found → подсказка ollama pull, без ретраев» | ✅ |
@@ -72,11 +73,14 @@ version: 0.14.0
 | TH-1.4 | `thinking.test.ts` → «для локального провайдера extraBody не формируется» | ✅ |
 | AW-1.1 | `agentWorker.test.ts` → «buildThinkingExtraBody доходит до createWithTools шестым аргументом»; «без disableThinking extraBody не отправляется» | ✅ |
 | AW-1.2 | `agentWorker.test.ts` → «локальный провайдер при toolLoop:false не вызывает инструменты»; «…toolLoop:true работает как обычно» | ✅ |
+| AW-1.4 | `agentWorker.test.ts` → «прогон на локальном провайдере стоит 0, а не DEFAULT_PRICING» | ✅ |
 | OAI-1.1 | `providers.test.ts` → «extraBody уходит в тело запроса вместе с tools»; «без extraBody тело как в 0.13.0» | ✅ |
 | CVP-1.1 | `chatViewProvider.test.ts` → «модели берутся из конфигурации…»; «пустая конфигурация не роняет сборку» | ✅ |
 | CVP-1.2 | `chatViewProvider.test.ts` → «локальный провайдер помечен isLocal» | ✅ |
 
-**Правки существующих тестов (запланированные, не регрессия):** `registerCommands.test.ts` — 11 команд → 12 (`checkLocalServer`).
+**Правки существующих тестов (запланированные, не регрессия):** `registerCommands.test.ts` — 11 команд → 12 (`checkLocalServer`); `ollamaProviderLocal.test.ts` — ожидание `capabilities()` расширено полями `completion`/`embedding`.
+
+**Найдено ручным прогоном 0.14.0 (Stage 8) и закрыто тестами:** стоимость локальной модели `0.0004` вместо `0` (PRM-1.6, AW-1.4); эмбеддинг-модель в чат-селекторе (OLL-4.1). Текущий итог: **497 passing / 0 failing**.
 
 ## Статистика
 
