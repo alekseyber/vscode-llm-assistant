@@ -17,6 +17,9 @@ Module._resolveFilename = function (request, parent, isMain, options) {
   return originalResolve.call(this, request, parent, isMain, options);
 };
 
+// Метка для тестов, которым нужен настоящий Extension Host (E2E гоняет те же файлы)
+process.env.LLMA_MOCKED_VSCODE = '1';
+
 // Запускаем mocha программно
 const Mocha = require('mocha');
 
