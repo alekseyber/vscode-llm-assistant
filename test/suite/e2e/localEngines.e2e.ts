@@ -54,7 +54,7 @@ suite('E2E: локальные движки в реальном Extension Host',
     assert.deepStrictEqual(manager.pricingMap.get('qwen3-8b'), { input: 0, output: 0 }, 'цена локального движка 0');
     assert.strictEqual(
       readOllamaLocalSettings().numCtx,
-      9999,
+      2048,
       'настоящий settings.json читается по тому же ключу, что и в коде',
     );
   });

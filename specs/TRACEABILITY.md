@@ -78,6 +78,8 @@ version: 0.14.29
 | LZ-1..3 | `localAddress.test.ts` → «loopback в любых формах — локальный», «облачные и неоднозначные адреса — не локальные», «путь и query не влияют на вердикт» | ✅ |
 | PRM-3.2 | `providerManagerLocal.test.ts` → «numCtx у локального openai-провайдера → предупреждение один раз» | ✅ |
 | CVP-3.1 / TIT-1 | `chatViewProvider.test.ts` → «человеческое имя — title побеждает, локальный без title получает «(локально)»»; `chatWebview.test.ts` → «в селекторе видно человеческое имя провайдера» | ✅ |
+| E2E-1 | `e2e/localEngines.e2e.ts` → «настройки из настоящего settings.json доходят до провайдеров и до numCtx» (Extension Host) | ✅ |
+| E2E-2 | `e2e/localEngines.e2e.ts` → «запрос к живому HTTP-серверу из хост-процесса и предупреждение не ломают прогон» | ✅ |
 | OAI-3.1..3.4 | `openaiDiscovery.test.ts` → «модели из /v1/models, конфиг первым», «ошибка/недоступен → конфиг», «облачный не ходит в /v1/models», «кэш 30 с» | ✅ |
 | OAI-2.1/2.2 | `providerErrors.test.ts` → «локальный движок — подсказка про намеренный запуск», «облачный провайдер — нейтральный текст, HTTP-ошибки не оборачиваются» | ✅ |
 | TH-1.1 | `thinking.test.ts` → «deepseek + disableThinking:true»; «disableThinking:false»; «не-deepseek модель» | ✅ |
