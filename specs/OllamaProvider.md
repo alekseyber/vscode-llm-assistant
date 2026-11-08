@@ -1,6 +1,6 @@
 ---
 component: OllamaProvider
-version: 0.14.8
+version: 0.15.0
 status: beta
 since: 0.14.0
 ---
@@ -27,7 +27,7 @@ since: 0.14.0
 
 ### `chat(messages, options, signal?, onRetry?): AsyncIterable<string>`
 
-Поток текста. `options.model` — тег модели (`gemma3:4b`), `options.temperature` → `options.temperature`, `options.maxTokens` → `options.num_predict`, `llmAssistant.local.numCtx` → `options.num_ctx`, `llmAssistant.local.think` → `think`. `options.extraBody` **игнорируется**: у нативного API нет произвольных полей тела (см. «Контракты»).
+Поток текста. `options.model` — тег модели (`gemma3:4b`), `options.temperature` → `options.temperature`, `options.maxTokens` → `options.num_predict`, `llmAssistant.local.numCtx` → `options.num_ctx`, `llmAssistant.local.think` → `think`. **Эффективное окно = `min(numCtx, серверный OLLAMA_CONTEXT_LENGTH)`**: `num_ctx` уходит в запрос целиком, но модель видит меньше, если сервер ограничил окно, — и обрезка промпта при этом молчаливая. Отсюда предупреждение по `prompt_eval_count` (см. «Контракты»). `options.extraBody` **игнорируется**: у нативного API нет произвольных полей тела (см. «Контракты»).
 
 ### `chatWithVision(messages, options, signal?, onRetry?): AsyncIterable<string>`
 
@@ -74,7 +74,11 @@ Discovery: `GET /api/tags` → имена моделей. Кэш на 30 с. П�
 | `content` пуст, а `thinking` непуст | Наружу отдаётся предупреждение «модель ушла в рассуждение: включите `think:false` или увеличьте лимит», а не пустая строка |
 | `options.extraBody` передан | Игнорируется (нативный API не принимает произвольные поля); в debug-лог пишется строка о причине |
 | Модель отсутствует на сервере (HTTP 404 `model not found`) | Ошибка с подсказкой `ollama pull <model>`; ретрай не выполняется (404 не retryable) |
-| Соединение отклонено (`ECONNREFUSED`) | Ошибка с подсказкой: сервер не запущен / неверный `baseUrl` / нужен SSH-туннель; ретраи по общей политике `RetryHandler` |
+| Соединение отклонено (`ECONNREFUSED`) | Ошибка с подсказкой: сервер мог быть остановлен намеренно — запустить его перед запросом; проверить `baseUrl`; для удалённой машины — SSH-туннель. Ретраи по общей политике `RetryHandler` |
+| `prompt_eval_count >= numCtx - 16` (промпт упёрся в окно) | Одно предупреждение на модель за сессию: «Промпт, вероятно, обрезан: сервер обработал N токенов при лимите M. Проверьте `llmAssistant.local.numCtx` и `OLLAMA_CONTEXT_LENGTH` на сервере». Без падения и без ретрая |
+| `prompt_eval_count` заметно меньше окна / отсутствует / `0` | Предупреждения нет; debug-строка с фактическим N пишется всё равно |
+| Повторный ответ той же модели в той же сессии | Предупреждение не дублируется (ключ `provider:model`); другая модель предупреждает отдельно |
+| `OLLAMA_NUM_PARALLEL > 1` на сервере | Окно делится между слотами (поведение сервера, плагин им не управляет); при `NUM_PARALLEL=1` деления нет. Диагностика — debug-строка N/M |
 | Сервер ответил 500/503 | Ретраи по `RetryHandler`; локальный таймаут — `local.requestTimeout` (300 с по умолчанию), не глобальные 60 с |
 | Отмена (`AbortSignal`) | Поток прерывается сразу, соединение закрывается, следующий запрос не наследует состояние |
 | `stream:false` (агент, summary) | Один JSON-объект вместо NDJSON; `eval_count` → `usage.completion_tokens`, `prompt_eval_count` → `usage.prompt_tokens` |
@@ -145,10 +149,14 @@ Discovery: `GET /api/tags` → имена моделей. Кэш на 30 с. П�
 | OLL-4.2 | `capabilities()` — `/api/show`, только по явному вызову | ✅ |
 | OLL-5.1 | `chatWithVision()` переводит `image_url` (data-url) в нативное `images: [base64]` | ✅ |
 | OLL-6.1 | 404 «model not found» → ошибка с `ollama pull <model>`, без ретраев | ✅ |
-| OLL-6.2 | `ECONNREFUSED` → ошибка с подсказкой про сервер/туннель, ретраи по `RetryHandler` | ✅ |
+| OLL-6.2 | `ECONNREFUSED` → ошибка с подсказкой «сервер мог быть остановлен намеренно, запустите», про `baseUrl` и туннель; ретраи по `RetryHandler` | ✅ |
 | OLL-6.3 | Отмена прерывает поток немедленно | ✅ |
 | OLL-7.1 | `isLocal === true` | ✅ |
 | OLL-8.1 | `usage` заполняется из `prompt_eval_count`/`eval_count`; стоимость = 0 через `pricingMap` | ✅ |
+| OLL-9.1 | `prompt_eval_count >= num_ctx - 16` → предупреждение «промпт, вероятно, обрезан» с числами N и M | ⏳ planned |
+| OLL-9.2 | `prompt_eval_count` заметно меньше порога → предупреждения нет | ⏳ planned |
+| OLL-9.3 | Предупреждение один раз на модель за сессию; другая модель — предупреждает | ⏳ planned |
+| OLL-9.4 | Debug-строка `prompt_eval_count=N num_ctx=M model=X` пишется на каждый ответ (все четыре пути), включая `0`/отсутствие поля | ⏳ planned |
 
 ## Тесты (`test/suite/ollamaProviderLocal.test.ts`, 8 тестов)
 
@@ -186,6 +194,7 @@ Discovery: `GET /api/tags` → имена моделей. Кэш на 30 с. П�
 
 | Версия | Дата | Изменения |
 |--------|------|-----------|
+| 0.15.0 | 2026-11-09 | Контракты окна: эффективное окно = min(`local.numCtx`, серверный `OLLAMA_CONTEXT_LENGTH`), деление окна между слотами при `NUM_PARALLEL > 1`; AC `OLL-9.1..9.4` (диагностика молчаливой обрезки), `OLL-6.2` — новый текст про намеренно остановленный сервер |
 | 0.14.8 | 2026-11-07 | `capabilities()` используется как источник правды о vision: ручной `supportsVision` не требуется |
 | 0.14.7 | 2026-11-07 | Диагностический лог `createWithTools` (model / messages / tools) |
 | 0.14.6 | 2026-11-07 | Фильтр эмбеддинг-моделей в discovery (по явной capability `embedding`), `completion`/`embedding` в `capabilities()`; +2 теста |
