@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.14.47 (2026-11-09)
+
+### Документация (кода нет)
+
+- `llmAssistant.providers` в окне настроек теперь описывает и второй движок: `title`, `numCtx`/`think`/`timeout`/`toolLoop` в записи провайдера, пример с `local` и `local-llamacpp`, оговорка что у llama.cpp контекст и рассуждение — серверные флаги
+- `specs/ARCHITECTURE.md`: `OllamaProvider` из `[spec ⏳ planned]` переведён в `[spec ✅ beta]`, добавлена `isLocalBaseUrl()` и строка истории 0.14.46
+- README, сравнительная таблица: «Работает офлайн» — не только Ollama, но и llama.cpp
+
 ## 0.14.46 (2026-11-09)
 
 ### Оба локальных движка — равноправный выбор

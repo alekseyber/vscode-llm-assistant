@@ -3,7 +3,7 @@
   "displayName": "LLM Assistant — AI Agent for VS Code",
   "description": "AI-ассистент для VS Code: чат, inline-правки, автокомплит, ReAct-агент с инструментами и MCP. Облако BYOK или локальные модели (Ollama) — код не покидает машину.",
   "publisher": "alekseyber",
-  "version": "0.14.46",
+  "version": "0.14.47",
   "icon": "media/icon.png",
   "repository": {
     "type": "git",
@@ -254,8 +254,8 @@
         "llmAssistant.providers": {
           "type": "object",
           "default": {},
-          "description": "Настройки провайдеров (baseUrl, apiKey, models)",
-          "markdownDescription": "Настройки провайдеров (baseUrl, apiKey, models, type).\n\nДля локальных моделей Ollama укажите `\"type\": \"ollama\"` — запросы пойдут на нативный `/api/chat` (OpenAI-совместимый `/v1` не умеет отключать рассуждение, и thinking-модель отвечает пустым текстом).\n\n```json\n\"llmAssistant.providers\": {\n  \"local\": { \"type\": \"ollama\", \"baseUrl\": \"http://127.0.0.1:11434\", \"models\": [] }\n}\n```"
+          "description": "Настройки провайдеров (baseUrl, apiKey, models, type, title; локальные — numCtx, think, timeout, toolLoop)",
+          "markdownDescription": "Настройки провайдеров (baseUrl, apiKey, models, type, title; локальные — numCtx, think, timeout, toolLoop).\n\nДля локальных моделей Ollama укажите `\"type\": \"ollama\"` — запросы пойдут на нативный `/api/chat` (OpenAI-совместимый `/v1` не умеет отключать рассуждение, и thinking-модель отвечает пустым текстом).\n\nВторой локальный движок — любой OpenAI-совместимый на loopback (llama.cpp `llama-server`, LM Studio, vLLM): `\"type\": \"openai\"` + `baseUrl` на 127.0.0.1. Локальность определяется по адресу: такой провайдер получает `$0` в статистике и признак локального.\n\n`title` — человеческое имя в селекторе (иначе у локального добавится «(локально)»). `numCtx`/`think`/`timeout`/`toolLoop` в записи провайдера переопределяют `llmAssistant.local.*`; у llama.cpp контекст и рассуждение задаются флагами сервера, и плагин предупредит, что `numCtx`/`think` к нему не применяются.\n\n```json\n\"llmAssistant.providers\": {\n  \"local\": { \"type\": \"ollama\", \"baseUrl\": \"http://127.0.0.1:11434\", \"title\": \"Ollama (локально)\", \"models\": [] },\n  \"local-llamacpp\": { \"type\": \"openai\", \"baseUrl\": \"http://127.0.0.1:8080/v1\", \"apiKey\": \"\", \"title\": \"llama.cpp (локально)\", \"models\": [\"qwen3-8b\"] }\n}\n```"
         },
         "llmAssistant.mcp.servers": {
           "type": "array",

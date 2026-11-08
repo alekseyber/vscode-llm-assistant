@@ -17,7 +17,8 @@ extension.ts (вход)
 ├── ПРОВАЙДЕРЫ
 │   ├── ProviderManager          [spec ✅] — управление LLM-провайдерами (fallback на первый настроенный)
 │   ├── OpenAIProvider            [spec ✅] — OpenAI-совместимый API (+ extraBody в тело запроса)
-│   ├── OllamaProvider            [spec ⏳ planned] — нативный /api/chat: think, num_predict, /api/tags, /api/show (0.14.0)
+│   ├── OllamaProvider            [spec ✅ beta] — нативный /api/chat: think, num_predict, /api/tags, /api/show; скрытая обрезка промпта, таймаут соединения 10 с
+│   ├── isLocalBaseUrl()          [base.ts] — локальность по АДРЕСУ (loopback): второй движок llama.cpp/LM Studio/vLLM через type: "openai"
 │   ├── BaseProvider              [spec ✅] — абстрактный класс
 │   └── types.ts (частично ✅)   — ModelPricing, calculateCost, CompletionOptions.extraBody
 │
@@ -250,6 +251,7 @@ AgentController (Apply Mode)
 
 | Версия | Дата | Изменения |
 |--------|------|-----------|
+| 0.14.46 | 2026-11-09 | Локальность по адресу (`isLocalBaseUrl`), второй локальный движок (llama.cpp) без новых настроек, `title` и override-поля в записи провайдера, диагностика обрезки промпта, таймаут соединения 10 с |
 | 0.14.0 | 2026-11-07 | +OllamaProvider (planned): нативный /api/chat вместо /v1, type в конфиге провайдера, локальные цены 0, isLocal |
 | 0.13.0 | 2026-08-23 | +thinking.ts, SessionLog, PlanModeManager, SlashCommands, HistoryViewProvider в карту; сайдбар/toolbar/activity-feed/тумблеры; autocomplete async + thinking; 38 компонентов; убран jest.config.js (Mocha); agent max 20 |
 | 0.8.0 | 2026-08-06 | Первая версия мастер-спецификации |
