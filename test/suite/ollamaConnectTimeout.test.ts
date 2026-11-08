@@ -12,6 +12,7 @@ import {
   fetchWithConnectTimeout,
   __setConnectTimeoutForTests,
   __resetConnectTimeout,
+  DEFAULT_CONNECT_TIMEOUT_MS,
 } from '../../src/providers/ollama';
 
 suite('Таймаут соединения с Ollama (P20)', () => {
@@ -49,6 +50,15 @@ suite('Таймаут соединения с Ollama (P20)', () => {
     __resetConnectTimeout();
     sandbox.restore();
     server.close(() => done());
+  });
+
+  test('OLL-10.5: порог по умолчанию не ниже 30 с — иначе холодный старт получает CONNECT_TIMEOUT', () => {
+    // Замер на стенде 09.11: первая строка ответа холодного qwen3:8b приходит через 7,0 с,
+    // у 14B вдвое больше. Порог ниже этого значения обрывает штатный первый запрос.
+    assert.ok(
+      DEFAULT_CONNECT_TIMEOUT_MS >= 30_000,
+      `порог ${DEFAULT_CONNECT_TIMEOUT_MS} мс обрывает холодный старт модели`,
+    );
   });
 
   test('OLL-10.1: сервер принял соединение и молчит — ошибка через таймаут, код CONNECT_TIMEOUT', async () => {
