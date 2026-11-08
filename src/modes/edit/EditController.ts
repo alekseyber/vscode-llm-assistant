@@ -239,6 +239,26 @@ export class EditController {
   }
 
   /**
+   * Текст уведомления о предлагаемой правке.
+   *
+   * Содержит диапазон заменяемых строк и первую непустую строку нового кода:
+   * без неё по одним «+N / −M» невозможно понять, что предлагается.
+   */
+  public buildProposalMessage(
+    selection: { start: { line: number }; end: { line: number } },
+    addedCount: number,
+    removedCount: number,
+    newText: string,
+  ): string {
+    const preview = (newText.split('\n').find((l) => l.trim().length > 0) || '').trim().slice(0, 80);
+    const range = `Строки ${selection.start.line + 1}–${selection.end.line + 1}`;
+    const counts = `+${addedCount} / −${removedCount}`;
+    return preview
+      ? `${range}: ${counts}. Будет: ${preview}. Принять?`
+      : `${range}: ${counts}. Принять?`;
+  }
+
+  /**
    * Данные для CodeLens над предлагаемой правкой.
    *
    * Нужны, чтобы пользователь видел кнопки прямо у кода, а не только в уведомлении
@@ -333,11 +353,8 @@ export class EditController {
     this.registerProposalCodeLens(editor);
 
     // Показываем уведомление с кнопками Accept / Reject
-    const previewLine = (newText.split('\n').find((l) => l.trim().length > 0) || '').trim().slice(0, 80);
     vscode.window.showInformationMessage(
-      `Строки ${selection.start.line + 1}–${selection.end.line + 1}: `
-        + `+${diffResult.addedCount} / −${diffResult.removedCount}. `
-        + `Будет: ${previewLine}. Принять?`,
+      this.buildProposalMessage(selection, diffResult.addedCount, diffResult.removedCount, newText),
       'Принять (Accept)',
       'Отклонить (Reject)'
     ).then((action) => {

@@ -51,3 +51,46 @@ suite('EditController / CodeLens над правкой', () => {
     assert.ok(lenses.every((l: any) => l.line === 4), 'линзы на строке выделения');
   });
 });
+
+// ─────────── EDH-4/5: текст уведомления и жизненный цикл CodeLens ───────────
+suite('EditController / уведомление о правке', () => {
+  test('EDH-4: уведомление показывает диапазон, счётчики и первую непустую строку кода', () => {
+    const controller: any = new EditController({ getDefault: () => undefined } as any);
+    const msg = controller.buildProposalMessage({ start: { line: 1 }, end: { line: 1 } }, 3, 1,
+      '\n\n  return a + b;\n}');
+
+    assert.ok(msg.includes('Строки 2–2'), msg);
+    assert.ok(msg.includes('+3 / −1'), msg);
+    assert.ok(msg.includes('Будет: return a + b;'), msg);
+    assert.ok(!msg.includes('Принять?') === false, 'вопрос об принятии присутствует');
+  });
+
+  test('EDH-4.1: длинная первая строка обрезается до 80 символов', () => {
+    const controller: any = new EditController({ getDefault: () => undefined } as any);
+    const long = 'x'.repeat(200);
+    const msg = controller.buildProposalMessage({ start: { line: 0 }, end: { line: 0 } }, 1, 0, long);
+    assert.strictEqual(msg.length < 160, true, `слишком длинное уведомление: ${msg.length}`);
+    assert.ok(msg.includes('x'.repeat(80)), 'обрезано ровно по 80');
+  });
+
+  test('EDH-4.2: пустой новый текст — уведомление без превью', () => {
+    const controller: any = new EditController({ getDefault: () => undefined } as any);
+    const msg = controller.buildProposalMessage({ start: { line: 4 }, end: { line: 4 } }, 0, 3, '');
+    assert.ok(msg.includes('Строки 5–5'), msg);
+    assert.ok(!msg.includes('Будет:'), msg);
+  });
+
+  test('EDH-5: после отклонения линзы исчезают', () => {
+    const controller: any = new EditController({ getDefault: () => undefined } as any);
+    controller.currentSession = {
+      editor: { document: { uri: { toString: () => 'file:///a.js' }, languageId: 'javascript' }, options: {} },
+      selection: { start: { line: 0 }, end: { line: 0 } },
+      oldText: 'a', newText: 'b', diffResult: { addedCount: 1, removedCount: 0 },
+    };
+    assert.strictEqual(controller.getProposalLenses().length, 3, 'до решения линзы есть');
+
+    controller.handleReject();
+
+    assert.deepStrictEqual(controller.getProposalLenses(), [], 'после отклонения линз нет');
+  });
+});

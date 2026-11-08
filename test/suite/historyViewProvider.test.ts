@@ -176,3 +176,72 @@ suite('HistoryViewProvider / WebView: фильтр по режиму', () => {
     assert.ok(statsText.includes('фильтр показал 1 из 3'), `нет пометки фильтра: ${statsText}`);
   });
 });
+
+// ─────────── HV-9..12: поведение фильтра по режиму ───────────
+suite('HistoryViewProvider / WebView: фильтр по режиму, крайние случаи', () => {
+  const { JSDOM } = require('jsdom');
+
+  function run(id: string, mode: string, extra: any = {}) {
+    return Object.assign({
+      id, timestamp: Date.now(), mode, task: 't', provider: 'p', model: 'm',
+      steps: 1, tokensIn: 1, tokensOut: 1, cost: 0, duration: 1, status: 'success',
+    }, extra);
+  }
+
+  function mount(runs: any[], statsLine = 'x') {
+    const store: any = { getRuns: () => [], onDidChange: () => ({ dispose() {} }) };
+    const provider: any = new HistoryViewProvider(store);
+    const dom = new JSDOM(provider.getHtmlContent(), {
+      runScripts: 'dangerously',
+      beforeParse(window: any) {
+        window.acquireVsCodeApi = () => ({ postMessage() {}, getState() {}, setState() {} });
+      },
+    });
+    const { window } = dom;
+    const refresh = (list: any[]) => window.dispatchEvent(
+      new window.MessageEvent('message', { data: { type: 'refresh', runs: list, statsLine } }),
+    );
+    refresh(runs);
+    const select = (value: string) => {
+      const el: any = window.document.getElementById('mode-filter');
+      el.value = value;
+      el.dispatchEvent(new window.Event('change'));
+    };
+    const rows = () => window.document.querySelectorAll('#table-body tr').length;
+    const stats = () => (window.document.getElementById('stats-line') as any).textContent;
+    const empty = () => window.document.getElementById('empty-state') as any;
+    return { window, refresh, select, rows, stats, empty };
+  }
+
+  test('HV-9: фильтр «Агент» оставляет только агентские прогоны', () => {
+    const h = mount([run('1', 'chat'), run('2', 'agent'), run('3', 'edit')]);
+    h.select('agent');
+    assert.strictEqual(h.rows(), 1);
+    assert.ok(h.stats().includes('фильтр показал 1 из 3'), h.stats());
+  });
+
+  test('HV-10: нет записей выбранного режима — пустое состояние и «0 из N»', () => {
+    const h = mount([run('1', 'chat'), run('2', 'agent')]);
+    h.select('edit');
+    assert.strictEqual(h.rows(), 0);
+    assert.strictEqual(h.empty().textContent, 'Нет записей с выбранным фильтром');
+    assert.notStrictEqual(h.empty().style.display, 'none', 'плашка пустого состояния видна');
+    assert.ok(h.stats().includes('фильтр показал 0 из 2'), h.stats());
+  });
+
+  test('HV-11: возврат к «Все» снимает фильтр и пометку в сводке', () => {
+    const h = mount([run('1', 'chat'), run('2', 'agent')]);
+    h.select('agent');
+    h.select('all');
+    assert.strictEqual(h.rows(), 2);
+    assert.strictEqual(h.stats().includes('фильтр показал'), false, h.stats());
+  });
+
+  test('HV-12: обновление истории не сбрасывает фильтр и пересчитывает «N из M»', () => {
+    const h = mount([run('1', 'chat'), run('2', 'agent')]);
+    h.select('agent');
+    h.refresh([run('1', 'chat'), run('2', 'agent'), run('3', 'agent'), run('4', 'edit')]);
+    assert.strictEqual(h.rows(), 2, 'фильтр сохранился после refresh');
+    assert.ok(h.stats().includes('фильтр показал 2 из 4'), h.stats());
+  });
+});
