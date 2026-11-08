@@ -174,3 +174,75 @@ suite('package.json / id команд и view', () => {
     assert.ok(ours.includes('llmAssistant.chat.open'), 'llmAssistant.chat.open объявлен');
   });
 });
+
+// ─────────── Манифест и код не должны расходиться ───────────
+suite('package.json ↔ registerCommands', () => {
+  let sb: any;
+  let spy: any;
+
+  setup(() => {
+    sb = sinon.createSandbox();
+    spy = sb.spy(vscode.commands, 'registerCommand');
+  });
+  teardown(() => sb.restore());
+
+  function deps(): any {
+    const context: any = {
+      subscriptions: { push: sb.stub() },
+      extensionUri: vscode.Uri.file('/tmp'),
+      workspaceState: {},
+      globalState: {},
+    };
+    return {
+      context,
+      providerManager: { getAllProviders: () => new Map(), getDefault: () => undefined },
+      conversationManager: {
+        attachCodeContext: sb.stub(),
+        clearAll: sb.stub(),
+        session: {
+          getActive: sb.stub().returns({ meta: { id: 'session_default' } }),
+          duplicateSession: sb.stub().returns('session_fork_default'),
+          listSessions: sb.stub().returns([{ id: 'a' }]),
+        },
+      },
+      editController: { handleEditSelection: sb.stub() },
+      autocompleteController: { toggleAutocomplete: sb.stub() },
+      runHistoryStore: { recordRun: sb.stub(), clearHistory: sb.stub() },
+      historyViewProvider: { refresh: sb.stub() },
+      reviewViewProvider: { showReview: sb.stub() },
+      sessionLog: { toTranscript: sb.stub().returns(''), fork: sb.stub(), computeStats: sb.stub().returns({ steps: 0, toolCalls: 0, toolResults: 0, errors: 0, userMessages: 0, assistantMessages: 0, chunks: 0 }) },
+      refreshSessions: sb.stub(),
+    };
+  }
+
+  test('CMD-2: каждая объявленная команда регистрируется в коде', () => {
+    const pkg = require('../../../package.json');
+    const declared: string[] = pkg.contributes.commands.map((c: any) => c.command);
+
+    registerCommands(deps());
+    const registered: string[] = spy.getCalls().map((c: any) => c.args[0]);
+
+    const missing = declared.filter((id) => !registered.includes(id));
+    assert.deepStrictEqual(missing, [], `объявлены в package.json, но не регистрируются: ${JSON.stringify(missing)}`);
+
+    const extra = registered.filter((id) => !declared.includes(id));
+    assert.deepStrictEqual(extra, [], `регистрируются, но не объявлены (не будет в палитре): ${JSON.stringify(extra)}`);
+  });
+
+  test('CMD-3: непустые уникальные заголовки, keybindings ведут на существующие команды', () => {
+    const pkg = require('../../../package.json');
+    const titles: string[] = pkg.contributes.commands.map((c: any) => c.title);
+    assert.ok(titles.every((x) => typeof x === 'string' && x.trim().length > 0), 'пустой заголовок');
+    assert.strictEqual(new Set(titles).size, titles.length, 'дубли заголовков в палитре');
+
+    const kbs = pkg.contributes.keybindings ?? [];
+    const bad = kbs.filter((k: any) => !pkg.contributes.commands.some((c: any) => c.command === k.command));
+    assert.deepStrictEqual(bad, [], `keybinding на несуществующую команду: ${JSON.stringify(bad)}`);
+  });
+
+  test('CMD-4: объявленные команды не скрыты из палитры через menus.commandPalette', () => {
+    const pkg = require('../../../package.json');
+    const hidden = (pkg.contributes.menus?.commandPalette ?? []).filter((m: any) => m.when === 'false');
+    assert.deepStrictEqual(hidden, [], `скрыто из палитры: ${JSON.stringify(hidden)}`);
+  });
+});
