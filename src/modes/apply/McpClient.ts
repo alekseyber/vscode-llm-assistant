@@ -10,6 +10,7 @@ import * as path from 'path';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import type { Tool } from './ToolSystem';
+import { wrapExternalContent } from '../../shared/promptGuard';
 
 /**
  * Конфигурация одного MCP-сервера (из настроек VS Code).
@@ -151,7 +152,8 @@ export class McpClient {
       return '(инструмент не вернул текстового результата)';
     }
 
-    return textParts.join('\n');
+    // Результат MCP — внешние данные: размечаем как данные и показываем попытки инъекций
+    return wrapExternalContent(`mcp: ${this.config.name}/${name}`, textParts.join('\n'));
   }
 
   /**

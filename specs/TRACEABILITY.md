@@ -1,6 +1,6 @@
 ---
 document: TRACEABILITY
-version: 0.14.14
+version: 0.14.29
 ---
 
 # Матрица трассировки: spec → AC → тест → код
@@ -94,3 +94,4 @@ version: 0.14.14
 При изменении любого `.ts` файла — обновляется соответствующая строка в этой матрице (версия, дата изменения).
 
 | RunSummary | `src/shared/runSummary.ts` | `test/suite/runSummary.test.ts` | SUM-1–SUM-6 |
+| PromptGuard | `src/shared/promptGuard.ts` | `test/suite/promptGuard.test.ts` | PG-1–PG-7 |

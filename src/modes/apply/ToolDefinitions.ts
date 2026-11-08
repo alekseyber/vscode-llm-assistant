@@ -7,6 +7,7 @@ import * as path from 'path';
 import { exec } from 'child_process';
 import { TextDecoder, TextEncoder } from 'util';
 import { Tool } from './ToolSystem';
+import { wrapExternalContent } from '../../shared/promptGuard';
 
 // --- Типы аргументов инструментов ---
 
@@ -432,7 +433,7 @@ const webFetchApplyTool: Tool = {
         .replace(/&[a-z]+;/gi, ' ')
         .replace(/\s{2,}/g, '\n')
         .trim();
-      return result.slice(0, 15000) || '(пустая страница)';
+      return wrapExternalContent(`web_fetch: ${a.url}`, result.slice(0, 15000)) || '(пустая страница)';
     } catch (e: any) {
       return `Ошибка: ${e.message}`;
     }

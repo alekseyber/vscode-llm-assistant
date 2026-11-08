@@ -33,6 +33,7 @@ const SRC_TO_SPEC = {
   'src/providers/openai.ts': 'OpenAIProvider.md',
   'src/providers/ollama.ts': 'OllamaProvider.md',
   'src/shared/runSummary.ts': 'RunSummary.md',
+  'src/shared/promptGuard.ts': 'PromptGuard.md',
   'src/shared/logger.ts': 'Logger.md',
   'src/shared/streaming.ts': 'Streaming.md',
 };
