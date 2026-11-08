@@ -143,4 +143,17 @@ suite('registerCommands', () => {
     assert.ok(writeFile.calledOnce, 'writeFile вызван один раз');
     assert.ok(writeFile.getCall(0).args[1].toString().includes('привет'), 'файл содержит транскрипцию');
   });
+
+  test('openHistory фокусирует Историю, а не Чат (P15)', async () => {
+    const deps = makeDeps();
+    const executeCommand = sandbox.stub(vscode.commands, 'executeCommand').resolves(undefined);
+    registerCommands(deps);
+
+    const handler = registerSpy.getCalls().find(c => c.args[0] === 'llmAssistant.openHistory')?.args[1];
+    assert.ok(handler, 'openHistory зарегистрирован');
+    await handler();
+
+    assert.ok(executeCommand.calledWith('llmAssistant.history.focus'), 'фокусируется вкладка История');
+    assert.ok(!executeCommand.calledWith('llmAssistant.chat.focus'), 'Чат не фокусируется');
+  });
 });

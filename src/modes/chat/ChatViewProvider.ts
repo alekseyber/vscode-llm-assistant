@@ -422,9 +422,15 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
           this.finalizeRun(runId, startTime, model, providerDisplayName, inTokens, 0, 0, 'error', 'Нет createWithTools');
           return;
         }
-        await this.runAgentLoop(provider, model, messages, onRetry, sid, abortController.signal);
-        const runSteps = this.sessionLog?.computeStats(this.resolveSessionId(sessionId) ?? '')?.steps || 1;
-        this.finalizeRun(runId, startTime, model, providerDisplayName, inTokens, 0, runSteps, 'success');
+        const agentResult = await this.runAgentLoop(provider, model, messages, onRetry, sid, abortController.signal);
+        const runSteps = agentResult?.iterations || this.sessionLog?.computeStats(this.resolveSessionId(sessionId) ?? '')?.steps || 1;
+        // Токены берём из результата воркера: раньше выходные всегда писались нулём
+        this.finalizeRun(
+          runId, startTime, model, providerDisplayName,
+          agentResult?.inputTokens ?? inTokens,
+          agentResult?.outputTokens ?? 0,
+          runSteps, 'success',
+        );
       } else {
         const stream = provider.chat(messages, { model, stream: true, extraBody: buildThinkingExtraBody(model) }, abortController.signal, onRetry);
         let full = '';
@@ -520,7 +526,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
   /** ReAct-цикл с инструментами (только для агентного режима).
    *  Делегирует выполнение AgentWorker — общему движку для чат-агента и оркестратора. */
-  private async runAgentLoop(provider: any, model: string, messages: any[], onRetry?: (attempt: number, maxRetries: number, delayMs: number, errorMsg: string) => void, sessionId?: string, signal?: AbortSignal): Promise<void> {
+  private async runAgentLoop(provider: any, model: string, messages: any[], onRetry?: (attempt: number, maxRetries: number, delayMs: number, errorMsg: string) => void, sessionId?: string, signal?: AbortSignal): Promise<{ inputTokens: number; outputTokens: number; iterations: number } | undefined> {
     const MAX_ITER = 5;
     const allowListConfig = loadToolAllowListConfig();
 
@@ -603,6 +609,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     this.postMessage({ type: 'done' }, sessionId);
     this.conversationManager.addMessageTo(sessionId, { role: 'assistant', content: result.answer });
     this.postTokens(messages, result.answer, model);
+    return { inputTokens: result.inputTokens, outputTokens: result.outputTokens, iterations: result.iterations };
   }
 
   /** Plan Mode: генерация плана (Этап 1) */

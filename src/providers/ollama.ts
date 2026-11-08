@@ -512,6 +512,9 @@ export class OllamaProvider extends BaseProvider {
         },
       };
       if (Array.isArray(tools) && tools.length > 0) body.tools = tools;
+      debugLog(
+        `[ollama] createWithTools: model=${model}, messages=${body.messages.length}, tools=${body.tools ? body.tools.length : 0}`,
+      );
 
       const response = local.retryEnabled
         ? await withRetry(() => this.post('/api/chat', body, composed), {

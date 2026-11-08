@@ -113,9 +113,8 @@ export function registerCommands(deps: CommandDependencies): void {
   // ── 7. llmAssistant.openHistory — открыть вкладку «История» ──
   context.subscriptions.push(
     vscode.commands.registerCommand('llmAssistant.openHistory', () => {
-      // Фокусируем вкладку «История» в Activity Bar
-      vscode.commands.executeCommand('llmAssistant.chat.focus');
-      // Затем фокусируем историю через стандартный механизм VS Code
+      // Фокусируем вкладку «История» (id вида: <viewId>.focus), а не Чат
+      vscode.commands.executeCommand('llmAssistant.history.focus');
       vscode.commands.executeCommand('workbench.view.extension.llmAssistant');
     })
   );
