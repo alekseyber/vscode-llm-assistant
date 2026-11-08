@@ -3,7 +3,7 @@
   "displayName": "VS Code LLM Assistant",
   "description": "AI-ассистент: чат, редактирование, автокомплит, агентный кодинг",
   "publisher": "alekseyber",
-  "version": "0.14.24",
+  "version": "0.14.25",
   "icon": "media/icon.png",
   "repository": {
     "type": "git",
@@ -75,7 +75,8 @@
     "keybindings": [
       {
         "command": "llmAssistant.chat.open",
-        "key": "ctrl+shift+l"
+        "key": "ctrl+alt+l",
+        "mac": "cmd+alt+l"
       },
       {
         "command": "llmAssistant.edit.selection",
@@ -85,7 +86,8 @@
       },
       {
         "command": "llmAssistant.apply.start",
-        "key": "ctrl+shift+a"
+        "key": "ctrl+shift+a",
+        "mac": "cmd+shift+a"
       }
     ],
     "viewsContainers": {

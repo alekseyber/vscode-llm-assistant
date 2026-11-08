@@ -159,11 +159,11 @@ code --install-extension "$(ls -t vscode-llm-assistant-*.vsix | head -1)" --forc
 
 | Команда | Действие |
 |---------|----------|
-| `LLM Assistant: Открыть чат` | Фокус на вкладку чата (`Ctrl+Shift+L`) |
+| `LLM Assistant: Открыть чат` | Фокус на вкладку чата (`Ctrl+Alt+L`, на macOS `Cmd+Option+L`) |
 | `LLM Assistant: Добавить выделение в контекст` | Прикрепить выделенный код к последнему сообщению |
 | `LLM Assistant: Редактировать выделенный код` | Edit-режим: инлайн-дифф выделения (`Ctrl+Alt+I`, на macOS `Cmd+Option+I`) |
 | `LLM Assistant: Вкл/Выкл автокомплит` | Переключить автодополнение |
-| `LLM Assistant: Запустить агентный режим` | Запустить ReAct-агента (`Ctrl+Shift+A`) |
+| `LLM Assistant: Запустить агентный режим` | Запустить ReAct-агента (`Ctrl+Shift+A`, на macOS `Cmd+Shift+A`) |
 | `LLM Assistant: Выбрать провайдер` | Сменить провайдера / модель |
 | `LLM Assistant: Открыть историю запусков` | Вкладка «История» (таблица запусков) |
 | `LLM Assistant: Review File` | Ревью активного файла или выделения |

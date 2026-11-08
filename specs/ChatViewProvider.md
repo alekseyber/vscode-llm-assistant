@@ -1,6 +1,6 @@
 ---
 component: ChatViewProvider
-version: 0.14.14
+version: 0.14.25
 status: stable
 since: 0.1.0
 ---
@@ -102,7 +102,7 @@ since: 0.1.0
 - **Копирование/экспорт сессии (F1):** кнопки «Копировать сессию в буфер» (`btn-share`) и «Экспорт в Markdown» (`btn-export`) шлют `getTranscript` (с `action: 'copy' | 'download'`) → ChatViewProvider отвечает `toTranscript()` → `sessionTranscript` → WebView копирует в clipboard или скачивает `.md`. Источник — session-log, не DOM (DOM-костыль `buildSessionText` удалён). `refreshSessionList()` — публичный метод обновления списка сессий + истории (вызывается из команды fork).
 - **Тулбар ⋮ + «Удалить все» (P0, Этап 1):** WebView шлёт `clearAllSessions` → ChatViewProvider делегирует в команду `llmAssistant.clearAllSessions` через `executeCommand` (модальный флоу подтверждения уже там — без дублирования логики). Кнопки тулбара рендерятся из декларативного реестра `TOOLBAR_ACTIONS` (webview-ресурс `toolbar.js`), `getHtmlForWebview` инжектит его через `{{TOOLBAR}}`.
 - **Сайдбар сессий + превью (P0, Этап 2):** `sendSessionListToWebview` обогащает каждую сессию полем `preview` (последнее `user/message`/`assistant/message` из session-log, до 80 символов, через `getSessionPreview`). `toggleFavorite` → `SessionManager.toggleFavorite(id)` → пересылка `sessionList`.
-- **`reveal()` (0.13.0):** публичный метод показа/фокуса вкладки чата (`this.view?.show(true)`). `llmAssistant.chat.open` (Ctrl+Shift+L) вызывает его через `revealChat`-колбэк вместо создания легаси `ChatPanel` (которая помечена `@deprecated`).
+- **`reveal()` (0.13.0):** публичный метод показа/фокуса вкладки чата (`this.view?.show(true)`). `llmAssistant.chat.open` (`Ctrl+Alt+L`, на macOS `Cmd+Option+L`) вызывает его через `revealChat`-колбэк вместо создания легаси `ChatPanel` (которая помечена `@deprecated`).
 - **Activity-feed (P0, Этап 3):** `getHtmlForWebview` инжектит `toolActivity.js` (`{{TOOLACTIVITY}}`) — маппинг `tool_name → {label, icon}`. `onStep` для `tool_call` пробрасывает `args` в `toolActivity.start`.
 - **Оркестратор → session-log (F1 5a):** воркеры оркестратора создаются с `sessionId` + `onEvent: e => sessionLog.append(e)` (через workerOptions) — tool-события оркестратора пишутся в лог, экспорт/копия оркестратор-сессии стали полными (🔧-шаги). User-сообщение `@orchestrate` пишется в лог в **начале** оркестрации (до раннего return) — иначе список сообщений пуст при переключении чата.
 - **Plan Mode → session-log (F1 5a, 0.12.1):** `handlePlanMode`/`handleImplementPlan` создают `PlanModeManager(workspacePath, resolveSessionId(sessionId), e => sessionLog.append(e))` — tool-события Plan Mode (PlannerAgent/оркестратор/ReviewerAgent/coderFixer) пишутся в лог, экспорт/копия plan-сессий полные.
@@ -142,6 +142,7 @@ since: 0.1.0
 
 | Версия | Дата | Изменения |
 |--------|------|-----------|
+| 0.14.25 | 2026-11-08 | `chat.open` переведён на `Ctrl+Alt+L` / `Cmd+Option+L`: прежний `Ctrl+Shift+L` — дефолт VS Code «выделить все вхождения», глобальный биндинг его перекрывал |
 | 0.14.14 | 2026-11-08 | Команда переименована в `llmAssistant.chat.open`: id `chat.focus` конфликтовал с авто-командой VS Code `<viewId>.focus` для view `llmAssistant.chat` — в палитре вместо «Открыть чат» показывалась «Focus on Чат View» |
 | 0.14.13 | 2026-11-08 | `reveal()` посылает `focusInput`: команда «Открыть чат» ставит курсор в поле ввода (раньше только раскрывала панель); тест `CVP-1.8` |
 | 0.14.12 | 2026-11-08 | Лимит шагов агента читается из `llmAssistant.agent.maxIterations` (в коде было зашито 5); сводка «Изменено файлов: N» в ответе |

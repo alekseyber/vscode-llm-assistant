@@ -1,6 +1,6 @@
 // registerCommands.ts — централизованная регистрация всех команд расширения
 // Регистрирует 6 команд в Command Palette с горячими клавишами (keybindings в package.json):
-//   1. llmAssistant.chat.open           (Ctrl+Shift+L) — открыть чат
+//   1. llmAssistant.chat.open           (Ctrl+Alt+L)   — открыть чат
 //   2. llmAssistant.chat.addSelection   — добавить выделение в контекст чата
 //   3. llmAssistant.edit.selection      (Ctrl+Alt+I)   — редактировать выделенный код
 //   4. llmAssistant.autocomplete.toggle — вкл/выкл автокомплит
@@ -65,7 +65,7 @@ export interface CommandDependencies {
 export function registerCommands(deps: CommandDependencies): void {
   const { context, providerManager, conversationManager, editController, autocompleteController, runHistoryStore, historyViewProvider, reviewViewProvider, sessionLog, refreshSessions, revealChat } = deps;
 
-  // ── 1. llmAssistant.chat.open (Ctrl+Shift+L) — открыть/сфокусировать чат ──
+  // ── 1. llmAssistant.chat.open (Ctrl+Alt+L) — открыть/сфокусировать чат ──
   context.subscriptions.push(
     vscode.commands.registerCommand('llmAssistant.chat.open', async () => {
       // Показываем контейнер сайдбара (резолвит WebView чата, если он ещё не создан)
