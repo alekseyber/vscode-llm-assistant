@@ -375,7 +375,10 @@ export class AgentWorker {
       iterations: steps.filter(s => s.type === 'tool_call' || s.type === 'response').length,
       inputTokens: Math.ceil(inputTokens),
       outputTokens: Math.ceil(outputTokens),
-      cost: calculateCost(model, Math.ceil(inputTokens), Math.ceil(outputTokens)),
+      // Локальный прогон бесплатен: calculateCost без карты цен взял бы DEFAULT_PRICING
+      cost: (this.provider as any)?.isLocal
+        ? 0
+        : calculateCost(model, Math.ceil(inputTokens), Math.ceil(outputTokens)),
       limitExceeded,
     };
   }

@@ -49,6 +49,13 @@ export class ProviderManager {
   private providers: Map<string, LLMProvider> = new Map();
   /** Карта цен моделей (из конфига + fallback) */
   private _pricingMap: PricingMap = new Map();
+  /**
+   * Модели локальных провайдеров (бесплатные). Живёт ОТДЕЛЬНО от `_pricingMap`,
+   * потому что `refresh()` её очищает при любом изменении настроек: иначе после правки
+   * settings.json локальная модель снова считалась бы по DEFAULT_PRICING ($0.50/$1.00).
+   * Найдено ручным прогоном 0.14.0: «768+40 токенов = 0.0004» у gemma3:4b.
+   */
+  private readonly localModels = new Set<string>();
 
   constructor() {
     // При создании сразу читаем конфигурацию
@@ -67,6 +74,8 @@ export class ProviderManager {
 
     this.providers.clear();
     this._pricingMap.clear();
+    // localModels НЕ очищаем: имена локальных моделей не зависят от правки настроек,
+    // а повторный discovery может быть недоступен в момент изменения конфигурации.
 
     for (const [name, providerCfg] of Object.entries(providersConfig)) {
       // Подстановка переменных окружения ${VAR}
@@ -127,13 +136,18 @@ export class ProviderManager {
    */
   setZeroPricing(modelNames: string[]): void {
     for (const model of modelNames) {
+      this.localModels.add(model);
       this._pricingMap.set(model, { input: 0, output: 0 });
     }
   }
 
   /** Получить карту цен моделей */
   get pricingMap(): PricingMap {
-    return this._pricingMap;
+    if (this.localModels.size === 0) return this._pricingMap;
+    // Накладываем нули поверх карты: локальные модели не стоят денег
+    const merged = new Map(this._pricingMap);
+    for (const model of this.localModels) merged.set(model, { input: 0, output: 0 });
+    return merged;
   }
 
   /**

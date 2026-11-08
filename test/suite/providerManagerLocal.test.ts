@@ -132,4 +132,36 @@ suite('ProviderManager — локальный провайдер', () => {
       assert.ok(manager.getProvider('local'));
     });
   });
+
+  test('PRM-1.4 (регрессия ручного прогона): нули переживают refresh() после правки настроек', () => {
+    const state: { providers: Record<string, unknown> } = {
+      providers: { local: { type: 'ollama', models: [] } },
+    };
+    const mockConfig = {
+      get: (key: string, defaultValue?: unknown) => {
+        if (key === 'providers') return state.providers;
+        if (key === 'debug') return false;
+        return defaultValue;
+      },
+      has: () => false,
+      inspect: () => undefined,
+      update: () => Promise.resolve(),
+    };
+    sandbox.stub(vscode.workspace, 'getConfiguration').returns(mockConfig as any);
+
+    const manager = new ProviderManager();
+    // Так делает ChatViewProvider после discovery: у провайдера models: [] в конфиге
+    manager.setZeroPricing(['gemma3:4b', 'qwen3:8b']);
+    assert.strictEqual(calculateCost('gemma3:4b', 768, 40, manager.pricingMap), 0);
+
+    // Пользователь правит settings.json (например включает local.think) → refresh()
+    manager.refresh();
+
+    assert.strictEqual(
+      calculateCost('gemma3:4b', 768, 40, manager.pricingMap),
+      0,
+      'после refresh() цена локальной модели осталась нулевой (баг 0.0004)',
+    );
+    assert.deepStrictEqual(manager.pricingMap.get('qwen3:8b'), { input: 0, output: 0 });
+  });
 });

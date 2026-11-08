@@ -458,4 +458,21 @@ suite('AgentWorker — локальный провайдер и extraBody', () =
     assert.strictEqual(provider.createWithTools.called, true);
     assert.strictEqual(result.answer, 'ответ локальной модели');
   });
+
+  test('AW-1.4: прогон на локальном провайдере стоит 0, а не DEFAULT_PRICING', async () => {
+    stubConfig({ 'local.toolLoop': true, defaultModel: 'gemma3:4b' });
+    const provider = {
+      isLocal: true,
+      createWithTools: sinon.stub().resolves({
+        choices: [{ message: { content: 'ответ' } }],
+        usage: { prompt_tokens: 768, completion_tokens: 40 },
+      }),
+    };
+    const worker = new AgentWorker({ name: 't', systemPrompt: 'Тест' }, provider as any, { maxIterations: 2 });
+
+    const result = await worker.run('задача');
+
+    assert.strictEqual(result.cost, 0, 'локальный прогон бесплатен');
+    assert.ok(result.inputTokens > 0, 'токены при этом считаются');
+  });
 });
