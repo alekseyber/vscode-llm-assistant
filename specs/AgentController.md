@@ -1,6 +1,6 @@
 ---
 component: AgentController
-version: 0.13.0
+version: 0.14.9
 status: beta
 since: 0.1.0
 ---
@@ -23,6 +23,7 @@ ReAct-агент для **Apply Mode** (отдельная команда, не 
 | `maxIterations` | 20 (из настроек) |
 | `signal` | AbortSignal для отмены |
 | `onStep` | Колбэк для лога в Output Channel |
+| `onConfirm` | `(toolName, args) => Promise<boolean>` — запрос подтверждения перед выполнением инструмента; `false` → инструмент не выполняется, агент получает «Операция отклонена пользователем» |
 
 ### `parseToolCall(responseText) → {name, arguments} | null`
 
@@ -39,6 +40,8 @@ ReAct-агент для **Apply Mode** (отдельная команда, не 
 | Превышен лимит шагов | Завершение с сообщением |
 | Отмена пользователем | AbortError → cancelled |
 | Длинная история | Summary через ContextSummarizer |
+| `onConfirm` вернул `false` | Инструмент не выполняется, шаг `error` в лог, агент получает отказ (AC CNF-2) |
+| `onConfirm` не передан | Поведение прежнее: инструмент выполняется без вопроса (AC CNF-3) |
 
 ## Отличия от AgentWorker
 
@@ -88,5 +91,6 @@ ReAct-агент для **Apply Mode** (отдельная команда, не 
 
 | Версия | Дата | Изменения |
 |--------|------|-----------|
+| 0.14.9 | 2026-11-08 | `onConfirm`: подтверждение перед выполнением инструмента (apply-режим раньше писал в файлы молча); 3 теста CNF |
 | 0.13.0 | 2026-08-23 | extraBody (thinking disabled для deepseek) |
 | 0.1.0 | 2026-08-04 | Базовая реализация |

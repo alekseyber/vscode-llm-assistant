@@ -18,7 +18,7 @@ import { AutocompleteController } from '../modes/autocomplete/AutocompleteContro
 import { AgentController } from '../modes/apply/AgentController';
 import { ToolSystem } from '../modes/apply/ToolSystem';
 import { createTools } from '../modes/apply/ToolDefinitions';
-import { getAllowedTools, loadToolAllowListConfig } from '../modes/apply/ToolAllowList';
+import { isConfirmationRequired, getAllowedTools, loadToolAllowListConfig } from '../modes/apply/ToolAllowList';
 import { RunHistoryStore, generateRunId } from '../shared/RunHistoryStore';
 import { SessionLog } from '../shared/SessionLog';
 import { HistoryViewProvider } from '../modes/history/HistoryViewProvider';
@@ -367,6 +367,23 @@ async function startApplyMode(
           provider,
           model,
           task,
+          // Подтверждение перед записью: apply-режим раньше выполнял инструменты молча
+          onConfirm: async (toolName, args) => {
+            if (!isConfirmationRequired(toolName, allowListConfig)) {
+              return true;
+            }
+            const preview = Object.entries(args)
+              .map(([k, v]) => `${k}: ${String(v).slice(0, 200)}`)
+              .join('\n');
+            const choice = await vscode.window.showWarningMessage(
+              `Агент хочет выполнить «${toolName}». Выполнить?\n\n${preview}`,
+              { modal: true },
+              'Применить',
+              'Отклонить',
+            );
+            outputChannel.appendLine(`[INFO] Подтверждение ${toolName}: ${choice ?? 'закрыто'}`);
+            return choice === 'Применить';
+          },
           maxIterations,
           signal: abortController.signal,
           // Логируем каждый шаг ReAct-цикла в Output Channel

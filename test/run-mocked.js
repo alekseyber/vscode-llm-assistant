@@ -28,48 +28,15 @@ const mocha = new Mocha({
   color: true,
 });
 
-// Добавляем тестовые файлы
-const testFiles = [
-  '../out/test/suite/askUserTool.test.js',
-  '../out/test/suite/providers.test.js',
-  '../out/test/suite/providerManagerLocal.test.js',
-  '../out/test/suite/ollamaProviderLocal.test.js',
-  '../out/test/suite/thinking.test.js',
-  '../out/test/suite/streaming.test.js',
-  '../out/test/suite/tools.test.js',
-  '../out/test/suite/context.test.js',
-  '../out/test/suite/conversation.test.js',
-  '../out/test/suite/session.test.js',
-  '../out/test/suite/sessionLog.test.js',
-  '../out/test/suite/agentsMd.test.js',
-  '../out/test/suite/agentsMdIntegration.test.js',
-  '../out/test/suite/contextSummarizer.test.js',
-  '../out/test/suite/summaryIntegration.test.js',
-  '../out/test/suite/retryHandler.test.js',
-  '../out/test/suite/toolAllowList.test.js',
-  '../out/test/suite/mcpClient.test.js',
-  '../out/test/suite/runHistoryStore.test.js',
-  '../out/test/suite/agentWorker.test.js',
-  '../out/test/suite/agentOrchestrator.test.js',
-  '../out/test/suite/agentCommunication.test.js',
-  '../out/test/suite/orchestratorView.test.js',
-  '../out/test/suite/roleAgentsMd.test.js',
-  '../out/test/suite/slashCommands.test.js',
-  '../out/test/suite/chatViewProvider.test.js',
-  '../out/test/suite/diff.test.js',
-  '../out/test/suite/contextBuilder.test.js',
-  '../out/test/suite/historyViewProvider.test.js',
-  '../out/test/suite/planModeManager.test.js',
-  '../out/test/suite/cleanLlmResponse.test.js',
-  '../out/test/suite/registerCommands.test.js',
-  '../out/test/suite/lineDiff.test.js',
-  '../out/test/suite/chatWebview.test.js',
-  '../out/test/suite/toolbar.test.js',
-  '../out/test/suite/toolActivity.test.js',
-  '../out/test/suite/codeReviewer.test.js',
-  '../out/test/suite/reviewViewProvider.test.js',
-  '../out/test/suite/reviewCommand.test.js',
-];
+// Добавляем тестовые файлы: все скомпилированные *.test.js из out/test/suite.
+// Раньше список был захардкожен, и новый файл тестов молча не запускался.
+const fs = require('fs');
+const suiteDir = path.resolve(__dirname, '../out/test/suite');
+const testFiles = fs
+  .readdirSync(suiteDir)
+  .filter((f) => f.endsWith('.test.js'))
+  .sort()
+  .map((f) => `../out/test/suite/${f}`);
 
 for (const file of testFiles) {
   const fullPath = path.resolve(__dirname, file);

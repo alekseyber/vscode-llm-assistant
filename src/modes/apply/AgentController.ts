@@ -72,6 +72,11 @@ export interface AgentRunOptions {
   signal?: AbortSignal;
   /** Колбэк на каждый шаг (для лога шагов в WebView) */
   onStep?: (step: AgentStep) => void;
+  /**
+   * Запрос подтверждения перед выполнением инструмента.
+   * Возвращает false — инструмент не выполняется, агент получает «отклонено».
+   */
+  onConfirm?: (toolName: string, args: Record<string, unknown>) => Promise<boolean>;
 }
 
 /**
@@ -218,6 +223,18 @@ export class AgentController {
         if (toolCall) {
           // 3a. Вызов инструмента
           emit({ iteration: i, type: 'tool_call', tool: toolCall.name, args: toolCall.arguments });
+
+          // Подтверждение пользователя (в apply-режиме спрашиваем перед записью в файлы)
+          if (options.onConfirm) {
+            const approved = await options.onConfirm(toolCall.name, (toolCall.arguments ?? {}) as Record<string, unknown>);
+            if (!approved) {
+              const denied = 'Операция отклонена пользователем.';
+              emit({ iteration: i, type: 'error', message: `Операция ${toolCall.name} отклонена` });
+              messages.push({ role: 'assistant' as const, content: responseText });
+              messages.push({ role: 'user' as const, content: denied });
+              continue;
+            }
+          }
 
           const result = await this.toolSystem.execute(toolCall.name, toolCall.arguments);
 
