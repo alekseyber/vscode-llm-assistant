@@ -135,3 +135,44 @@ suite('HistoryViewProvider', () => {
     assert.ok(!html.includes('detail-panel'), 'старая зарезервированная панель удалена');
   });
 });
+
+// ─────────── HV-8: фильтр по режиму реально фильтрует строки ───────────
+suite('HistoryViewProvider / WebView: фильтр по режиму', () => {
+  const { JSDOM } = require('jsdom');
+
+  function buildDom(): any {
+    const store: any = { getRuns: () => [], onDidChange: () => ({ dispose() {} }) };
+    const provider: any = new HistoryViewProvider(store);
+    const html = provider.getHtmlContent();
+    return new JSDOM(html, {
+      runScripts: 'dangerously',
+      beforeParse(window: any) {
+        window.acquireVsCodeApi = () => ({ postMessage() {}, getState() {}, setState() {} });
+      },
+    });
+  }
+
+  test('HV-8: после смены селектора остаются только записи выбранного режима', () => {
+    const dom = buildDom();
+    const { window } = dom;
+    const doc = window.document;
+
+    const runs = [
+      { id: '1', timestamp: Date.now(), mode: 'chat', task: 'a', provider: 'p', model: 'm', steps: 1, tokensIn: 1, tokensOut: 1, cost: 0, duration: 1, status: 'success' },
+      { id: '2', timestamp: Date.now(), mode: 'agent', task: 'b', provider: 'p', model: 'm', steps: 1, tokensIn: 1, tokensOut: 1, cost: 0, duration: 1, status: 'success' },
+      { id: '3', timestamp: Date.now(), mode: 'edit', task: 'c', provider: 'p', model: 'm', steps: 1, tokensIn: 1, tokensOut: 1, cost: 0, duration: 1, status: 'success' },
+    ];
+    window.dispatchEvent(new window.MessageEvent('message', { data: { type: 'refresh', runs, statsLine: '3 запусков' } }));
+
+    const rows = () => doc.querySelectorAll('#table-body tr').length;
+    assert.strictEqual(rows(), 3, 'без фильтра видны все три');
+
+    const select = doc.getElementById('mode-filter') as any;
+    select.value = 'edit';
+    select.dispatchEvent(new window.Event('change'));
+
+    assert.strictEqual(rows(), 1, 'после фильтра остаётся одна строка');
+    const statsText = (doc.getElementById('stats-line') as any).textContent;
+    assert.ok(statsText.includes('фильтр показал 1 из 3'), `нет пометки фильтра: ${statsText}`);
+  });
+});

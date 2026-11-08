@@ -365,8 +365,8 @@ export class HistoryViewProvider implements vscode.WebviewViewProvider {
       // --- Фильтрация ---
       modeFilter.addEventListener('change', function() {
         currentFilter = this.value;
-        renderStats(message);
         renderTable();
+        updateFilterSuffix();
       });
 
       // --- Очистка истории ---
@@ -375,13 +375,25 @@ export class HistoryViewProvider implements vscode.WebviewViewProvider {
       });
 
       // --- Рендер таблицы ---
-      function renderStats(message) {
+      let lastStatsLine = '—';
+
+      /** Сводка приходит с backend: она по всей истории, фильтр на неё не влияет. */
+      function renderStats(msg) {
+        lastStatsLine = msg && msg.statsLine ? msg.statsLine : '—';
+        updateFilterSuffix();
+      }
+
+      /** Дописать к сводке, сколько строк показано при активном фильтре. */
+      function updateFilterSuffix() {
         const el = document.getElementById('stats-line');
         if (!el) return;
-        el.textContent = message && message.statsLine ? message.statsLine : '—';
-        el.title = message && message.statsLine
-          ? 'Сводка по всем запускам: суммарная стоимость, средняя стоимость, доля ошибок'
-          : 'Сводка недоступна';
+        let text = lastStatsLine;
+        if (currentFilter !== 'all') {
+          const shown = allRuns.filter(function(r) { return r.mode === currentFilter; }).length;
+          text += ' · фильтр показал ' + shown + ' из ' + allRuns.length;
+        }
+        el.textContent = text;
+        el.title = 'Сводка по всей истории: суммарная стоимость, средняя стоимость, доля ошибок';
       }
 
       function renderTable() {
@@ -501,6 +513,7 @@ export class HistoryViewProvider implements vscode.WebviewViewProvider {
         switch (msg.type) {
           case 'refresh':
             allRuns = msg.runs || [];
+            renderStats(msg);
             renderTable();
             break;
           case 'runDetails':
