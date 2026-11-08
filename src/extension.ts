@@ -60,7 +60,7 @@ export function activate(context: vscode.ExtensionContext) {
     const registrySessions = conversationManager.session.listSessions();
     const pruned = sessionLog.pruneUnknown(registrySessions.map(s => s.id));
     console.warn(`[LLM Assistant] Ре-консиляция логов: сессий в реестре=${registrySessions.length}, удалено сирот=${pruned}`);
-    editController = new EditController(providerManager);
+    editController = new EditController(providerManager, runHistoryStore);
     autocompleteController = new AutocompleteController(providerManager);
 
     // Инициализация хранилища истории запусков (слой 07 Product Shell)

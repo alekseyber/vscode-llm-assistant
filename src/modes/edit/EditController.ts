@@ -6,6 +6,8 @@ import { ProviderManager } from '../../providers/manager';
 import { computeDiff, applyDiffDecorations, clearDiffDecorations, acceptChanges } from './diff';
 import { cleanLlmResponse } from '../../shared/cleanLlmResponse';
 import { buildThinkingExtraBody } from '../../shared/thinking';
+import { RunHistoryStore, RunEntry, generateRunId } from '../../shared/RunHistoryStore';
+import { calculateCost } from '../../providers/types';
 
 /**
  * EditController — хендлер для редактирования выделенного кода через LLM.
@@ -23,6 +25,9 @@ export class EditController {
   /** Менеджер провайдеров для отправки запросов к LLM */
   private providerManager: ProviderManager;
 
+  /** Хранилище истории запусков (опционально: пишем и Edit-прогоны, чтобы сводка была полной) */
+  private runHistoryStore?: RunHistoryStore;
+
   /** Состояние текущей сессии редактирования */
   private currentSession: EditSession | null = null;
 
@@ -33,8 +38,9 @@ export class EditController {
   /**
    * @param providerManager - менеджер провайдеров
    */
-  constructor(providerManager: ProviderManager) {
+  constructor(providerManager: ProviderManager, runHistoryStore?: RunHistoryStore) {
     this.providerManager = providerManager;
+    this.runHistoryStore = runHistoryStore;
   }
 
   /**
@@ -70,10 +76,14 @@ export class EditController {
     }
 
     // Отправляем запрос к LLM
+    const startedAt = Date.now();
     const newCode = await this.sendEditRequest(selectedText, instruction, editor);
     if (!newCode) {
       return; // Ошибка или отмена
     }
+
+    // Пишем Edit-прогон в историю: без этого сводка по стоимости неполная (P13)
+    this.recordRun(selectedText, newCode, instruction, startedAt);
 
     // Показываем diff
     this.showDiff(editor, selection, selectedText, newCode);
@@ -195,6 +205,36 @@ export class EditController {
   }
 
   /**
+   * Записать Edit-прогон в историю запусков.
+   *
+   * Токены оцениваются как длина/4 — провайдер в стриминге не отдаёт usage,
+   * а та же оценка используется в чате, поэтому цифры сопоставимы.
+   */
+  private recordRun(oldText: string, newText: string, instruction: string, startedAt: number): void {
+    if (!this.runHistoryStore) return;
+    const config = vscode.workspace.getConfiguration('llmAssistant');
+    const model = config.get<string>('defaultModel') ?? 'gpt-4o';
+    const providerName = config.get<string>('defaultProvider') ?? 'openai';
+    const tokensIn = Math.ceil((oldText.length + instruction.length) / 4);
+    const tokensOut = Math.ceil(newText.length / 4);
+    const entry: RunEntry = {
+      id: generateRunId(),
+      timestamp: startedAt,
+      mode: 'edit',
+      task: instruction.slice(0, 100),
+      provider: providerName,
+      model,
+      steps: 1,
+      tokensIn,
+      tokensOut,
+      cost: calculateCost(model, tokensIn, tokensOut),
+      duration: Date.now() - startedAt,
+      status: 'success',
+    };
+    this.runHistoryStore.recordRun(entry);
+  }
+
+  /**
    * Показать diff между старым и новым кодом.
    *
    * Использует декорации (зелёный для добавленного, красный для удалённого)
@@ -237,7 +277,8 @@ export class EditController {
 
     // Показываем уведомление с кнопками Accept / Reject
     vscode.window.showInformationMessage(
-      `Изменений: +${diffResult.addedCount} / -${diffResult.removedCount}. Принять или отклонить?`,
+      `Строки ${selection.start.line + 1}–${selection.end.line + 1}: `
+        + `+${diffResult.addedCount} / −${diffResult.removedCount}. Принять или отклонить?`,
       'Принять (Accept)',
       'Отклонить (Reject)'
     ).then((action) => {
