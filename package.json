@@ -3,7 +3,7 @@
   "displayName": "LLM Assistant — AI Agent for VS Code",
   "description": "AI-ассистент для VS Code: чат, inline-правки, автокомплит, ReAct-агент с инструментами и MCP. Облако BYOK или локальные модели (Ollama) — код не покидает машину.",
   "publisher": "alekseyber",
-  "version": "0.14.31",
+  "version": "0.14.32",
   "icon": "media/icon.png",
   "repository": {
     "type": "git",

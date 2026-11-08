@@ -4,6 +4,7 @@
 
 import * as vscode from 'vscode';
 import { RunHistoryStore, RunEntry } from '../../shared/RunHistoryStore';
+import { computeRunStats, formatStatsLine } from '../../shared/runStats';
 
 /** ID вида — регистрируется в package.json */
 export const HISTORY_VIEW_TYPE = 'llmAssistant.history';
@@ -41,7 +42,7 @@ export class HistoryViewProvider implements vscode.WebviewViewProvider {
   /** Обновить таблицу после новой записи */
   refresh(): void {
     if (this.view) {
-      this.postMessage({ type: 'refresh', runs: this.store.getRuns() });
+      this.postMessage(this.buildRefreshMessage());
     }
   }
 
@@ -49,7 +50,7 @@ export class HistoryViewProvider implements vscode.WebviewViewProvider {
     switch (message.type) {
       case 'ready':
         // Отправляем текущую историю при загрузке
-        this.postMessage({ type: 'refresh', runs: this.store.getRuns() });
+        this.postMessage(this.buildRefreshMessage());
         break;
 
       case 'clearHistory':
@@ -82,6 +83,13 @@ export class HistoryViewProvider implements vscode.WebviewViewProvider {
         }
         break;
     }
+  }
+
+  /** Сообщение refresh со сводкой по стоимости и падениям (P13). */
+  private buildRefreshMessage(): { type: string; runs: RunEntry[]; stats: unknown; statsLine: string } {
+    const runs = this.store.getRuns();
+    const stats = computeRunStats(runs);
+    return { type: 'refresh', runs, stats, statsLine: formatStatsLine(stats) };
   }
 
   private postMessage(msg: any): void {
@@ -131,7 +139,16 @@ export class HistoryViewProvider implements vscode.WebviewViewProvider {
       height: 100vh;
       overflow: hidden;
     }
-    .toolbar {
+    .stats-line {
+    padding: 6px 10px;
+    font-size: 11px;
+    color: var(--text-secondary);
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .toolbar {
       display: flex;
       align-items: center;
       gap: 8px;
@@ -297,6 +314,7 @@ export class HistoryViewProvider implements vscode.WebviewViewProvider {
     </select>
     <button id="btn-clear" class="clear-btn" title="Очистить историю">🗑 Очистить</button>
   </div>
+  <div class="stats-line" id="stats-line" title="Сводка по всем запускам: стоимость и доля ошибок">—</div>
   <div class="table-container" id="table-container">
     <div class="empty-state" id="empty-state">История запусков пуста</div>
     <table id="history-table" style="display:none">
@@ -347,6 +365,7 @@ export class HistoryViewProvider implements vscode.WebviewViewProvider {
       // --- Фильтрация ---
       modeFilter.addEventListener('change', function() {
         currentFilter = this.value;
+        renderStats(message);
         renderTable();
       });
 
@@ -356,6 +375,15 @@ export class HistoryViewProvider implements vscode.WebviewViewProvider {
       });
 
       // --- Рендер таблицы ---
+      function renderStats(message) {
+        const el = document.getElementById('stats-line');
+        if (!el) return;
+        el.textContent = message && message.statsLine ? message.statsLine : '—';
+        el.title = message && message.statsLine
+          ? 'Сводка по всем запускам: суммарная стоимость, средняя стоимость, доля ошибок'
+          : 'Сводка недоступна';
+      }
+
       function renderTable() {
         const filtered = currentFilter === 'all'
           ? allRuns

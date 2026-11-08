@@ -29,6 +29,7 @@ spec_for() {
     src/shared/streaming.ts)  echo "specs/Streaming.md" ;;
     src/shared/runSummary.ts) echo "specs/RunSummary.md" ;;
     src/shared/promptGuard.ts) echo "specs/PromptGuard.md" ;;
+    src/shared/runStats.ts) echo "specs/RunStats.md" ;;
     *)                        echo "specs/$(basename "$1" .ts).md" ;;
   esac
 }

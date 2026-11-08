@@ -95,3 +95,4 @@ version: 0.14.29
 
 | RunSummary | `src/shared/runSummary.ts` | `test/suite/runSummary.test.ts` | SUM-1–SUM-6 |
 | PromptGuard | `src/shared/promptGuard.ts` | `test/suite/promptGuard.test.ts` | PG-1–PG-7 |
+| RunStats | `src/shared/runStats.ts` | `test/suite/runStats.test.ts` | RS-1–RS-5 |
