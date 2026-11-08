@@ -293,7 +293,7 @@ suite('OllamaProvider (нативный /api/chat)', () => {
     const caps = await local.capabilities('qwen3:8b');
     const again = await local.capabilities('qwen3:8b');
 
-    assert.deepStrictEqual(caps, { tools: true, thinking: true, vision: false });
+    assert.deepStrictEqual(caps, { completion: true, embedding: false, tools: true, thinking: true, vision: false });
     assert.deepStrictEqual(again, caps);
     assert.strictEqual(hits['/api/show'], 1, 'capabilities кэшируются');
   });
@@ -494,5 +494,59 @@ suite('OllamaProvider (нативный /api/chat)', () => {
     const elapsed = Date.now() - started;
 
     assert.ok(elapsed < 3000, `таймаут сработал быстро (${elapsed} мс), а не по глобальным 60 с`);
+  });
+
+  test('OLL-4.1: эмбеддинг-модели не попадают в чат-селектор', async () => {
+    handler = (req, res, body) => {
+      if (req.url === '/api/tags') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          models: [
+            { name: 'gemma3:4b', size: 3350000000 },
+            { name: 'qwen3-embedding:0.6b', size: 640000000 },
+          ],
+        }));
+        return;
+      }
+      // /api/show: у embedding нет capability completion
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        capabilities: body.model === 'qwen3-embedding:0.6b' ? ['embedding'] : ['completion', 'vision'],
+      }));
+    };
+
+    const models = await new OllamaProvider({ name: 'local', baseUrl, models: [] }).models();
+
+    assert.deepStrictEqual(models, ['gemma3:4b'], 'эмбеддинг отфильтрован, чат-модель осталась');
+  });
+
+  test('OLL-4.1: нестандартные capabilities (пустой список) — модель не выбрасываем', async () => {
+    handler = (req, res) => {
+      if (req.url === '/api/tags') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ models: [{ name: 'weird:latest', size: 1 }] }));
+        return;
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ capabilities: [] }));
+    };
+
+    const models = await new OllamaProvider({ name: 'local', baseUrl, models: [] }).models();
+    assert.deepStrictEqual(models, ['weird:latest'], 'пустые capabilities — не повод скрывать модель');
+  });
+
+  test('OLL-4.1: если /api/show недоступен — модель не выбрасываем', async () => {
+    handler = (req, res) => {
+      if (req.url === '/api/tags') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ models: [{ name: 'custom:latest', size: 1 }] }));
+        return;
+      }
+      res.writeHead(500);
+      res.end('boom');
+    };
+
+    const models = await new OllamaProvider({ name: 'local', baseUrl, models: [] }).models();
+    assert.deepStrictEqual(models, ['custom:latest'], 'при незнании capabilities модель остаётся');
   });
 });

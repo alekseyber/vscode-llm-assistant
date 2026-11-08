@@ -22,6 +22,10 @@ const MODELS_CACHE_TTL_MS = 30_000;
 
 /** Возможности модели по данным /api/show. */
 export interface OllamaCapabilities {
+  /** Умеет ли модель вести чат */
+  completion: boolean;
+  /** Эмбеддинг-модель: в чат-селектор не пускаем */
+  embedding: boolean;
   tools: boolean;
   thinking: boolean;
   vision: boolean;
@@ -573,8 +577,21 @@ export class OllamaProvider extends BaseProvider {
         .map((m: any) => m?.name ?? m?.model)
         .filter((name: any): name is string => typeof name === 'string' && name.length > 0);
 
-      // Модели из конфига идут первыми (порядок пользователя), затем новые из discovery
-      const merged = [...configured, ...discovered.filter((name) => !configured.includes(name))];
+      // Модели из конфига идут первыми (порядок пользователя), затем новые из discovery.
+      // Эмбеддинг-модели в чат-селектор не пускаем: выбрать можно, но каждый запрос
+      // вернёт ошибку сервера. Отбрасываем только при ЯВНОЙ capability `embedding`:
+      // если /api/show недоступен или ответ нестандартный — модель остаётся.
+      const usable: string[] = [];
+      for (const name of discovered) {
+        if (configured.includes(name)) {
+          usable.push(name);
+          continue;
+        }
+        const caps = await this.capabilities(name);
+        if (caps?.embedding) debugLog(`[ollama] модель ${name} пропущена: embedding-модель`);
+        else usable.push(name);
+      }
+      const merged = [...configured, ...usable.filter((name) => !configured.includes(name))];
       if (merged.length === 0) return configured;
 
       this.modelsCache = { at: now, models: merged };
@@ -622,6 +639,8 @@ export class OllamaProvider extends BaseProvider {
       const json: any = await response.json();
       const caps: string[] = Array.isArray(json?.capabilities) ? json.capabilities : [];
       const result: OllamaCapabilities = {
+        completion: caps.includes('completion'),
+        embedding: caps.includes('embedding'),
         tools: caps.includes('tools'),
         thinking: caps.includes('thinking'),
         vision: caps.includes('vision'),

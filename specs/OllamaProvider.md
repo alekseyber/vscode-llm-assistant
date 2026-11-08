@@ -1,6 +1,6 @@
 ---
 component: OllamaProvider
-version: 0.14.5
+version: 0.14.6
 status: beta
 since: 0.14.0
 ---
@@ -61,7 +61,7 @@ Discovery: `GET /api/tags` → имена моделей. Кэш на 30 с. П�
 
 Отчёт для команды «Проверить локальный сервер»: версия, число моделей, по строке на модель (`имя · размер · capabilities`). При недоступном сервере — две строки с подсказкой (`ollama serve`, baseUrl, SSH-туннель). Вынесена из команды, чтобы проверяться тестом без VS Code.
 
-### `capabilities(model): Promise<{tools: boolean; thinking: boolean; vision: boolean}>`
+### `capabilities(model): Promise<{completion: boolean; embedding: boolean; tools: boolean; thinking: boolean; vision: boolean}>`
 
 `POST /api/show` → `capabilities` (`completion`, `tools`, `thinking`, `vision`). Кэш на время сессии, вызывается только по явному действию (команда проверки сервера) — не на каждый рендер.
 
@@ -88,6 +88,7 @@ Discovery: `GET /api/tags` → имена моделей. Кэш на 30 с. П�
 - **Обратный маппинг:** нативный `message.tool_calls[]` → OpenAI-форма с `id`, `type:'function'`, `function.arguments` как **строка** JSON (`JSON.stringify`), потому что `AgentWorker` разбирает её через `JSON.parse`.
 - **Кэш:** `models()` — 30 с на провайдера (`MODELS_CACHE_TTL_MS`), `capabilities()` — до конца сессии. Кэш инвалидируется `invalidateCache()` (команда проверки сервера).
 - **Слияние списков:** модели из конфига идут первыми (порядок пользователя), затем новые из `/api/tags`; дублей нет. При ошибке discovery возвращается ровно конфиг.
+- **Фильтр эмбеддингов:** модель с явной capability `embedding` в чат-селектор не попадает (найдено ручным прогоном: `qwen3-embedding:0.6b` показывалась как чат-модель). Если `/api/show` недоступен или вернул пустой список capabilities — модель остаётся, чтобы не скрывать рабочие модели из-за сбоя сервера.
 - **Цены после discovery:** `ChatViewProvider` при обновлении списка вызывает `providerManager.setZeroPricing(models)` для локального провайдера, поэтому найденные модели тоже бесплатны.
 - **Таймауты:** `local.requestTimeout` (300 с); в потоке таймер продлевается на каждом чанке (`createTimeoutSignal().reset()`), поэтому долгая генерация не обрывается на 60-й секунде, а зависший поток закрывается по бездействию.
 - **Ретраи:** берутся из общих настроек (`llmAssistant.retry.enabled` / `retry.maxRetries`), а не из хардкода; при выключенных ретраях — одна попытка. Ретраится только установление соединения, не сама генерация.
@@ -166,6 +167,7 @@ Discovery: `GET /api/tags` → имена моделей. Кэш на 30 с. П�
 | `local.requestTimeout` ограничивает ожидание (провайдер, не глобальные 60 с) | OLL-6.4 / AW-1.3 | ✅ |
 | инструменты: `tool_calls` → OpenAI-форма, конвертация истории | OLL-3.1, OLL-3.2 | ⏳ Stage 5 |
 | `/api/tags` → список моделей, конфиг первым, кэш 30 с | OLL-4.1 | ✅ |
+| эмбеддинг-модель отфильтрована; пустые capabilities / недоступный `/api/show` → модель остаётся | OLL-4.1 | ✅ |
 | сервер недоступен → модели из конфига, `version()` → `undefined` | OLL-4.1 | ✅ |
 | `/api/show` → capabilities, повторный вызов из кэша | OLL-4.2 | ✅ |
 | `/api/show` упал → `undefined` без исключения | OLL-4.2 | ✅ |
@@ -184,6 +186,7 @@ Discovery: `GET /api/tags` → имена моделей. Кэш на 30 с. П�
 
 | Версия | Дата | Изменения |
 |--------|------|-----------|
+| 0.14.6 | 2026-11-07 | Фильтр эмбеддинг-моделей в discovery (по явной capability `embedding`), `completion`/`embedding` в `capabilities()`; +2 теста |
 | 0.14.5 | 2026-11-07 | Stage 6: тест на локальный таймаут (OLL-6.4 / AW-1.3), матрица «AC → тест» в `TRACEABILITY.md`; базлайн 449 → 492 |
 | 0.14.4 | 2026-11-07 | Vision: `chatWithVision` на нативном API, чистая `toNativeVisionMessages` (data-url → `images[]`); +2 теста |
 | 0.14.3 | 2026-11-07 | Stage 5: `createWithTools` на нативном `/api/chat` (tools, конвертация истории в обе стороны, `usage`), чистые `toNativeMessages`/`toOpenAIToolCalls`; +4 теста |
