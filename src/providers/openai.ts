@@ -8,6 +8,11 @@ import { BaseProvider } from './base';
 import { ChatMessage, CompletionOptions, RetryCallback } from './types';
 import { withRetry, DEFAULT_RETRY_OPTIONS } from '../shared/RetryHandler';
 
+/** Сколько живёт кэш списка моделей локального движка (мс). */
+const MODELS_CACHE_TTL_MS = 30_000;
+/** Таймаут запроса `/v1/models`: discovery не должен задерживать отрисовку панели. */
+const MODELS_TIMEOUT_MS = 3_000;
+
 /**
  * Конфигурация ретраев, читаемая из настроек VS Code.
  */
@@ -83,6 +88,55 @@ export class OpenAIProvider extends BaseProvider {
     this.toolLoopOverride = typeof config.toolLoop === 'boolean' ? config.toolLoop : undefined;
     // Отключаем встроенные ретраи OpenAI SDK — используем свои через withRetry
     this.client = new OpenAI({ apiKey: this.apiKey, baseURL: this.baseUrl, maxRetries: 0 });
+  }
+
+  /** Кэш discovery моделей (только для локальных движков). */
+  private modelsCache?: { at: number; models: string[] };
+
+  /**
+   * Список моделей.
+   *
+   * Для локального движка (`isLocal`) — discovery через `GET /v1/models`: llama.cpp
+   * отдаёт алиас модели, и вбивать его руками в конфиг не нужно. Список сливается с
+   * конфигом (конфиг первым), кэш 30 с, при любой ошибке — конфиг без исключения:
+   * селектор не должен ломаться из-за выключенного сервера.
+   *
+   * У облачных провайдеров discovery НЕ включается сознательно: `/v1/models` у OpenAI,
+   * DeepSeek и SiliconFlow отдаёт десятки моделей, и серверный список затёр бы
+   * выбранный пользователем набор.
+   */
+  async models(): Promise<string[]> {
+    const configured = await super.models();
+    if (this.isLocal !== true) return configured;
+
+    const now = Date.now();
+    if (this.modelsCache && now - this.modelsCache.at < MODELS_CACHE_TTL_MS) {
+      return [...this.modelsCache.models];
+    }
+    try {
+      const headers: Record<string, string> = {};
+      if (this.apiKey) headers.Authorization = `Bearer ${this.apiKey}`;
+      const response = await fetch(`${this.baseUrl}/models`, {
+        method: 'GET',
+        headers,
+        signal: AbortSignal.timeout(MODELS_TIMEOUT_MS),
+      });
+      if (!response.ok) return configured;
+      const json: any = await response.json();
+      const discovered: string[] = Array.isArray(json?.data)
+        ? json.data.map((m: any) => (typeof m?.id === 'string' ? m.id : '')).filter(Boolean)
+        : [];
+      const merged = [...configured];
+      for (const id of discovered) {
+        if (!merged.includes(id)) merged.push(id);
+      }
+      const result = merged.length > 0 ? merged : configured;
+      this.modelsCache = { at: now, models: result };
+      return [...result];
+    } catch {
+      // Сервер погашен или не OpenAI-совместим в части /models — остаёмся на конфиге
+      return configured;
+    }
   }
 
   /**
