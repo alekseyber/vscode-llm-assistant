@@ -106,7 +106,7 @@ suite('E2E-6: workspace-контекст агента', () => {
     await runOnce(capture!.url);
     const withoutSkills = systemPromptOf(capture!);
     assert.ok(!withoutSkills.includes('Доступные скилы'), 'без каталога секции нет');
-    assert.ok(!withoutSkills.includes('(фикстура e2e)'), 'и описаний скилов тоже нет');
+    assert.ok(!withoutSkills.includes('Пишет код по описанию задачи'), 'и описания самого скила тоже нет');
   });
 
   test('E2E-6c: allow-list из .vscode/llm-assistant.json режет tools[] — run_terminal не уходит модели', async function () {
