@@ -341,7 +341,7 @@ export class AgentWorker {
               denials += 1;
               // Отказ не должен превращаться в цикл: модель любит переспрашивать
               // тот же инструмент или подменять его аналогичным (run_terminal → xxd/od).
-              if (false && denials >= MAX_DENIALS) { // RED: запрет повтора снят
+              if (denials >= MAX_DENIALS) {
                 const msg = `Выполнение остановлено: пользователь отклонил инструменты ${denials} раза подряд. `
                   + 'Правки не внесены.';
                 emit({ iteration: i, type: 'error', message: msg });
