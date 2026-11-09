@@ -44,12 +44,15 @@ async function main(): Promise<void> {
     fs.cpSync(fixtureSource, workspaceDir, { recursive: true });
     console.log(`E2E workspace (копия фикстуры): ${workspaceDir}`);
 
+    // ВАЖНО: extensionDevelopmentPath передаёт сам runTests (--extensionDevelopmentPath=…).
+    // Если продублировать его позиционным аргументом, окно открывает ДВА корня
+    // (репозиторий + копия фикстуры), и workspaceFolders[0] указывает на репозиторий —
+    // тогда .vscode/llm-assistant.json и .llma/* из фикстуры не читаются вовсе.
     const launchArgs: string[] = [
       '--disable-gpu',
       '--disable-software-rasterizer',
       '--no-sandbox',
       '--disable-workspace-trust',
-      extensionDevelopmentPath,
       workspaceDir,
     ];
 
