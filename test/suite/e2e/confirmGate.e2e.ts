@@ -128,9 +128,10 @@ suite('E2E-4: гейт подтверждения и отказ', () => {
       await waitFor(() => messagesOfType(view, 'done').length > 0, 30000, 50, 'прогон завершился');
       responder.stop();
 
-      assert.ok(!fs.existsSync(targetPath()), 'файл не создан после отказа');
+      const diag = JSON.stringify({ types: view.posted.map((m) => m.type), text: streamedText(view).slice(0, 300) });
+      assert.ok(!fs.existsSync(targetPath()), `файл не создан после отказа; ${diag}`);
       const text = streamedText(view);
-      assert.match(text, /Правки не внесены/, 'прогон остановлен текстом «Правки не внесены»');
+      assert.match(text, /Правки не внесены/, `прогон остановлен текстом «Правки не внесены»; ${diag}`);
       assert.ok(
         messagesOfType(view, 'confirmAction').length >= 2,
         'подтверждение спрашивали повторно, а не молча повторили запись',
@@ -150,7 +151,8 @@ suite('E2E-4: гейт подтверждения и отказ', () => {
       await waitFor(() => messagesOfType(view, 'done').length > 0, 30000, 50, 'прогон завершился');
       responder.stop();
 
-      assert.ok(fs.existsSync(targetPath()), 'файл создан после подтверждения');
+      const diag = JSON.stringify({ types: view.posted.map((m) => m.type), text: streamedText(view).slice(0, 300) });
+      assert.ok(fs.existsSync(targetPath()), `файл создан после подтверждения; ${diag}`);
       assert.strictEqual(fs.readFileSync(targetPath(), 'utf-8'), 'привет из e2e');
       assert.match(streamedText(view), /Изменено файлов: 1/, 'сводка считает файл по факту, а не по словам модели');
     } finally {
@@ -168,7 +170,8 @@ suite('E2E-4: гейт подтверждения и отказ', () => {
       await waitFor(() => messagesOfType(view, 'done').length > 0, 20000, 50, 'прогон завершился');
 
       assert.strictEqual(messagesOfType(view, 'confirmAction').length, 0, 'подтверждение не спрашивали — инструменты не запускались');
-      assert.strictEqual(bodies.length, 0, 'к модели не ушло ни одного запроса');
+      const diag = JSON.stringify({ types: view.posted.map((m) => m.type), bodies: bodies.length, text: streamedText(view).slice(0, 300) });
+      assert.strictEqual(bodies.length, 0, `к модели не ушло ни одного запроса; ${diag}`);
       assert.ok(!fs.existsSync(targetPath()), 'файл не создан');
       assert.match(streamedText(view), /toolLoop/, 'ответ называет настройку, которой включается цикл');
     } finally {
