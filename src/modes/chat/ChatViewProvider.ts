@@ -16,6 +16,7 @@ import { McpClient, loadMcpConfig } from '../apply/McpClient';
 import { AgentWorker, AgentRole } from '../apply/AgentWorker';
 import { AgentOrchestrator, MultiAgentTask, MultiAgentResult } from '../apply/AgentOrchestrator';
 import { RunHistoryStore, generateRunId, RunEntry } from '../../shared/RunHistoryStore';
+import { setDebugSink } from '../../shared/logger';
 import { SessionLog } from '../../shared/SessionLog';
 import { isAbortError } from '../../shared/RetryHandler';
 import { buildThinkingExtraBody } from '../../shared/thinking';
@@ -138,6 +139,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     this.orchestratorViewProvider = orchestratorViewProvider;
     this.debugChannel = vscode.window.createOutputChannel('LLM Assistant');
     ctx.subscriptions.push(this.debugChannel);
+    // Строки провайдеров (debugLog) должны попадать в тот же канал, что и [DEBUG] панели
+    setDebugSink(this.debugChannel);
     // Авто-обновление провайдеров при изменении настроек
     ctx.subscriptions.push(
       vscode.workspace.onDidChangeConfiguration(e => {
