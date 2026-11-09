@@ -41,14 +41,19 @@ suite('E2E-8: таймауты и отказ соединения (живые с
   test('E2E-8b: закрытый порт → ECONNREFUSED с подсказкой про намеренный запуск и baseUrl', async function () {
     this.timeout(20000);
     const url = await closedPortUrl();
+    const port = new URL(url).port;
+    // Ретраи выключаем: проверяем текст ошибки, а не выдержку backoff (иначе +8 с на прогон)
+    snap = await applySettings({ 'retry.enabled': false });
     const provider = new OllamaProvider({ name: 'local', baseUrl: url, models: ['qwen3:8b'] });
 
     await assert.rejects(
       () => drain(provider),
       (err: any) => {
-        assert.match(String(err.message), /ECONNREFUSED/);
-        assert.match(String(err.message), /остановлен намеренно/);
-        assert.ok(String(err.message).includes(url), `в тексте ошибки есть baseUrl: ${err.message}`);
+        const message = String(err.message);
+        assert.match(message, /ECONNREFUSED/);
+        assert.match(message, /остановлен намеренно/);
+        assert.match(message, /baseUrl/);
+        assert.ok(message.includes(port), `в тексте есть порт сервера: ${message}`);
         return true;
       },
     );
@@ -58,6 +63,7 @@ suite('E2E-8: таймауты и отказ соединения (живые с
     this.timeout(25000);
     const url = await closedPortUrl();
     const port = Number(new URL(url).port);
+    snap = await applySettings({ 'retry.enabled': false });
     const provider = new OllamaProvider({ name: 'local', baseUrl: url, models: ['qwen3:8b'] });
 
     await assert.rejects(() => drain(provider), 'пока сервера нет — ошибка');
