@@ -48,7 +48,7 @@ suite('E2E-8: таймауты и отказ соединения (живые с
       (err: any) => {
         assert.match(String(err.message), /ECONNREFUSED/);
         assert.match(String(err.message), /остановлен намеренно/);
-        assert.match(String(err.message), new RegExp(url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+        assert.ok(String(err.message).includes(url), `в тексте ошибки есть baseUrl: ${err.message}`);
         return true;
       },
     );
