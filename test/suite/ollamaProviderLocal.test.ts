@@ -585,9 +585,9 @@ suite('OllamaProvider (нативный /api/chat)', () => {
     }
   }
 
-  test('OLL-9.1: prompt_eval_count == num_ctx → предупреждение об обрезке', async () => {
+  test('OLL-9.1: prompt_eval_count == эффективное окно (numCtx/2) → предупреждение об обрезке', async () => {
     localSettings['local.numCtx'] = 4096;
-    chatWithUsage(4096);
+    chatWithUsage(2048);
 
     await drain(provider());
 
@@ -599,7 +599,7 @@ suite('OllamaProvider (нативный /api/chat)', () => {
 
   test('OLL-9.2: prompt_eval_count заметно меньше окна → предупреждения нет', async () => {
     localSettings['local.numCtx'] = 4096;
-    chatWithUsage(2950);
+    chatWithUsage(2000); // окно промпта 2048 — 2000 влезает целиком
 
     await drain(provider());
 

@@ -22,9 +22,26 @@ const MODELS_CACHE_TTL_MS = 30_000;
 /**
  * Запас у верхней границы окна: сервер считает промпт теми же токенами, но
  * последние токены буфера дают ±несколько единиц, поэтому «упёрся в окно»
- * — это `prompt_eval_count >= numCtx - TRUNCATION_MARGIN`.
+ * — это `prompt_eval_count >= effectivePromptWindow(numCtx) - TRUNCATION_MARGIN`.
  */
 const TRUNCATION_MARGIN = 16;
+
+/**
+ * Доля `num_ctx`, которая реально доступна промпту.
+ *
+ * Ollama резервирует примерно половину окна под генерацию ответа, поэтому промпт
+ * обрезается на `num_ctx / 2`, а не на `num_ctx`. Замерено 09.11 на 0.40.15
+ * (`OLLAMA_NUM_PARALLEL=1`, `OLLAMA_CONTEXT_LENGTH=16384`, промпт ~87k символов):
+ * `num_ctx` 512 → 258 токенов, 1024 → 514, 4096 → 2050, 8192 → 4098, 16384 → 8194.
+ * Прежний порог `num_ctx - 16` из-за этого не срабатывал никогда: обрезанный
+ * промпт даёт счётчик вдвое ниже «лимита», и предупреждение молчало.
+ */
+export const PROMPT_WINDOW_RATIO = 0.5;
+
+/** Сколько токенов промпта реально влезает при данном `num_ctx`. */
+export function effectivePromptWindow(numCtx: number): number {
+  return Math.floor(numCtx * PROMPT_WINDOW_RATIO);
+}
 
 /**
  * Таймаут на УСТАНОВЛЕНИЕ соединения (до первых заголовков ответа).
@@ -113,9 +130,11 @@ export function buildTruncationWarning(args: {
 }): string | null {
   const { promptTokens, numCtx } = args;
   if (typeof promptTokens !== 'number' || !Number.isFinite(promptTokens)) return null;
-  if (promptTokens < numCtx - TRUNCATION_MARGIN) return null;
+  const window = effectivePromptWindow(numCtx);
+  if (promptTokens < window - TRUNCATION_MARGIN) return null;
   return (
-    `Промпт, вероятно, обрезан: сервер обработал ${promptTokens} токенов при лимите ${numCtx}. ` +
+    `Промпт, вероятно, обрезан: сервер обработал ${promptTokens} токенов при лимите ${numCtx} ` +
+    `(под промпт Ollama отдаёт около половины окна — ${window}). ` +
     'Проверьте llmAssistant.local.numCtx и OLLAMA_CONTEXT_LENGTH на сервере.'
   );
 }
