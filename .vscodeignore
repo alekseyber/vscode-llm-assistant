@@ -8,3 +8,4 @@ webpack.config.js
 CHANGELOG.md
 **/*.ts
 **/*.map
+**/*.d.ts
