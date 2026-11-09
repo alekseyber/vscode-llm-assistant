@@ -1231,7 +1231,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       html = html.replace('{{STYLES}}', fs.readFileSync(vscode.Uri.joinPath(base, 'src', 'webviews', 'chat', 'styles.css').fsPath, 'utf-8'));
       html = html.replace('{{MARKED_LIB}}', fs.readFileSync(vscode.Uri.joinPath(base, 'src', 'webviews', 'chat', 'marked.min.js').fsPath, 'utf-8'));
       html = html.replace('{{LINEDIFF}}', fs.readFileSync(vscode.Uri.joinPath(base, 'src', 'webviews', 'chat', 'lineDiff.js').fsPath, 'utf-8'));
-      // RED: плейсхолдер toolbar не подставляется
+      html = html.replace('{{TOOLBAR}}', fs.readFileSync(vscode.Uri.joinPath(base, 'src', 'webviews', 'chat', 'toolbar.js').fsPath, 'utf-8'));
       html = html.replace('{{TOOLACTIVITY}}', fs.readFileSync(vscode.Uri.joinPath(base, 'src', 'webviews', 'chat', 'toolActivity.js').fsPath, 'utf-8'));
       html = html.replace('{{SCRIPT}}', fs.readFileSync(vscode.Uri.joinPath(base, 'src', 'webviews', 'chat', 'main.js').fsPath, 'utf-8'));
       return html;
