@@ -104,6 +104,21 @@ export class ProviderManager {
     // localModels НЕ очищаем: имена локальных моделей не зависят от правки настроек,
     // а повторный discovery может быть недоступен в момент изменения конфигурации.
 
+    // Диагностика: видно, какие записи и какие override-поля дошли до менеджера.
+    // Без неё «поставил numCtx 16384, предупреждения нет» невозможно разобрать: непонятно,
+    // поле не доехало из настроек или менеджер его не увидел.
+    debugLog(
+      '[manager] refresh: ' +
+        (Object.entries(providersConfig)
+          .map(([n, c]: [string, any]) => {
+            const fields = ['numCtx', 'think', 'timeout', 'toolLoop']
+              .filter((f) => c?.[f] !== undefined)
+              .map((f) => `${f}=${String(c[f])}`);
+            return `${n}(type=${c?.type ?? 'openai'}${fields.length ? ',' + fields.join(',') : ''})`;
+          })
+          .join('; ') || 'нет провайдеров'),
+    );
+
     for (const [name, providerCfg] of Object.entries(providersConfig)) {
       // Подстановка переменных окружения ${VAR}
       let apiKey = providerCfg.apiKey ?? '';
