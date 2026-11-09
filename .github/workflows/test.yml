@@ -39,9 +39,11 @@ jobs:
       - run: npm run test:mocked
 
   # E2E в реальном VS Code (npm test → @vscode/test-electron) — нужны GTK-библиотеки Electron + xvfb
+  # E2E не должен зависеть от test-unit: иначе любой дефект, который ловят юниты,
+  # красит test-unit и e2e пропускается — доказать «e2e это тоже ловит» невозможно.
   test-e2e:
     runs-on: ubuntu-latest
-    needs: test-unit
+    needs: lint
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
