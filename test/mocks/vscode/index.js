@@ -80,6 +80,7 @@ class EventEmitter {
 
 /** Эмиттер события изменения настроек: тесты могут его дёргать. */
 const configEmitter = new EventEmitter();
+const tabsEmitter = new EventEmitter();
 
 /** События документов и файлов: раньше были слепыми заглушками без доставки. */
 const didEmitters = {
@@ -161,6 +162,8 @@ const window = {
   tabGroups: {
     all: [],
     close(tab) { return Promise.resolve(true); },
+    // Живое событие: правка/закрытие вкладки в тестах должна доходить до слушателя
+    onDidChangeTabs(listener) { return tabsEmitter.event(listener); },
   },
   showInformationMessage(msg) { return Promise.resolve(); },
   showErrorMessage(msg) { return Promise.resolve(); },

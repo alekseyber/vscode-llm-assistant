@@ -33,6 +33,13 @@ export class EditController {
   /** Состояние текущей сессии редактирования */
   private currentSession: EditSession | null = null;
 
+  /** Открыта ли вкладка предпросмотра (нужно, чтобы отличить наше закрытие от пользовательского). */
+  private proposalTabOpen = false;
+  /** Идёт наше собственное закрытие вкладки — не считать его действием пользователя. */
+  private closingProposal = false;
+  /** Подписка на изменение вкладок: ловим закрытие предпросмотра вручную. */
+  private tabListener: vscode.Disposable | null = null;
+
   /** Подписки на команды accept/reject */
   private acceptDisposable: vscode.Disposable | null = null;
   private rejectDisposable: vscode.Disposable | null = null;
@@ -297,10 +304,48 @@ export class EditController {
         // «TextEditor#edit not possible on closed editors»
         { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true, preview: true },
       );
+      this.proposalTabOpen = true;
+      this.ensureTabListener();
       return true;
     } catch {
       return false;
     }
+  }
+
+  /** Сбросить прошлое предложение: закрыть его вкладку, снять декорации и сессию. */
+  private resetPreviousProposal(): void {
+    if (!this.currentSession) {
+      void this.closeProposalDiff();
+      return;
+    }
+    const editor = this.resolveLiveEditor(this.currentSession.editor);
+    if (editor) clearDiffDecorations(editor);
+    this.disposeProposalCodeLens();
+    void this.closeProposalDiff();
+    this.cleanupSession();
+  }
+
+  /** Слушатель вкладок: пользователь закрыл предпросмотр — снимаем разметку и сессию. */
+  private ensureTabListener(): void {
+    if (this.tabListener) return;
+    this.tabListener = vscode.window.tabGroups.onDidChangeTabs(() => {
+      if (!this.proposalTabOpen || this.closingProposal) return;
+      const stillOpen = vscode.window.tabGroups.all.some((group) =>
+        group.tabs.some((tab) => this.tabUris(tab).some((uri) => uri.scheme === PROPOSAL_SCHEME)),
+      );
+      if (stillOpen) return;
+      this.handleProposalClosedByUser();
+    });
+  }
+
+  /** Вкладку предпросмотра закрыли руками — правка не применена, разметку убираем. */
+  private handleProposalClosedByUser(): void {
+    this.proposalTabOpen = false;
+    const editor = this.currentSession ? this.resolveLiveEditor(this.currentSession.editor) : undefined;
+    if (editor) clearDiffDecorations(editor);
+    this.disposeProposalCodeLens();
+    this.cleanupSession();
+    vscode.window.showInformationMessage('Предпросмотр правки закрыт — изменения не применены.');
   }
 
   /** URI из вкладки: обычный текстовый редактор или diff (original/modified). */
@@ -342,6 +387,8 @@ export class EditController {
    * показывает уже неактуальное предложение.
    */
   public async closeProposalDiff(): Promise<void> {
+    this.closingProposal = true;
+    this.proposalTabOpen = false;
     const closedUris: string[] = [];
     for (const group of vscode.window.tabGroups.all) {
       for (const tab of group.tabs) {
@@ -365,6 +412,8 @@ export class EditController {
         this.proposalProvider.delete(vscode.Uri.parse(raw));
       }
     }
+    // Своё закрытие завершено: следующие события вкладок снова считаем действиями пользователя
+    this.closingProposal = false;
   }
 
   /**
@@ -459,6 +508,11 @@ export class EditController {
       vscode.window.showInformationMessage('Код не изменился. Попробуйте другую инструкцию.');
       return;
     }
+
+    // Прерванная правка не должна оставлять за собой ни окно, ни разметку:
+    // иначе следующая попытка открывает ВТОРОЙ diff, а закрытие одной вкладки
+    // оставляет зелёные/красные строки в исходном файле.
+    this.resetPreviousProposal();
 
     // Вычисляем diff
     const diffResult = computeDiff(oldText, newText);
@@ -649,6 +703,8 @@ export class EditController {
    * Освободить все ресурсы при деактивации.
    */
   public dispose(): void {
+    this.tabListener?.dispose();
+    this.tabListener = null;
     this.cleanupSession();
   }
 }

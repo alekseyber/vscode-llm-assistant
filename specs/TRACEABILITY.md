@@ -81,6 +81,7 @@ version: 0.14.29
 | E2E-1 | `e2e/localEngines.e2e.ts` → «настройки из настоящего settings.json доходят до провайдеров и до numCtx» (Extension Host) | ✅ |
 | E2E-2 | `e2e/localEngines.e2e.ts` → «запрос к живому HTTP-серверу из хост-процесса и предупреждение не ломают прогон» | ✅ |
 | E2E-4a/b/c | `e2e/confirmGate.e2e.ts` → «отказ и второй отказ останавливают прогон», «согласие записывает файл и сводку», «`toolLoop=false` не вызывает инструменты» | ✅ |
+| Edit → прерывание | `EDT-1/2` (`editController.test.ts`) → «новая правка закрывает прошлое предложение», «закрытие вкладки руками снимает сессию» | ✅ |
 | Edit → провайдер | `EDI-1` (`editController.test.ts`) → «Edit идёт в выбранного в панели провайдера, а не в defaultProvider» | ✅ |
 | Edit → История | `RHS-1/2` (`runHistoryStore.test.ts`) → «запись, обновление и очистка дёргают onDidChange», «Edit-прогон тоже поднимает событие» | ✅ |
 | E2E-6a..d | `e2e/workspaceContext.e2e.ts` → «правила роли в промпте», «каталог скилов и его удаление», «allow-list режет tools[]», «fallback main.md» | ✅ |

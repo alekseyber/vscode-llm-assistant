@@ -73,6 +73,49 @@ suite('EditController / история и уведомление', () => {
   });
 });
 
+suite('EditController / прерванная правка не оставляет мусора', () => {
+  function makeController(store: any) {
+    const pm: any = { getChosen: () => undefined, getDefault: () => undefined, getProvider: () => undefined };
+    return new EditController(pm, store);
+  }
+
+  test('EDT-1: новая правка закрывает прошлое предложение и сбрасывает сессию', () => {
+    const controller: any = makeController({ recordRun: sinon.stub() });
+    controller.currentSession = {
+      editor: { document: { uri: { toString: () => 'file:///a.ts' }, isClosed: false } },
+      selection: { start: { line: 0 }, end: { line: 1 } },
+      oldText: 'a',
+      newText: 'b',
+      diffResult: { addedCount: 1, removedCount: 0 },
+    };
+    const closeSpy = sinon.stub(controller, 'closeProposalDiff').resolves();
+    const lensSpy = sinon.stub(controller, 'disposeProposalCodeLens');
+
+    controller.resetPreviousProposal();
+
+    assert.strictEqual(closeSpy.callCount, 1, 'вкладка прошлого предпросмотра закрывается');
+    assert.strictEqual(lensSpy.callCount, 1, 'линзы прошлого предложения снимаются');
+    assert.strictEqual(controller.currentSession, null, 'сессия сброшена, иначе следующая правка тянет старую');
+  });
+
+  test('EDT-2: закрытие вкладки предпросмотра руками снимает сессию и предупреждает', () => {
+    const controller: any = makeController({ recordRun: sinon.stub() });
+    controller.currentSession = {
+      editor: { document: { uri: { toString: () => 'file:///a.ts' }, isClosed: false } },
+      selection: { start: { line: 0 }, end: { line: 1 } },
+      oldText: 'a',
+      newText: 'b',
+      diffResult: { addedCount: 1, removedCount: 0 },
+    };
+    controller.proposalTabOpen = true;
+
+    controller.handleProposalClosedByUser();
+
+    assert.strictEqual(controller.currentSession, null, 'сессия сброшена');
+    assert.strictEqual(controller.proposalTabOpen, false, 'флаг вкладки снят');
+  });
+});
+
 // ─────────── EDH-3: кнопки «Принять/Отклонить» прямо у кода ───────────
 suite('EditController / CodeLens над правкой', () => {
   test('EDH-3: при активной правке линзы содержат команды accept/reject и число строк', () => {
