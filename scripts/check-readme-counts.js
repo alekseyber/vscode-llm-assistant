@@ -27,9 +27,25 @@ const PATTERNS = {
 
 function parseArgs(argv) {
   const args = {};
-  for (const raw of argv.slice(2)) {
-    const match = /^--([a-z]+)=(\d+)$/.exec(raw);
-    if (match) args[match[1]] = Number(match[2]);
+  for (const raw of argv.slice(2).map((a) => a.replace(/[\r\n]/g, ''))) {
+    // Значение принимаем как есть и проверяем отдельно: если в него попал \r или текст,
+    // молча проигнорировать нельзя — проверка тихо выключилась бы (так и случилось с e2e).
+    const match = /^--([a-z0-9]+)=([\s\S]*)$/.exec(raw);
+    if (!match) {
+      // Не наш аргумент (или мусор) — не молчим: тихо пропущенный аргумент отключает проверку
+      if (raw.startsWith('--')) {
+        console.error(`[README-CN] ❌ не разобрал аргумент «${raw}»`);
+        process.exit(1);
+      }
+      continue;
+    }
+    const [, key, value] = match;
+    const digits = /^(\d+)$/.exec(value.trim());
+    if (!digits) {
+      console.error(`[README-CN] ❌ значение --${key} не число: «${value}»`);
+      process.exit(1);
+    }
+    args[key] = Number(digits[1]);
   }
   return args;
 }

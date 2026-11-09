@@ -42,7 +42,7 @@ jobs:
           npm run test:mocked 2>&1 | tee unit.log
       - name: Проверка числа mocked-тестов в README
         run: |
-          MOCKED=$(grep -oE '[0-9]+ passing' unit.log | head -1 | awk '{print $1}')
+          MOCKED=$(grep -oE '[0-9]+ passing' unit.log | head -1 | grep -oE '^[0-9]+')
           if [ -z "$MOCKED" ]; then
             echo "не нашёл N passing в выводе юнит-тестов"
             exit 1
@@ -69,7 +69,7 @@ jobs:
           xvfb-run --auto-servernum npm test 2>&1 | tee e2e.log
       - name: Проверка числа e2e в README
         run: |
-          E2E=$(grep -oE '[0-9]+ passing' e2e.log | head -1 | awk '{print $1}')
+          E2E=$(grep -oE '[0-9]+ passing' e2e.log | head -1 | grep -oE '^[0-9]+')
           if [ -z "$E2E" ]; then
             echo "не нашёл N passing в выводе e2e"
             exit 1
