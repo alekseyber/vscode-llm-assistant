@@ -1,0 +1,3 @@
+{
+  "allowedTools": ["read_file", "search_files", "write_file", "patch_file"]
+}

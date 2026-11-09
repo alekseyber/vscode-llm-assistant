@@ -2,6 +2,8 @@
 // Загружает mocha и запускает все тесты из test/suite/
 // Работает через @vscode/test-electron (vscode-test)
 
+import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 import * as cp from 'child_process';
 import {
@@ -35,12 +37,20 @@ async function main(): Promise<void> {
     const vscodeExecutablePath = await downloadAndUnzipVSCode('stable');
     
     // Настройки для запуска VS Code в headless режиме
+    // Открываем КОПИЮ фикстуры во временном каталоге, а не корень репозитория:
+    // иначе workspace-зависимые тесты пишут в git (или не могут писать вовсе).
+    const fixtureSource = path.resolve(extensionDevelopmentPath, 'test/fixtures/e2e-workspace');
+    const workspaceDir = fs.mkdtempSync(path.join(os.tmpdir(), 'llma-e2e-ws-'));
+    fs.cpSync(fixtureSource, workspaceDir, { recursive: true });
+    console.log(`E2E workspace (копия фикстуры): ${workspaceDir}`);
+
     const launchArgs: string[] = [
       '--disable-gpu',
       '--disable-software-rasterizer',
       '--no-sandbox',
       '--disable-workspace-trust',
       extensionDevelopmentPath,
+      workspaceDir,
     ];
 
     console.log(`VS Code executable: ${vscodeExecutablePath}`);
@@ -57,6 +67,11 @@ async function main(): Promise<void> {
     });
 
     console.log(`Тесты завершены с кодом: ${result}`);
+    try {
+      fs.rmSync(workspaceDir, { recursive: true, force: true });
+    } catch {
+      /* временный каталог остался — не повод валить прогон */
+    }
     process.exit(result ?? 0);
   } catch (err) {
     console.error('Ошибка запуска тестов:', err instanceof Error ? err.message : String(err));
