@@ -93,6 +93,8 @@ suite('ChatViewProvider.handleSendMessage', () => {
       getDefault: () => mockLLM,
       pricingMap: new Map(),
       refresh: () => {},
+      noteChosen: () => {},
+      getChosen: () => undefined,
     };
 
     // ── Mock ExtensionContext ──

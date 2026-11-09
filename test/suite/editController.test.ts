@@ -10,7 +10,14 @@ suite('EditController / история и уведомление', () => {
     const store: any = { recordRun: sinon.stub() };
     const controller: any = new EditController({ getDefault: () => undefined } as any, store);
 
-    controller.recordRun('function sum(a, b) {\n  return a + b;\n}', 'function sum(a, b) { return a + b; }', 'сократи код', Date.now() - 100);
+    controller.recordRun(
+      'function sum(a, b) {\n  return a + b;\n}',
+      'function sum(a, b) { return a + b; }',
+      'сократи код',
+      Date.now() - 100,
+      'local',
+      'qwen3:8b',
+    );
 
     assert.strictEqual(store.recordRun.calledOnce, true, 'прогон записан');
     const entry = store.recordRun.firstCall.args[0];
@@ -19,11 +26,50 @@ suite('EditController / история и уведомление', () => {
     assert.ok(entry.tokensIn > 0 && entry.tokensOut > 0, JSON.stringify(entry));
     assert.ok(typeof entry.cost === 'number', 'стоимость посчитана');
     assert.strictEqual(entry.task, 'сократи код');
+    // В историю пишем того, кто реально отвечал, а не defaultProvider из настроек
+    assert.strictEqual(entry.provider, 'local');
+    assert.strictEqual(entry.model, 'qwen3:8b');
   });
 
   test('EDH-2: без store запись не падает (store опционален)', () => {
     const controller: any = new EditController({ getDefault: () => undefined } as any);
-    assert.doesNotThrow(() => controller.recordRun('a', 'b', 'c', Date.now()));
+    assert.doesNotThrow(() => controller.recordRun('a', 'b', 'c', Date.now(), 'local', 'qwen3:8b'));
+  });
+
+  test('EDI-1: Edit идёт в выбранного в панели провайдера, а не в defaultProvider', async () => {
+    const chatSpy = sinon.stub().callsFake(async function* () {
+      yield 'function sum(a, b) { return a + b; }';
+    });
+    const chosenProvider: any = { name: 'local', chat: chatSpy };
+    const defaultProvider: any = { name: 'silicon', chat: sinon.stub() };
+
+    const pm: any = {
+      getChosen: () => ({ provider: 'local', model: 'qwen3:8b' }),
+      getProvider: (name: string) => (name === 'local' ? chosenProvider : undefined),
+      getDefault: () => defaultProvider,
+    };
+    const store: any = { recordRun: sinon.stub() };
+    const controller: any = new EditController(pm, store);
+
+    const vscode = require('vscode');
+    const progressStub = sinon.stub(vscode.window, 'withProgress').callsFake(async (_opts: any, task: any) => {
+      return task({}, { onCancellationRequested: () => ({ dispose: () => undefined }) });
+    });
+    try {
+      const result = await controller.sendEditRequest(
+        'function sum(a, b) { return a - b; }',
+        'исправь сложение',
+        { document: { fileName: '/tmp/a.ts', languageId: 'typescript' } },
+      );
+
+      assert.ok(result, 'правка получена');
+      assert.strictEqual(result.provider, 'local');
+      assert.strictEqual(result.model, 'qwen3:8b');
+      assert.strictEqual(chatSpy.callCount, 1, 'запрос ушёл выбранному провайдеру');
+      assert.strictEqual(defaultProvider.chat.callCount, 0, 'провайдер по умолчанию не тронут');
+    } finally {
+      progressStub.restore();
+    }
   });
 });
 

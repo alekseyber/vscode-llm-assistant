@@ -87,13 +87,16 @@ export class EditController {
 
     // Отправляем запрос к LLM
     const startedAt = Date.now();
-    const newCode = await this.sendEditRequest(selectedText, instruction, editor);
-    if (!newCode) {
+    const result = await this.sendEditRequest(selectedText, instruction, editor);
+    if (!result) {
       return; // Ошибка или отмена
     }
+    const newCode = result.code;
 
-    // Пишем Edit-прогон в историю: без этого сводка по стоимости неполная (P13)
-    this.recordRun(selectedText, newCode, instruction, startedAt);
+    // Пишем Edit-прогон в историю тем же провайдером и моделью, что реально отвечали:
+    // иначе в таблице оказывался defaultProvider из настроек (например silicon)
+    // при выбранном локальном провайдере — цифры и стоимость были «чужие».
+    this.recordRun(selectedText, newCode, instruction, startedAt, result.provider, result.model);
 
     // Показываем diff
     this.showDiff(editor, selection, selectedText, newCode);
@@ -132,9 +135,11 @@ export class EditController {
     selectedText: string,
     instruction: string,
     editor: vscode.TextEditor
-  ): Promise<string | null> {
-    // Получаем провайдера по умолчанию
-    const provider = this.providerManager.getDefault();
+  ): Promise<{ code: string; provider: string; model: string } | null> {
+    // Приоритет — выбор пользователя в панели (Edit не имеет своего селектора),
+    // иначе провайдер по умолчанию из настроек
+    const chosen = this.providerManager.getChosen();
+    const provider = (chosen && this.providerManager.getProvider(chosen.provider)) || this.providerManager.getDefault();
     if (!provider) {
       vscode.window.showErrorMessage(
         'Провайдер не настроен. Проверьте настройки llmAssistant.providers.'
@@ -142,9 +147,9 @@ export class EditController {
       return null;
     }
 
-    // Получаем модель по умолчанию
+    // Модель: из выбора в панели, иначе из настроек
     const config = vscode.workspace.getConfiguration('llmAssistant');
-    const model = config.get<string>('defaultModel') ?? 'gpt-4o';
+    const model = chosen?.model || config.get<string>('defaultModel') || 'gpt-4o';
 
     // Определяем язык файла для подсказки LLM
     const fileExtension = editor.document.fileName.split('.').pop() || '';
@@ -200,7 +205,7 @@ export class EditController {
       );
 
       // Очищаем ответ от лишних обрамлений (```code```)
-      return cleanLlmResponse(result);
+      return { code: cleanLlmResponse(result), provider: (provider as any).name ?? 'unknown', model };
     } catch (error: any) {
       if (error.name === 'AbortError') {
         vscode.window.showInformationMessage('Редактирование отменено');
@@ -220,11 +225,15 @@ export class EditController {
    * Токены оцениваются как длина/4 — провайдер в стриминге не отдаёт usage,
    * а та же оценка используется в чате, поэтому цифры сопоставимы.
    */
-  private recordRun(oldText: string, newText: string, instruction: string, startedAt: number): void {
+  private recordRun(
+    oldText: string,
+    newText: string,
+    instruction: string,
+    startedAt: number,
+    providerName: string,
+    model: string,
+  ): void {
     if (!this.runHistoryStore) return;
-    const config = vscode.workspace.getConfiguration('llmAssistant');
-    const model = config.get<string>('defaultModel') ?? 'gpt-4o';
-    const providerName = config.get<string>('defaultProvider') ?? 'openai';
     const tokensIn = Math.ceil((oldText.length + instruction.length) / 4);
     const tokensOut = Math.ceil(newText.length / 4);
     const entry: RunEntry = {

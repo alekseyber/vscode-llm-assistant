@@ -233,6 +233,27 @@ export class ProviderManager {
    * 
    * @returns LLMProvider по умолчанию или undefined, если провайдеров нет
    */
+  /** Последний выбранный в панели провайдер и модель (для режимов без своего селектора). */
+  private lastChosen?: { provider: string; model: string };
+
+  /**
+   * Запомнить выбор пользователя в панели чата.
+   *
+   * Нужно режимам, у которых нет своего селектора (Edit): раньше они брали
+   * `defaultProvider`/`defaultModel` из настроек, поэтому правка уходила в другой
+   * провайдер — при выбранном локальном запрос уезжал в облако (и в историю писался
+   * тоже он).
+   */
+  noteChosen(provider: string | undefined, model: string | undefined): void {
+    if (!provider) return;
+    this.lastChosen = { provider, model: model ?? this.lastChosen?.model ?? '' };
+  }
+
+  /** Выбор из панели, если пользователь уже что-то отправлял. */
+  getChosen(): { provider: string; model: string } | undefined {
+    return this.lastChosen;
+  }
+
   getDefault(): LLMProvider | undefined {
     const config = vscode.workspace.getConfiguration('llmAssistant');
     const defaultProviderName = config.get<string>('defaultProvider') ?? 'openai';

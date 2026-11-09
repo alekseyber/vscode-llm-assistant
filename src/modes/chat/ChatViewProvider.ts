@@ -337,6 +337,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     // Записываем запуск в историю со статусом 'running' (появится сразу, обновится по завершении).
     // Plan Mode записывает свой запуск в handlePlanMode/handleImplementPlan — иначе двойная запись.
     if (!(isAgentMode && planMode)) {
+      // Запоминаем выбор: Edit и другие режимы без селектора должны идти туда же
+      this.providerManager.noteChosen(providerName ?? (provider as any).name, model);
       this.recordRunStart(runId, startTime, text, providerDisplayName, model, isAgentMode ? 'agent' : 'chat', this.resolveSessionId(sessionId));
     }
 
