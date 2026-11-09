@@ -219,11 +219,38 @@ export class EditController {
         return null;
       }
 
-      const errorMessage = error.message || 'Неизвестная ошибка';
+      // Человеческий текст вместо «429 status code (no body)»: в сообщении должно быть
+      // видно, КТО ответил (Edit идёт провайдером из панели) и что делать.
+      const errorMessage = this.describeEditError(error, (provider as any).name ?? 'провайдер', model);
       vscode.window.showErrorMessage(`Ошибка при запросе к LLM: ${errorMessage}`);
       console.error('[EditController] Ошибка:', error);
       return null;
     }
+  }
+
+  /**
+   * Перевести ошибку провайдера в понятный текст.
+   *
+   * Раньше пользователь видел «429 status code (no body)» и не понимал ни кто ответил,
+   * ни что делать. Edit идёт провайдером, выбранным в панели, поэтому имя провайдера
+   * и модели — часть сообщения, а не подробность.
+   */
+  private describeEditError(error: any, providerName: string, model: string): string {
+    const status = Number(error?.status ?? error?.response?.status ?? 0);
+    const who = `провайдер «${providerName}», модель ${model}`;
+    if (status === 401 || status === 403) {
+      return `${who}: ключ не принят (${status}). Проверьте apiKey в записи провайдера.`;
+    }
+    if (status === 404) {
+      return `${who}: модель или адрес не найдены (404). Проверьте models и baseUrl в записи провайдера.`;
+    }
+    if (status === 429) {
+      return `${who}: превышен лимит запросов (429). Подождите или выберите другого провайдера — у локальной модели лимитов нет.`;
+    }
+    if (status >= 500 && status < 600) {
+      return `${who}: провайдер вернул ${status}. Повторите позже или смените провайдера.`;
+    }
+    return `${who}: ${error?.message ?? String(error)}`;
   }
 
   /**

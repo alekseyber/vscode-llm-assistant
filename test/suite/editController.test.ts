@@ -156,6 +156,34 @@ suite('EditController / прерванная правка не оставляе�
   });
 });
 
+suite('EditController / понятные сообщения об ошибках провайдера', () => {
+  function controllerInstance() {
+    const pm: any = { getChosen: () => undefined, getDefault: () => undefined, getProvider: () => undefined };
+    return new EditController(pm) as any;
+  }
+
+  test('EER-1: 429 называет провайдера, модель и что делать', () => {
+    const text = controllerInstance().describeEditError({ status: 429, message: '429 status code (no body)' }, 'silicon', 'deepseek-v4-flash');
+    assert.match(text, /silicon/, 'видно, кто ответил');
+    assert.match(text, /deepseek-v4-flash/, 'видно, какой моделью');
+    assert.match(text, /429/, 'код сохранён');
+    assert.match(text, /лимит/i, 'объяснено, что случилось');
+    assert.match(text, /локальной модели лимитов нет/i, 'подсказка, куда уйти');
+  });
+
+  test('EER-2: 401 и 404 указывают на конкретную настройку', () => {
+    const controller = controllerInstance();
+    assert.match(controller.describeEditError({ status: 401 }, 'deepseek', 'x'), /apiKey/);
+    assert.match(controller.describeEditError({ status: 404 }, 'deepseek', 'x'), /baseUrl/);
+  });
+
+  test('EER-3: неизвестная ошибка не теряет исходный текст и контекст', () => {
+    const text = controllerInstance().describeEditError(new Error('boom'), 'local', 'qwen3:8b');
+    assert.match(text, /провайдер «local»/);
+    assert.match(text, /boom/);
+  });
+});
+
 // ─────────── EDH-3: кнопки «Принять/Отклонить» прямо у кода ───────────
 suite('EditController / CodeLens над правкой', () => {
   test('EDH-3: при активной правке линзы содержат команды accept/reject и число строк', () => {
