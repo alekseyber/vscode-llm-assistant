@@ -1,6 +1,6 @@
 ---
 component: ChatAgentTools
-version: 0.9.0
+version: 0.9.1
 status: stable
 since: 0.1.0
 ---
@@ -101,6 +101,7 @@ since: 0.1.0
 
 | Версия | Дата | Изменения |
 |--------|------|-----------|
+| 0.9.1 | 2026-11-09 | Подтверждено e2e-тестом `E2E-6c` (`test/suite/e2e/workspaceContext.e2e.ts`): `getToolSchemas()` отдаёт только инструменты из allow-list `.vscode/llm-assistant.json`; снятие фильтра — RED-дефект, ловится тестом при зелёных юнитах. Код в этом коммите без изменений |
 | 0.9.0 | 2026-08-11 | getToolSchemasUnfiltered() и getToolUnfiltered() — схемы без глобального allow-list |
 | 0.8.0 | 2026-08-06 | Без изменений |
 | 0.1.0 | 2026-08-04 | Базовая реализация: 6 инструментов |
