@@ -535,8 +535,13 @@ export class EditController {
     // Кнопки прямо у кода: без них при частичном выделении непонятно, что предлагается
     this.registerProposalCodeLens(editor);
 
-    // Главное: показать сам результат правки в diff-редакторе (слева «до», справа «после»)
-    void this.showProposalDiff(editor, selection, newText);
+    // Главное: показать сам результат правки в diff-редакторе (слева «до», справа «после»).
+    // После открытия вкладки перерисовываем линзы: пока diff открывался, редактор файла
+    // перерисовывался и CodeLens могли не запроситься заново — при медленной модели
+    // (десятки секунд ожидания) «Принять/Отклонить» пропадали, хотя сессия жива.
+    await this.showProposalDiff(editor, selection, newText);
+    this.codeLensEmitter.fire();
+    setTimeout(() => this.codeLensEmitter.fire(), 300);
 
     // Показываем уведомление с кнопками Accept / Reject
     vscode.window.showInformationMessage(

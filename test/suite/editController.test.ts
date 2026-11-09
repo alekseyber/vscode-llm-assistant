@@ -98,6 +98,43 @@ suite('EditController / прерванная правка не оставляе�
     assert.strictEqual(controller.currentSession, null, 'сессия сброшена, иначе следующая правка тянет старую');
   });
 
+  test('EDT-3: после открытия diff линзы запрашиваются заново (медленная модель)', async () => {
+    const vscode = require('vscode');
+    const controller: any = makeController({ recordRun: sinon.stub() });
+    const editor: any = {
+      document: {
+        uri: vscode.Uri.parse('file:///a.ts'),
+        fileName: '/a.ts',
+        getText: () => 'function sum(a, b) { return a - b; }',
+        offsetAt: () => 0,
+        isClosed: false,
+      },
+      setDecorations: () => undefined,
+      revealRange: () => undefined,
+    };
+    const selection: any = { start: { line: 0 }, end: { line: 0 } };
+
+    let lensRefreshes = 0;
+    controller.codeLensEmitter.event(() => {
+      lensRefreshes += 1;
+    });
+    sinon.stub(controller, 'resetPreviousProposal').resolves();
+    sinon.stub(controller, 'showProposalDiff').resolves(true);
+    sinon.stub(controller, 'registerAcceptRejectCommands');
+    sinon.stub(controller, 'showStatusBarActions');
+    sinon.stub(controller, 'registerProposalCodeLens');
+    sinon.stub(controller, 'buildProposalMessage').returns('предложение');
+
+    await controller.showDiff(editor, selection, 'return a - b;', 'return a + b;');
+    // Второй запрос линз идёт с задержкой (VS Code перерисовывает редактор после открытия diff)
+    await new Promise((resolve) => setTimeout(resolve, 400));
+
+    assert.ok(
+      lensRefreshes >= 2,
+      `линзы просят обновить после открытия diff (фактически ${lensRefreshes}) — иначе «Принять/Отклонить» не появляются`,
+    );
+  });
+
   test('EDT-2: закрытие вкладки предпросмотра руками снимает сессию и предупреждает', () => {
     const controller: any = makeController({ recordRun: sinon.stub() });
     controller.currentSession = {
@@ -108,6 +145,9 @@ suite('EditController / прерванная правка не оставляе�
       diffResult: { addedCount: 1, removedCount: 0 },
     };
     controller.proposalTabOpen = true;
+    controller.currentSession.editor.setDecorations = () => undefined;
+    controller.currentSession.editor.document.uri.toString = () => 'file:///a.ts';
+    controller.currentSession.editor.document.isClosed = false;
 
     controller.handleProposalClosedByUser();
 
