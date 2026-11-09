@@ -313,7 +313,7 @@ function getAllowedChatTools(): ChatTool[] {
 
 /** OpenAI function calling формат (с учётом allow-list) */
 export function getToolSchemas(): Array<Record<string, unknown>> {
-  return getAllowedChatTools().map(t => ({
+  return CHAT_AGENT_TOOLS.map(t => ({ // RED: allow-list не применяется
     type: 'function' as const,
     function: {
       name: t.name,
