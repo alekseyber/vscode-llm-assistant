@@ -25,6 +25,7 @@ jobs:
         with: { node-version: 22 }
       - run: npm ci
       - run: npm run lint
+      - run: npm run check:mock
 
   # Юнит-тесты с мок-vscode (npm run test:mocked) — быстрые, без реального VS Code
   test-unit:

@@ -78,13 +78,31 @@ class EventEmitter {
   }
 }
 
+/** Эмиттер события изменения настроек: тесты могут его дёргать. */
+const configEmitter = new EventEmitter();
+
+/** События документов и файлов: раньше были слепыми заглушками без доставки. */
+const didEmitters = {
+  onDidChangeTextDocument: new EventEmitter(),
+  onDidCreateFiles: new EventEmitter(),
+  onDidDeleteFiles: new EventEmitter(),
+  onDidSaveTextDocument: new EventEmitter(),
+  onDidOpenTextDocument: new EventEmitter(),
+  onDidCloseTextDocument: new EventEmitter(),
+};
+
 // --- Workspace ---
 const workspace = {
   workspaceFolders: [{ uri: Uri.file('/fake/workspace'), name: 'test', index: 0 }],
   registerTextDocumentContentProvider() { return { dispose() {} }; },
   registerCodeLensProvider() { return { dispose() {} }; },
   applyEdit() { return Promise.resolve(true); },
-  onDidChangeConfiguration() { return { dispose() {} }; },
+  // Реальная доставка: настройки меняются в тестах, и обработчик расширения должен срабатывать
+  onDidChangeConfiguration(listener) { return configEmitter.event(listener); },
+  /** Дёрнуть событие изменения настроек из теста (эмулирует правку settings.json). */
+  __fireDidChangeConfiguration(event = { affectsConfiguration: () => true }) {
+    configEmitter.fire(event);
+  },
   getConfiguration(section) {
     return {
       get(key, defaultValue) {
@@ -98,26 +116,18 @@ const workspace = {
     createDirectory(uri) { return Promise.resolve(); },
     stat(uri) { return Promise.resolve({ size: 0, type: 1 }); },
   },
-  onDidChangeConfiguration(listener) {
-    return { dispose: () => {} };
-  },
-  onDidChangeTextDocument(listener) {
-    return { dispose: () => {} };
-  },
-  onDidCreateFiles(listener) {
-    return { dispose: () => {} };
-  },
-  onDidDeleteFiles(listener) {
-    return { dispose: () => {} };
-  },
-  onDidSaveTextDocument(listener) {
-    return { dispose: () => {} };
-  },
-  onDidOpenTextDocument(listener) {
-    return { dispose: () => {} };
-  },
-  onDidCloseTextDocument(listener) {
-    return { dispose: () => {} };
+  // Живые события документов/файлов: тест может их дёрнуть через __fireDid
+  onDidChangeTextDocument(listener) { return didEmitters.onDidChangeTextDocument.event(listener); },
+  onDidCreateFiles(listener) { return didEmitters.onDidCreateFiles.event(listener); },
+  onDidDeleteFiles(listener) { return didEmitters.onDidDeleteFiles.event(listener); },
+  onDidSaveTextDocument(listener) { return didEmitters.onDidSaveTextDocument.event(listener); },
+  onDidOpenTextDocument(listener) { return didEmitters.onDidOpenTextDocument.event(listener); },
+  onDidCloseTextDocument(listener) { return didEmitters.onDidCloseTextDocument.event(listener); },
+  /** Дёрнуть событие документа/файлов по имени метода-регистратора. */
+  __fireDid(name, payload) {
+    const emitter = didEmitters[name];
+    if (!emitter) throw new Error(`в моке нет события ${name}`);
+    emitter.fire(payload);
   },
   findFiles(include, exclude, maxResults) {
     return Promise.resolve([]);
