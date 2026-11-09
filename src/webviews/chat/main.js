@@ -1195,8 +1195,26 @@
     }
   }
 
+  /** Сообщить хосту, что пользователь сменил провайдера или модель.
+   *  Без этого хост узнавал выбор только при отправке сообщения, и Edit уходил
+   *  прежним провайдером, хотя в селекторе уже стояла локальная модель. */
+  function notifySelectionChanged() {
+    if (!providerSelect) return;
+    postMessage({
+      type: 'selectionChanged',
+      provider: providerSelect.value,
+      model: modelSelect ? modelSelect.value : '',
+    });
+  }
+
   if (providerSelect) {
-    providerSelect.addEventListener('change', updateModelList);
+    providerSelect.addEventListener('change', () => {
+      updateModelList();
+      notifySelectionChanged();
+    });
+  }
+  if (modelSelect) {
+    modelSelect.addEventListener('change', notifySelectionChanged);
   }
 
   // ---------- Confirmation Dialog ----------

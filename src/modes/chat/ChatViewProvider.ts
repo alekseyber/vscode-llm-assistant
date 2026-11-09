@@ -114,6 +114,9 @@ export function visionUnsupportedWarning(model: string): string {
     + 'Выберите модель с capability vision (например, gemma3:4b).\n\n';
 }
 
+/** Ключ globalState: последний выбранный в панели провайдер и модель (для Edit). */
+const CHOSEN_KEY = 'llmAssistant.lastChosen';
+
 export class ChatViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = 'llmAssistant.chat';
   private view?: vscode.WebviewView;
@@ -143,6 +146,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     this.debugChannel = debugChannel ?? vscode.window.createOutputChannel('LLM Assistant');
     if (!debugChannel) ctx.subscriptions.push(this.debugChannel);
     setDebugSink(this.debugChannel);
+    // Восстанавливаем последний выбор из панели: Edit работает им же после перезагрузки окна
+    const savedChosen = this.context.globalState.get<{ provider: string; model: string }>(CHOSEN_KEY);
+    if (savedChosen?.provider) this.providerManager.noteChosen(savedChosen.provider, savedChosen.model);
+
     // Авто-обновление провайдеров при изменении настроек
     ctx.subscriptions.push(
       vscode.workspace.onDidChangeConfiguration(e => {
@@ -207,6 +214,15 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         // Удалить все сессии и логи — переиспользуем модальный флоу команды (без дублирования).
         await vscode.commands.executeCommand('llmAssistant.clearAllSessions');
         break;
+      case 'selectionChanged': {
+        // Выбор провайдера/модели запоминаем сразу: Edit не имеет своего селектора
+        // и должен идти туда же, куда пошёл бы чат (0.14.62). Раньше хост узнавал
+        // выбор только при отправке сообщения — Edit уходил прежним провайдером.
+        this.providerManager.noteChosen(message.provider, message.model);
+        void this.context.globalState.update(CHOSEN_KEY, this.providerManager.getChosen());
+        break;
+      }
+
       case 'ready': this.sendHistoryToWebview(); this.sendSessionListToWebview(); this.sendProviderListToWebview(); this.sendSlashCommandsToWebview(); this.restoreTokenIndicator(); break;
       case 'newSession': this.conversationManager.session.createSession(); this.sendHistoryToWebview(); this.sendSessionListToWebview(); break;
       case 'switchSession':

@@ -18,6 +18,8 @@ async function* chunks(...parts: string[]): AsyncIterable<string> {
   for (const p of parts) yield p;
 }
 
+let noteChosenCalls: Array<[string, string]> = [];
+
 suite('ChatViewProvider.handleSendMessage', () => {
   let sandbox: sinon.SinonSandbox;
   let storage: any;
@@ -30,6 +32,7 @@ suite('ChatViewProvider.handleSendMessage', () => {
 
   setup(() => {
     sandbox = sinon.createSandbox();
+    noteChosenCalls = [];
 
     // ── vscode.workspace ──
     const config = {
@@ -93,7 +96,7 @@ suite('ChatViewProvider.handleSendMessage', () => {
       getDefault: () => mockLLM,
       pricingMap: new Map(),
       refresh: () => {},
-      noteChosen: () => {},
+      noteChosen: (provider: string, model: string) => { noteChosenCalls.push([provider, model]); },
       getChosen: () => undefined,
     };
 
@@ -149,6 +152,11 @@ suite('ChatViewProvider.handleSendMessage', () => {
     assert.ok(call, 'должен быть вызов tokens');
     assert.strictEqual(call.args[0].inputTokens, 0);
     assert.strictEqual(call.args[0].outputTokens, 0);
+  });
+
+  test('SEL-1: смена провайдера в селекторе запоминается сразу (Edit идёт за ней)', async () => {
+    await (provider as any).handleWebviewMessage({ type: 'selectionChanged', provider: 'local', model: 'qwen3:8b' });
+    assert.deepStrictEqual(noteChosenCalls.at(-1), ['local', 'qwen3:8b'], 'выбор провайдера запомнен без отправки сообщения');
   });
 
   test('chat-режим: одна запись success в указанной сессии (без «сирот»)', async () => {
