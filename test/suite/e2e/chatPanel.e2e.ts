@@ -90,7 +90,7 @@ suite('E2E-3: панель чата на живом NDJSON', () => {
       view.send({ type: 'sendMessage', text: 'привет', mode: 'chat', provider: 'local', model: 'qwen3:8b' });
       await waitFor(() => messagesOfType(view, 'done').length > 0, 20000, 50, 'done из панели');
 
-      assert.strictEqual(streamedText(view), 'RED-CHECK', 'мутация ожидания: проверяем, что тест исполняется');
+      assert.strictEqual(streamedText(view), 'Привет', 'чанки склеились в ожидаемый текст');
 
       const tokens = messagesOfType(view, 'tokens')[0];
       assert.ok(tokens, 'панель получила токены');
