@@ -129,7 +129,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   private readonly orchestratorViewProvider?: OrchestratorViewProvider;
   private debugChannel: vscode.OutputChannel;
 
-  constructor(ctx: vscode.ExtensionContext, pm: ProviderManager, cm: ConversationManager, runHistoryStore: RunHistoryStore, historyViewProvider?: HistoryViewProvider, orchestratorViewProvider?: OrchestratorViewProvider, sessionLog?: SessionLog) {
+  constructor(ctx: vscode.ExtensionContext, pm: ProviderManager, cm: ConversationManager, runHistoryStore: RunHistoryStore, historyViewProvider?: HistoryViewProvider, orchestratorViewProvider?: OrchestratorViewProvider, sessionLog?: SessionLog, debugChannel?: vscode.OutputChannel) {
     this.context = ctx;
     this.providerManager = pm;
     this.conversationManager = cm;
@@ -137,9 +137,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     this.sessionLog = sessionLog;
     this.historyViewProvider = historyViewProvider;
     this.orchestratorViewProvider = orchestratorViewProvider;
-    this.debugChannel = vscode.window.createOutputChannel('LLM Assistant');
-    ctx.subscriptions.push(this.debugChannel);
-    // Строки провайдеров (debugLog) должны попадать в тот же канал, что и [DEBUG] панели
+    // Канал создаётся при активации расширения и передаётся сюда: строки провайдеров
+    // (debugLog) и диагностика менеджера пишутся раньше, чем открывается панель,
+    // и без общего канала они уходили только в консоль.
+    this.debugChannel = debugChannel ?? vscode.window.createOutputChannel('LLM Assistant');
+    if (!debugChannel) ctx.subscriptions.push(this.debugChannel);
     setDebugSink(this.debugChannel);
     // Авто-обновление провайдеров при изменении настроек
     ctx.subscriptions.push(

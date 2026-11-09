@@ -9,7 +9,7 @@ import { ConversationManager } from './modes/chat/ConversationManager';
 import { EditController } from './modes/edit/EditController';
 import { AutocompleteController } from './modes/autocomplete/AutocompleteController';
 import { registerCommands } from './activation/registerCommands';
-import { debugLog } from './shared/logger';
+import { debugLog, setDebugSink } from './shared/logger';
 import { RunHistoryStore } from './shared/RunHistoryStore';
 import { SessionLog } from './shared/SessionLog';
 import { HistoryViewProvider, HISTORY_VIEW_TYPE } from './modes/history/HistoryViewProvider';
@@ -51,6 +51,13 @@ export function activate(context: vscode.ExtensionContext) {
     try {
     console.log('[LLM Assistant] Активация...');
 
+    // Канал вывода создаём раньше менеджера: предупреждения и диагностика провайдеров
+    // пишутся при активации, когда панели ещё нет. Раньше канал создавала панель,
+    // и всё, что случалось до её открытия, видел только DevTools.
+    const debugChannel = vscode.window.createOutputChannel('LLM Assistant');
+    context.subscriptions.push(debugChannel);
+    setDebugSink(debugChannel);
+
     // ── 1. Инициализация компонентов ──
     providerManager = new ProviderManager();
     // Лог сессий (F1) — до ConversationManager, чтобы addMessageTo писал в него (5a)
@@ -91,7 +98,7 @@ export function activate(context: vscode.ExtensionContext) {
     };
 
     // ── 2. Регистрация WebView Provider ──
-    const chatViewProvider = new ChatViewProvider(context, providerManager, conversationManager, runHistoryStore, historyViewProvider, orchestratorViewProvider, sessionLog);
+    const chatViewProvider = new ChatViewProvider(context, providerManager, conversationManager, runHistoryStore, historyViewProvider, orchestratorViewProvider, sessionLog, debugChannel);
     context.subscriptions.push(
         vscode.window.registerWebviewViewProvider(ChatViewProvider.viewType, chatViewProvider)
     );
