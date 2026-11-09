@@ -80,6 +80,7 @@ version: 0.14.29
 | CVP-3.1 / TIT-1 | `chatViewProvider.test.ts` → «человеческое имя — title побеждает, локальный без title получает «(локально)»»; `chatWebview.test.ts` → «в селекторе видно человеческое имя провайдера» | ✅ |
 | E2E-1 | `e2e/localEngines.e2e.ts` → «настройки из настоящего settings.json доходят до провайдеров и до numCtx» (Extension Host) | ✅ |
 | E2E-2 | `e2e/localEngines.e2e.ts` → «запрос к живому HTTP-серверу из хост-процесса и предупреждение не ломают прогон» | ✅ |
+| E2E-7 | `e2e/providerLifecycle.e2e.ts` → «правка settings → refresh: новый провайдер с подписью, цена 0, удаление убирает из списка» | ✅ |
 | E2E-3a..d | `e2e/chatPanel.e2e.ts` → «сообщение панели → склейка стрима, done, tokens cost 0, история и лог», «предупреждение один раз», «cancelRequest останавливает поток», «HTML без плейсхолдеров» | ✅ |
 | E2E-8a/b/c | `e2e/timeouts.e2e.ts` → «чёрная дыра + requestTimeout=2», «закрытый порт → ECONNREFUSED с подсказкой», «сервер поднялся на том же порту» | ✅ |
 | E2E-9a/b/c | `e2e/discovery.e2e.ts` → «модели из /api/tags, embedding отфильтрован», «checkLocalServer отдаёт отчёт», «сервер погашен — не падает» | ✅ |

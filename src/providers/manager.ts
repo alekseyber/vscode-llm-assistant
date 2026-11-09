@@ -134,7 +134,7 @@ export class ProviderManager {
       };
       // Локальность — по АДРЕСУ, а не по типу: рядом с Ollama живут OpenAI-совместимые
       // движки (llama.cpp, LM Studio, vLLM), и они подключаются записью type: 'openai'.
-      const localByAddress = type === 'ollama'; // RED: локальность снова по типу
+      const localByAddress = isLocalBaseUrl(baseUrl);
 
       if (type === 'ollama') {
         const local = new OllamaProvider({
