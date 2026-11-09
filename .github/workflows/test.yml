@@ -76,6 +76,11 @@ jobs:
             exit 1
           fi
       - run: sudo apt-get update && sudo apt-get install -y xvfb libgtk-3-0t64 libnss3 libasound2t64 libgbm1 libxss1 libatk1.0-0t64 libatk-bridge2.0-0t64 libcups2t64 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libxshmfence1 libpango-1.0-0 libcairo2
+      - name: Проверка собранного VSIX (бандл грузится без node_modules)
+        run: |
+          npx --no-install vsce package --out /tmp/smoke.vsix
+          python3 scripts/check-vsix-loads.py /tmp/smoke.vsix
+
       - name: Run E2E tests
         run: |
           set -o pipefail

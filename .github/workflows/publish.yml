@@ -34,6 +34,13 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           allow-no-subscriptions: true
 
+      # Страховка перед публикацией: собранный пакет должен загружаться без node_modules.
+      # 09.11 в Marketplace чуть не уехал пакет, где dist был собран tsc и падал на require("openai").
+      - name: Проверка собранного VSIX
+        run: |
+          npx @vscode/vsce package --out /tmp/smoke.vsix
+          python3 scripts/check-vsix-loads.py /tmp/smoke.vsix
+
       # Публикация с Entra-аутентификацией
       - name: Publish to Marketplace
         run: npx @vscode/vsce publish --azure-credential
