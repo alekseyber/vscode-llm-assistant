@@ -37,6 +37,9 @@ export class HistoryViewProvider implements vscode.WebviewViewProvider {
 
     webviewView.webview.html = this.getHtmlContent();
     webviewView.webview.onDidReceiveMessage((msg) => this.handleMessage(msg));
+    // Любая запись в историю (чат, агент, Edit, оркестратор) обновляет таблицу
+    const subscription = this.store.onDidChange(() => this.refresh());
+    webviewView.onDidDispose?.(() => subscription.dispose());
   }
 
   /** Обновить таблицу после новой записи */

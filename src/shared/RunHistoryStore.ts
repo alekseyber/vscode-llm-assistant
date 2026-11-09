@@ -53,6 +53,19 @@ const MAX_RUNS = 100;
  * Использует ExtensionContext.globalState для персистентности (переживает перезагрузки VS Code).
  */
 export class RunHistoryStore {
+  private readonly changeEmitter = new vscode.EventEmitter<void>();
+
+  /**
+   * Изменение истории: запись, обновление, очистка.
+   *
+   * Нужен, чтобы таблица «История» обновлялась сама после ЛЮБОГО писателя.
+   * Раньше обновление дёргал только ChatViewProvider, поэтому Edit-прогоны
+   * записывались в хранилище, но в открытой вкладке «История» не появлялись
+   * до переоткрытия вкладки.
+   */
+  readonly onDidChange = this.changeEmitter.event;
+
+
   private globalState: vscode.Memento;
 
   /**
@@ -72,6 +85,7 @@ export class RunHistoryStore {
   recordRun(entry: RunEntry): void {
     const runs = this.getRuns();
     runs.unshift(entry);
+    // (событие отправляем в конце метода, после записи в globalState)
 
     // FIFO: оставляем только MAX_RUNS последних
     if (runs.length > MAX_RUNS) {
@@ -79,6 +93,7 @@ export class RunHistoryStore {
     }
 
     this.globalState.update(STORAGE_KEY, runs);
+    this.changeEmitter.fire();
   }
 
   /**
@@ -94,6 +109,7 @@ export class RunHistoryStore {
     if (idx < 0) return;
     runs[idx] = { ...runs[idx], ...patch };
     this.globalState.update(STORAGE_KEY, runs);
+    this.changeEmitter.fire();
   }
 
   /**
@@ -127,6 +143,7 @@ export class RunHistoryStore {
    */
   clearHistory(): void {
     this.globalState.update(STORAGE_KEY, []);
+    this.changeEmitter.fire();
   }
 
   /**

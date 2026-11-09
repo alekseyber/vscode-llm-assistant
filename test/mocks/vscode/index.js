@@ -60,12 +60,22 @@ class Position {
 // --- EventEmitter ---
 class EventEmitter {
   constructor() {
-    this._listeners = {};
+    this._listeners = new Set();
   }
-  event(listener) {
-    return { dispose: () => {} };
+  // Настоящая подписка: раньше заглушка возвращала пустой disposable и fire()
+  // ничего не делал, поэтому события расширения в юнит-тестах были слепыми.
+  get event() {
+    return (listener) => {
+      this._listeners.add(listener);
+      return { dispose: () => this._listeners.delete(listener) };
+    };
   }
-  fire(data) {}
+  fire(data) {
+    for (const listener of [...this._listeners]) listener(data);
+  }
+  dispose() {
+    this._listeners.clear();
+  }
 }
 
 // --- Workspace ---

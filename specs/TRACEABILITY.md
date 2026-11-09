@@ -81,6 +81,7 @@ version: 0.14.29
 | E2E-1 | `e2e/localEngines.e2e.ts` → «настройки из настоящего settings.json доходят до провайдеров и до numCtx» (Extension Host) | ✅ |
 | E2E-2 | `e2e/localEngines.e2e.ts` → «запрос к живому HTTP-серверу из хост-процесса и предупреждение не ломают прогон» | ✅ |
 | E2E-4a/b/c | `e2e/confirmGate.e2e.ts` → «отказ и второй отказ останавливают прогон», «согласие записывает файл и сводку», «`toolLoop=false` не вызывает инструменты» | ✅ |
+| Edit → История | `RHS-1/2` (`runHistoryStore.test.ts`) → «запись, обновление и очистка дёргают onDidChange», «Edit-прогон тоже поднимает событие» | ✅ |
 | E2E-6a..d | `e2e/workspaceContext.e2e.ts` → «правила роли в промпте», «каталог скилов и его удаление», «allow-list режет tools[]», «fallback main.md» | ✅ |
 | E2E-7 | `e2e/providerLifecycle.e2e.ts` → «правка settings → refresh: новый провайдер с подписью, цена 0, удаление убирает из списка» | ✅ |
 | E2E-3a..d | `e2e/chatPanel.e2e.ts` → «сообщение панели → склейка стрима, done, tokens cost 0, история и лог», «предупреждение один раз», «cancelRequest останавливает поток», «HTML без плейсхолдеров» | ✅ |

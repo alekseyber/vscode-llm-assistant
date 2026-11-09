@@ -60,6 +60,7 @@ suite('HistoryViewProvider', () => {
         postMessage: postMessageSpy,
         onDidReceiveMessage: sandbox.stub(),
       },
+      onDidDispose: () => ({ dispose: () => undefined }),
     };
     provider.resolveWebviewView(webviewView, {} as any, {} as any);
   });

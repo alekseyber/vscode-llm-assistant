@@ -10,6 +10,51 @@ import {
   generateRunId,
 } from '../../src/shared/RunHistoryStore';
 
+suite('RunHistoryStore: событие изменения (обновление вкладки «История»)', () => {
+  function makeStore(): { store: RunHistoryStore; updates: number } {
+    const data: Record<string, unknown> = {};
+    const memento: any = {
+      get: (key: string, fallback?: unknown) => (key in data ? data[key] : fallback),
+      update: async (key: string, value: unknown) => {
+        data[key] = value;
+      },
+    };
+    return { store: new RunHistoryStore(memento), updates: 0 };
+  }
+
+  test('RHS-1: запись, обновление и очистка дёргают onDidChange', () => {
+    const { store } = makeStore();
+    let fired = 0;
+    const sub = store.onDidChange(() => {
+      fired += 1;
+    });
+
+    const entry = makeEntry();
+    store.recordRun(entry);
+    assert.strictEqual(fired, 1, 'запись прогона обновляет таблицу');
+
+    store.updateRun(entry.id, { status: 'error' });
+    assert.strictEqual(fired, 2, 'смена статуса обновляет таблицу');
+
+    store.clearHistory();
+    assert.strictEqual(fired, 3, 'очистка обновляет таблицу');
+    sub.dispose();
+  });
+
+  test('RHS-2: Edit-прогон тоже поднимает событие — иначе он не появится во вкладке', () => {
+    const { store } = makeStore();
+    let fired = 0;
+    const sub = store.onDidChange(() => {
+      fired += 1;
+    });
+
+    store.recordRun(makeEntry({ mode: 'edit', provider: 'local', cost: 0 }));
+    assert.strictEqual(fired, 1);
+    assert.strictEqual(store.getRuns(1)[0].mode, 'edit', 'запись режима edit сохранена');
+    sub.dispose();
+  });
+});
+
 /** Создать тестовую запись запуска */
 function makeEntry(overrides: Partial<RunEntry> = {}): RunEntry {
   return {
