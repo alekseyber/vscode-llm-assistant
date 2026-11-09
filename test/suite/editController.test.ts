@@ -79,7 +79,7 @@ suite('EditController / прерванная правка не оставляе�
     return new EditController(pm, store);
   }
 
-  test('EDT-1: новая правка закрывает прошлое предложение и сбрасывает сессию', () => {
+  test('EDT-1: новая правка закрывает прошлое предложение и сбрасывает сессию', async () => {
     const controller: any = makeController({ recordRun: sinon.stub() });
     controller.currentSession = {
       editor: { document: { uri: { toString: () => 'file:///a.ts' }, isClosed: false } },
@@ -91,7 +91,7 @@ suite('EditController / прерванная правка не оставляе�
     const closeSpy = sinon.stub(controller, 'closeProposalDiff').resolves();
     const lensSpy = sinon.stub(controller, 'disposeProposalCodeLens');
 
-    controller.resetPreviousProposal();
+    await controller.resetPreviousProposal();
 
     assert.strictEqual(closeSpy.callCount, 1, 'вкладка прошлого предпросмотра закрывается');
     assert.strictEqual(lensSpy.callCount, 1, 'линзы прошлого предложения снимаются');

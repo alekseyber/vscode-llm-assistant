@@ -106,7 +106,7 @@ export class EditController {
     this.recordRun(selectedText, newCode, instruction, startedAt, result.provider, result.model);
 
     // Показываем diff
-    this.showDiff(editor, selection, selectedText, newCode);
+    await this.showDiff(editor, selection, selectedText, newCode);
   }
 
   /**
@@ -313,16 +313,16 @@ export class EditController {
   }
 
   /** Сбросить прошлое предложение: закрыть его вкладку, снять декорации и сессию. */
-  private resetPreviousProposal(): void {
-    if (!this.currentSession) {
-      void this.closeProposalDiff();
-      return;
+  private async resetPreviousProposal(): Promise<void> {
+    if (this.currentSession) {
+      const editor = this.resolveLiveEditor(this.currentSession.editor);
+      if (editor) clearDiffDecorations(editor);
+      this.disposeProposalCodeLens();
+      this.cleanupSession();
     }
-    const editor = this.resolveLiveEditor(this.currentSession.editor);
-    if (editor) clearDiffDecorations(editor);
-    this.disposeProposalCodeLens();
-    void this.closeProposalDiff();
-    this.cleanupSession();
+    // Ждём закрытия: иначе новая вкладка открывается раньше, чем закрывается старая,
+    // и на экране оказываются два окна diff (гонка закрытие/открытие).
+    await this.closeProposalDiff();
   }
 
   /** Слушатель вкладок: пользователь закрыл предпросмотр — снимаем разметку и сессию. */
@@ -497,12 +497,12 @@ export class EditController {
    * @param oldText - старый текст (выделенный код)
    * @param newText - новый текст (ответ LLM)
    */
-  private showDiff(
+  private async showDiff(
     editor: vscode.TextEditor,
     selection: vscode.Selection,
     oldText: string,
     newText: string
-  ): void {
+  ): Promise<void> {
     // Если текст не изменился — уведомляем и выходим
     if (oldText === newText) {
       vscode.window.showInformationMessage('Код не изменился. Попробуйте другую инструкцию.');
@@ -512,7 +512,7 @@ export class EditController {
     // Прерванная правка не должна оставлять за собой ни окно, ни разметку:
     // иначе следующая попытка открывает ВТОРОЙ diff, а закрытие одной вкладки
     // оставляет зелёные/красные строки в исходном файле.
-    this.resetPreviousProposal();
+    await this.resetPreviousProposal();
 
     // Вычисляем diff
     const diffResult = computeDiff(oldText, newText);
