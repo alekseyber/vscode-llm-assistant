@@ -36,7 +36,18 @@ jobs:
         with: { node-version: 22 }
       - run: npm ci
       - run: npx tsc -p tsconfig.test.json
-      - run: npm run test:mocked
+      - name: Unit tests
+        run: |
+          set -o pipefail
+          npm run test:mocked 2>&1 | tee unit.log
+      - name: Проверка числа mocked-тестов в README
+        run: |
+          MOCKED=$(grep -oE '[0-9]+ passing' unit.log | head -1 | awk '{print $1}')
+          if [ -z "$MOCKED" ]; then
+            echo "не нашёл N passing в выводе юнит-тестов"
+            exit 1
+          fi
+          node scripts/check-readme-counts.js --mocked="$MOCKED"
 
   # E2E в реальном VS Code (npm test → @vscode/test-electron) — нужны GTK-библиотеки Electron + xvfb
   # E2E не должен зависеть от test-unit: иначе любой дефект, который ловят юниты,
@@ -53,4 +64,14 @@ jobs:
       - run: npx tsc -p tsconfig.test.json
       - run: sudo apt-get update && sudo apt-get install -y xvfb libgtk-3-0t64 libnss3 libasound2t64 libgbm1 libxss1 libatk1.0-0t64 libatk-bridge2.0-0t64 libcups2t64 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libxshmfence1 libpango-1.0-0 libcairo2
       - name: Run E2E tests
-        run: xvfb-run --auto-servernum npm test
+        run: |
+          set -o pipefail
+          xvfb-run --auto-servernum npm test 2>&1 | tee e2e.log
+      - name: Проверка числа e2e в README
+        run: |
+          E2E=$(grep -oE '[0-9]+ passing' e2e.log | head -1 | awk '{print $1}')
+          if [ -z "$E2E" ]; then
+            echo "не нашёл N passing в выводе e2e"
+            exit 1
+          fi
+          node scripts/check-readme-counts.js --e2e="$E2E"
