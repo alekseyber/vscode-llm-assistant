@@ -135,6 +135,23 @@ suite('EditController / прерванная правка не оставляе�
     );
   });
 
+  test('ECD-1: локальная модель в Edit-истории даёт стоимость 0, а не по прайсу облака', () => {
+    const store: any = { recordRun: sinon.stub() };
+    // Менеджер с нулевой ценой локальной модели — как после setZeroPricing()
+    const pm: any = {
+      getChosen: () => ({ provider: 'local', model: 'qwen3:8b' }),
+      getProvider: () => undefined,
+      getDefault: () => undefined,
+      pricingMap: new Map([['qwen3:8b', { input: 0, output: 0 }]]),
+    };
+    const controller: any = new EditController(pm, store);
+
+    controller.recordRun('a', 'b', 'округли', Date.now() - 100, 'local', 'qwen3:8b');
+
+    const entry = store.recordRun.firstCall.args[0];
+    assert.strictEqual(entry.cost, 0, `локальный прогон бесплатный, а посчиталось ${entry.cost}`);
+  });
+
   test('EDT-2: закрытие вкладки предпросмотра руками снимает сессию и предупреждает', () => {
     const controller: any = makeController({ recordRun: sinon.stub() });
     controller.currentSession = {

@@ -280,7 +280,9 @@ export class EditController {
       steps: 1,
       tokensIn,
       tokensOut,
-      cost: calculateCost(model, tokensIn, tokensOut),
+      // pricingMap менеджера уже содержит нули для локальных моделей: без него
+      // локальный Edit-прогон в истории получал выдуманную стоимость.
+      cost: calculateCost(model, tokensIn, tokensOut, this.providerManager.pricingMap),
       duration: Date.now() - startedAt,
       status: 'success',
     };
