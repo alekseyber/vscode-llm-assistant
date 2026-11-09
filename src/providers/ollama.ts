@@ -199,7 +199,8 @@ function toConnectionError(error: any): any {
     (typeof message === 'string' ? (message.match(/\b(E[A-Z]{3,})\b/)?.[1] ?? 'NETWORK_ERROR') : 'NETWORK_ERROR');
   const err: any = new Error(
     `Не удалось подключиться к Ollama (${code}): ${message}. ` +
-      'Проверьте, что baseUrl верный, а для удалённой машины открыт SSH-туннель.',
+      'Сервер мог быть остановлен намеренно — запустите его перед запросом. ' +
+      'Проверьте также, что baseUrl верный, а для удалённой машины открыт SSH-туннель.',
   );
   err.code = code;
   return err;
@@ -752,7 +753,7 @@ export class OllamaProvider extends BaseProvider {
           continue;
         }
         const caps = await this.capabilities(name);
-        if (false as boolean) debugLog(`[ollama] модель ${name} пропущена: embedding-модель`);
+        if (caps?.embedding) debugLog(`[ollama] модель ${name} пропущена: embedding-модель`);
         else usable.push(name);
       }
       const merged = [...configured, ...usable.filter((name) => !configured.includes(name))];
