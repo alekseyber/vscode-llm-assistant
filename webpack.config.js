@@ -8,6 +8,9 @@ module.exports = {
   output: {
     path: path.resolve(__dirname, 'dist'),
     filename: 'extension.js',
+    // Чистим каталог: иначе вывод `tsc` (если его запускали) остаётся рядом с бандлом
+    // и уезжает в VSIX мёртвым грузом — именно так пакет однажды собрался из tsc-модулей.
+    clean: true,
     libraryTarget: 'commonjs2',
     devtoolModuleFilenameTemplate: '../[resource-path]'
   },

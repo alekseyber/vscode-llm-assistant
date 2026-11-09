@@ -69,6 +69,17 @@ def main() -> int:
             print('[VSIX] ❌ в пакете нет dist/extension.js', file=sys.stderr)
             return 1
 
+        # Лишние .js рядом с бандлом — это вывод tsc, попавший в пакет
+        strays = [
+            path.name for path in (extension_dir / 'dist').rglob('*.js')
+            if path.name != 'extension.js'
+        ]
+        if strays:
+            print(f'[VSIX] ❌ в dist/ кроме бандла лежат {len(strays)} файлов (вывод tsc?):', file=sys.stderr)
+            print('  ' + ', '.join(strays[:5]), file=sys.stderr)
+            print('[VSIX] Соберите webpack-бандл: npm run compile (output.clean очищает dist).', file=sys.stderr)
+            return 1
+
         manifest = json.loads((extension_dir / 'package.json').read_text(encoding='utf-8'))
         main_entry = manifest.get('main', './dist/extension.js').lstrip('./')
         if main_entry != 'dist/extension.js':
