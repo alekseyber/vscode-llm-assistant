@@ -49,10 +49,15 @@ const TOOL_CALL = (targetFile: string) => ({
 
 const FINAL_TEXT = { message: { role: 'assistant', content: 'Готово.' }, done: true, prompt_eval_count: 45, eval_count: 3 };
 
-/** Стаб /api/chat: первые `toolCalls` ответов — вызов write_file, дальше — обычный текст. */
+/** Стаб /api/chat: первые `toolCalls` ответов на **чат** — вызов write_file, дальше — текст.
+ *  Запросы к /api/tags (discovery) не считаются и в `bodies` не попадают. */
 async function toolStub(toolCalls: number, targetFile: string, bodies?: any[]) {
   let calls = 0;
-  return startStub((_req, res, body) => {
+  return startStub((req, res, body) => {
+    if (req.url !== '/api/chat') {
+      // discovery и прочие служебные запросы — пустой список моделей
+      return ndjson(res, [{ models: [] }]);
+    }
     bodies?.push(body);
     calls += 1;
     return ndjson(res, [calls <= toolCalls ? TOOL_CALL(targetFile) : FINAL_TEXT]);
