@@ -169,7 +169,7 @@ export function registerCommands(deps: CommandDependencies): void {
       }
 
       // Подробности — в выходной канал, короткая сводка — в сообщении
-      const summary = blocks.slice(0, 0).join('\n');
+      const summary = blocks.slice(0, 6).join('\n');
       const choice = await vscode.window.showInformationMessage(
         summary,
         { modal: true },
