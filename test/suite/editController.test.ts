@@ -135,6 +135,18 @@ suite('EditController / прерванная правка не оставляе�
     );
   });
 
+  test('ECD-2: Edit пишет в историю расход от сервера, а не оценку', () => {
+    const store: any = { recordRun: sinon.stub() };
+    const pm: any = { getChosen: () => undefined, getDefault: () => undefined, getProvider: () => undefined, pricingMap: new Map() };
+    const controller: any = new EditController(pm, store);
+
+    controller.recordRun('старый код', 'новый код', 'округли', Date.now() - 100, 'local', 'qwen3:8b', { input: 31, output: 29 });
+
+    const entry = store.recordRun.firstCall.args[0];
+    assert.strictEqual(entry.tokensIn, 31, 'вход — счётчик сервера');
+    assert.strictEqual(entry.tokensOut, 29, 'выход — счётчик сервера');
+  });
+
   test('ECD-1: локальная модель в Edit-истории даёт стоимость 0, а не по прайсу облака', () => {
     const store: any = { recordRun: sinon.stub() };
     // Менеджер с нулевой ценой локальной модели — как после setZeroPricing()

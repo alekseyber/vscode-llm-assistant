@@ -8,7 +8,7 @@ import * as path from 'path';
 import { ProviderManager } from '../../providers/manager';
 import { isLocalBaseUrl } from '../../providers/base';
 import { ConversationManager } from './ConversationManager';
-import { ChatMessage, calculateCost } from '../../providers/types';
+import { ChatMessage, TokenUsage, calculateCost } from '../../providers/types';
 import { loadAgentsMd } from '../../shared/AgentsMdLoader';
 import { loadRoleAgentsMd, loadOrchestratorRoles, loadAllAgentRoles, getSkillTemplate, loadSkillMd, getSkillCatalog } from '../../shared/RoleAgentsMdLoader';
 import { loadToolAllowListConfig, isConfirmationRequired } from '../apply/ToolAllowList';
@@ -472,7 +472,13 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         messages.push(userMsg);
         this.pendingImage = null;
 
-        const stream = openaiProvider.chatWithVision(messages, { model, stream: true }, abortController.signal, onRetry);
+        let visionUsage: TokenUsage | undefined;
+        const stream = openaiProvider.chatWithVision(
+          messages,
+          { model, stream: true, onUsage: (u: TokenUsage) => { visionUsage = u; } },
+          abortController.signal,
+          onRetry,
+        );
         let full = '';
         const buffer = { acc: '' };
         for await (const chunk of stream) { full += chunk; this.postMessage({ type: 'streamChunk', text: chunk }, sessionId); this.logStreamChunk(sessionId, chunk, buffer); }
@@ -481,8 +487,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         this.conversationManager.addMessageTo(sessionId, { role: 'user', content: text });
         this.conversationManager.addMessageTo(sessionId, { role: 'assistant', content: full });
         this.flushChunkBuffer(sessionId, buffer);
-        outTokens = Math.ceil(full.length / 4);
-        this.finalizeRun(runId, startTime, model, providerDisplayName, inTokens, outTokens, 1, 'success');
+        outTokens = visionUsage?.output ?? Math.ceil(full.length / 4);
+        this.finalizeRun(runId, startTime, model, providerDisplayName, visionUsage?.input ?? inTokens, outTokens, 1, 'success');
         return;
       }
 
@@ -513,16 +519,24 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
           runSteps, 'success',
         );
       } else {
-        const stream = provider.chat(messages, { model, stream: true, extraBody: buildThinkingExtraBody(model) }, abortController.signal, onRetry);
+        let usage: TokenUsage | undefined;
+        const stream = provider.chat(
+          messages,
+          // onUsage: настоящий расход из ответа сервера (Ollama — prompt_eval_count/eval_count,
+          // локальный openai-движок — usage в стриме). Без него остаётся оценка.
+          { model, stream: true, extraBody: buildThinkingExtraBody(model), onUsage: (u: TokenUsage) => { usage = u; } },
+          abortController.signal,
+          onRetry,
+        );
         let full = '';
         const buffer = { acc: '' };
         for await (const chunk of stream) { full += chunk; this.postMessage({ type: 'streamChunk', text: chunk }, sessionId); this.logStreamChunk(sessionId, chunk, buffer); }
         this.postMessage({ type: 'done' }, sessionId);
         this.conversationManager.addMessageTo(sessionId, { role: 'assistant', content: full });
         this.flushChunkBuffer(sessionId, buffer);
-        this.postTokens(messages, full, model);
-        outTokens = Math.ceil(full.length / 4);
-        this.finalizeRun(runId, startTime, model, providerDisplayName, inTokens, outTokens, 1, 'success');
+        this.postTokens(messages, full, model, usage);
+        outTokens = usage?.output ?? Math.ceil(full.length / 4);
+        this.finalizeRun(runId, startTime, model, providerDisplayName, usage?.input ?? inTokens, outTokens, 1, 'success');
       }
     } catch (error: any) {
       const duration = Date.now() - startTime;
@@ -1031,9 +1045,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     return vscode.workspace.getConfiguration('llmAssistant').get<number>('chat.maxContextTokens', 4096);
   }
 
-  private postTokens(messages: any[], fullResponse: string, model: string): void {
-    const inTokens = Math.ceil(messages.reduce((s: number, m: any) => s + (typeof m.content === 'string' ? m.content.length : JSON.stringify(m.content).length), 0) / 4);
-    const outTokens = Math.ceil(fullResponse.length / 4);
+  private postTokens(messages: any[], fullResponse: string, model: string, usage?: TokenUsage): void {
+    // Факт от сервера важнее оценки: длина/4 врёт в разы на плотном русском тексте
+    const inTokens = usage?.input ?? Math.ceil(messages.reduce((s: number, m: any) => s + (typeof m.content === 'string' ? m.content.length : JSON.stringify(m.content).length), 0) / 4);
+    const outTokens = usage?.output ?? Math.ceil(fullResponse.length / 4);
     this.postMessage({ type: 'tokens', inputTokens: inTokens, outputTokens: outTokens, model, maxTokens: this.getMaxContextTokens(), cost: this.computeCost(undefined, model, inTokens, outTokens) });
   }
 

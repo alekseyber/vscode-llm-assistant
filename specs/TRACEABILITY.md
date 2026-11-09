@@ -81,6 +81,10 @@ version: 0.14.29
 | E2E-1 | `e2e/localEngines.e2e.ts` → «настройки из настоящего settings.json доходят до провайдеров и до numCtx» (Extension Host) | ✅ |
 | E2E-2 | `e2e/localEngines.e2e.ts` → «запрос к живому HTTP-серверу из хост-процесса и предупреждение не ломают прогон» | ✅ |
 | E2E-4a/b/c | `e2e/confirmGate.e2e.ts` → «отказ и второй отказ останавливают прогон», «согласие записывает файл и сводку», «`toolLoop=false` не вызывает инструменты» | ✅ |
+| Токены → Ollama отдаёт расход | `OLL-12.1/12.2` (`ollamaProviderLocal.test.ts`) | ✅ |
+| Токены → локальный openai-движок отдаёт usage | `OAI-4.1/4.2` (`usageTokens.test.ts`) | ✅ |
+| Токены → чат пишет в историю расход сервера | `CVP-6` (`chatViewProvider.test.ts`) | ✅ |
+| Токены → Edit пишет в историю расход сервера | `ECD-2` (`editController.test.ts`) | ✅ |
 | Edit → стоимость локального прогона | `ECD-1` (`editController.test.ts`) → «локальная модель в Edit-истории даёт стоимость 0» | ✅ |
 | Edit → выбор в селекторе | `SEL-1` (`chatViewProvider.test.ts`) → «смена провайдера в селекторе запоминается сразу» | ✅ |
 | Edit → ошибки провайдера | `EER-1..3` (`editController.test.ts`) → «429 называет провайдера, модель и что делать» и др. | ✅ |

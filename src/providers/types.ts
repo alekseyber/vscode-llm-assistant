@@ -51,6 +51,14 @@ export interface ChatMessage {
 /**
  * Опции для запроса к LLM
  */
+/** Фактический расход токенов, который вернул сервер (а не оценка по символам). */
+export interface TokenUsage {
+  /** Токенов на входе (промпт) */
+  input: number;
+  /** Токенов на выходе (ответ) */
+  output: number;
+}
+
 export interface CompletionOptions {
   /** Имя модели (например, 'gpt-4o', 'deepseek-chat') */
   model: string;
@@ -62,6 +70,12 @@ export interface CompletionOptions {
   stream?: boolean;
   /** Дополнительные поля тела запроса (например, `{ thinking: { type: 'disabled' } }` для DeepSeek) */
   extraBody?: Record<string, any>;
+  /**
+   * Колбэк фактического расхода токенов. Провайдер вызывает его, когда сервер
+   * прислал usage (OpenAI-совместимый) или `prompt_eval_count`/`eval_count` (Ollama).
+   * Если не вызван — вызывающая сторона остаётся на оценке по символам.
+   */
+  onUsage?: (usage: TokenUsage) => void;
 }
 
 /**

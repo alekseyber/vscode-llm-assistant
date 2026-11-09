@@ -94,6 +94,18 @@ export class OpenAIProvider extends BaseProvider {
   private modelsCache?: { at: number; models: string[] };
 
   /**
+   * Передать вызывающей стороне usage из стрима (локальный движок присылает его
+   * отдельным чанком с пустым `choices`, поэтому проверяем каждый).
+   */
+  private reportStreamUsage(chunk: any, options: CompletionOptions): void {
+    const usage = chunk?.usage;
+    if (!usage || !options.onUsage) return;
+    const input = Number(usage.prompt_tokens ?? 0);
+    const output = Number(usage.completion_tokens ?? 0);
+    if (input > 0 || output > 0) options.onUsage({ input, output });
+  }
+
+  /**
    * Список моделей.
    *
    * Для локального движка (`isLocal`) — discovery через `GET /v1/models`: llama.cpp
@@ -174,6 +186,9 @@ export class OpenAIProvider extends BaseProvider {
                 temperature: options.temperature ?? 0.7,
                 max_tokens: options.maxTokens ?? 4096,
                 stream: true,
+                // Локальный движок умеет отдавать usage в стриме; у облака лишний
+                // параметр рискует быть отвергнутым, поэтому просим только локально.
+                ...(this.isLocal === true ? { stream_options: { include_usage: true } } : {}),
                 ...(options.extraBody ?? {}),
               },
               retrySignal,
@@ -192,6 +207,7 @@ export class OpenAIProvider extends BaseProvider {
             temperature: options.temperature ?? 0.7,
             max_tokens: options.maxTokens ?? 4096,
             stream: true,
+            ...(this.isLocal === true ? { stream_options: { include_usage: true } } : {}),
             ...(options.extraBody ?? {}),
           },
           signal,
@@ -199,6 +215,7 @@ export class OpenAIProvider extends BaseProvider {
 
     for await (const chunk of stream) {
       if (signal?.aborted) break;
+      this.reportStreamUsage(chunk, options);
       const content = chunk.choices?.[0]?.delta?.content;
       if (content) yield content;
     }
@@ -249,6 +266,7 @@ export class OpenAIProvider extends BaseProvider {
 
     for await (const chunk of stream) {
       if (signal?.aborted) break;
+      this.reportStreamUsage(chunk, options);
       const content = chunk.choices?.[0]?.delta?.content;
       if (content) yield content;
     }

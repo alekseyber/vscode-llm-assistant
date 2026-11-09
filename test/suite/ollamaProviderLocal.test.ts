@@ -585,6 +585,34 @@ suite('OllamaProvider (нативный /api/chat)', () => {
     }
   }
 
+  test('OLL-12.1: фактический расход из финального чанка уходит вызывающей стороне', async () => {
+    handler = (_req, res) =>
+      ndjson(res, [
+        { message: { role: 'assistant', content: 'ок' }, done: false },
+        { message: { role: 'assistant', content: '' }, done: true, prompt_eval_count: 258, eval_count: 40 },
+      ]);
+
+    let got: any;
+    for await (const _ of provider().chat([{ role: 'user', content: 'q' }], {
+      model: 'qwen3:8b',
+      onUsage: (u) => { got = u; },
+    })) { /* consume */ }
+
+    assert.deepStrictEqual(got, { input: 258, output: 40 }, 'счётчики сервера, а не оценка по символам');
+  });
+
+  test('OLL-12.2: сервер не прислал счётчики — колбэк не вызывается (остаётся оценка)', async () => {
+    chatWithUsage();
+
+    let calls = 0;
+    for await (const _ of provider().chat([{ role: 'user', content: 'q' }], {
+      model: 'qwen3:8b',
+      onUsage: () => { calls++; },
+    })) { /* consume */ }
+
+    assert.strictEqual(calls, 0, 'нет цифр — не выдумываем их');
+  });
+
   test('OLL-9.1: prompt_eval_count == эффективное окно (numCtx/2) → предупреждение об обрезке', async () => {
     localSettings['local.numCtx'] = 4096;
     chatWithUsage(2048);

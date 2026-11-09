@@ -9,7 +9,7 @@ import { buildThinkingExtraBody } from '../../shared/thinking';
 import { RunHistoryStore, RunEntry, generateRunId } from '../../shared/RunHistoryStore';
 import { buildProposalPreview } from './proposalPreview';
 import { ProposalContentProvider, PROPOSAL_SCHEME } from './ProposalContentProvider';
-import { calculateCost } from '../../providers/types';
+import { TokenUsage, calculateCost } from '../../providers/types';
 
 /**
  * EditController — хендлер для редактирования выделенного кода через LLM.
@@ -103,7 +103,7 @@ export class EditController {
     // Пишем Edit-прогон в историю тем же провайдером и моделью, что реально отвечали:
     // иначе в таблице оказывался defaultProvider из настроек (например silicon)
     // при выбранном локальном провайдере — цифры и стоимость были «чужие».
-    this.recordRun(selectedText, newCode, instruction, startedAt, result.provider, result.model);
+    this.recordRun(selectedText, newCode, instruction, startedAt, result.provider, result.model, result.usage);
 
     // Показываем diff
     await this.showDiff(editor, selection, selectedText, newCode);
@@ -142,7 +142,7 @@ export class EditController {
     selectedText: string,
     instruction: string,
     editor: vscode.TextEditor
-  ): Promise<{ code: string; provider: string; model: string } | null> {
+  ): Promise<{ code: string; provider: string; model: string; usage?: TokenUsage } | null> {
     // Приоритет — выбор пользователя в панели (Edit не имеет своего селектора),
     // иначе провайдер по умолчанию из настроек
     const chosen = this.providerManager.getChosen();
@@ -196,9 +196,17 @@ export class EditController {
             abortController.abort();
           });
 
+          // onUsage: локальный движок отдаёт настоящие счётчики; без них в истории
+          // остаётся оценка по символам (2743 против реальных 258 на прогоне 09.11).
+          let usage: TokenUsage | undefined;
           const stream = provider.chat(
             messages,
-            { model, stream: true, extraBody: buildThinkingExtraBody(model) },
+            {
+              model,
+              stream: true,
+              extraBody: buildThinkingExtraBody(model),
+              onUsage: (u: TokenUsage) => { usage = u; },
+            },
             abortController.signal
           );
 
@@ -207,12 +215,17 @@ export class EditController {
             fullResponse += chunk;
           }
 
-          return fullResponse;
+          return { text: fullResponse, usage };
         }
       );
 
       // Очищаем ответ от лишних обрамлений (```code```)
-      return { code: cleanLlmResponse(result), provider: (provider as any).name ?? 'unknown', model };
+      return {
+        code: cleanLlmResponse(result.text),
+        provider: (provider as any).name ?? 'unknown',
+        model,
+        usage: result.usage,
+      };
     } catch (error: any) {
       if (error.name === 'AbortError') {
         vscode.window.showInformationMessage('Редактирование отменено');
@@ -256,8 +269,8 @@ export class EditController {
   /**
    * Записать Edit-прогон в историю запусков.
    *
-   * Токены оцениваются как длина/4 — провайдер в стриминге не отдаёт usage,
-   * а та же оценка используется в чате, поэтому цифры сопоставимы.
+   * Токены берутся из `usage`, который вернул сервер. Оценка длина/4 — только
+   * запасной вариант: облачные провайдеры в стриме молчат, локальные отдают счётчики.
    */
   private recordRun(
     oldText: string,
@@ -266,10 +279,11 @@ export class EditController {
     startedAt: number,
     providerName: string,
     model: string,
+    usage?: TokenUsage,
   ): void {
     if (!this.runHistoryStore) return;
-    const tokensIn = Math.ceil((oldText.length + instruction.length) / 4);
-    const tokensOut = Math.ceil(newText.length / 4);
+    const tokensIn = usage?.input ?? Math.ceil((oldText.length + instruction.length) / 4);
+    const tokensOut = usage?.output ?? Math.ceil(newText.length / 4);
     const entry: RunEntry = {
       id: generateRunId(),
       timestamp: startedAt,

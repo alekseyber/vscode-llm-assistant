@@ -492,6 +492,19 @@ export class OllamaProvider extends BaseProvider {
    * серверный кап и оказывается меньше numCtx — такой случай ловится только по
    * debug-строке (см. P19 в бэклоге).
    */
+  /**
+   * Сообщить вызывающей стороне фактический расход токенов из финального чанка.
+   *
+   * Ollama в стриме отдаёт `prompt_eval_count`/`eval_count` только в чанке с `done: true` —
+   * до него цифр нет, а оценка по символам врёт в разы (2743 против 258 на реальном прогоне).
+   */
+  private reportUsage(options: CompletionOptions, chunk: any): void {
+    if (!options.onUsage) return;
+    const input = Number(chunk?.prompt_eval_count ?? 0);
+    const output = Number(chunk?.eval_count ?? 0);
+    if (input > 0 || output > 0) options.onUsage({ input, output });
+  }
+
   private notePromptUsage(model: string, payload: any, numCtx: number): void {
     const raw = payload?.prompt_eval_count;
     const promptTokens = typeof raw === 'number' ? raw : undefined;
@@ -554,6 +567,7 @@ export class OllamaProvider extends BaseProvider {
         }
         if (chunk?.done) {
           this.notePromptUsage(options.model, chunk, local.numCtx);
+          this.reportUsage(options, chunk);
           break;
         }
       }
@@ -647,6 +661,7 @@ export class OllamaProvider extends BaseProvider {
         }
         if (chunk?.done) {
           this.notePromptUsage(options.model, chunk, local.numCtx);
+          this.reportUsage(options, chunk);
           break;
         }
       }

@@ -9,3 +9,17 @@ CHANGELOG.md
 **/*.ts
 **/*.map
 **/*.d.ts
+# Тестовая сборка (tsconfig.test.json → out/) и тестовые фикстуры не нужны в пакете:
+# они не участвуют в работе расширения, но уезжали в VSIX мёртвым грузом.
+out/**
+test/**
+scripts/**
+qa/**
+specs/**
+reports/**
+.github/**
+AGENTS.md
+.eslintignore
+.mocharc.yml
+tsconfig.test.json
+tmp_probe_why.js

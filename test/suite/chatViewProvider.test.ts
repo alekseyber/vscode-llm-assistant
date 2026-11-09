@@ -159,6 +159,21 @@ suite('ChatViewProvider.handleSendMessage', () => {
     assert.deepStrictEqual(noteChosenCalls.at(-1), ['local', 'qwen3:8b'], 'выбор провайдера запомнен без отправки сообщения');
   });
 
+  test('CVP-6: в историю попадает расход от сервера, а не оценка по символам', async () => {
+    // Провайдер отдаёт usage, как локальный движок; текст ответа короткий,
+    // а промпт длинный — оценка по символам дала бы совсем другие цифры.
+    (mockLLM as any).chat = (_m: any, opts: any) => (async function* () {
+      opts?.onUsage?.({ input: 258, output: 40 });
+      yield 'ок';
+    })();
+
+    await send('очень длинный вопрос '.repeat(200), 'chat');
+
+    const run = history.getRuns()[0];
+    assert.strictEqual(run.tokensIn, 258, 'вход — счётчик сервера');
+    assert.strictEqual(run.tokensOut, 40, 'выход — счётчик сервера');
+  });
+
   test('chat-режим: одна запись success в указанной сессии (без «сирот»)', async () => {
     const id1 = cm.session.getActive()!.meta.id;
 

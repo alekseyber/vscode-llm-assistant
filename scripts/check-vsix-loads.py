@@ -69,6 +69,16 @@ def main() -> int:
             print('[VSIX] ❌ в пакете нет dist/extension.js', file=sys.stderr)
             return 1
 
+        # Тестовая сборка и спеки в пакете — мёртвый груз (было 239 файлов вместо 29)
+        dead = [
+            str(path.relative_to(extension_dir)) for path in extension_dir.rglob('*')
+            if path.is_file() and (path.relative_to(extension_dir).parts[0] in {'out', 'test', 'specs', 'scripts', 'reports'})
+        ]
+        if dead:
+            print(f'[VSIX] ❌ в пакет попало {len(dead)} файлов тестов/спек (например {dead[0]})', file=sys.stderr)
+            print('[VSIX] Проверьте .vscodeignore: out/, test/, specs/, scripts/, reports/ не должны уезжать.', file=sys.stderr)
+            return 1
+
         # Лишние .js рядом с бандлом — это вывод tsc, попавший в пакет
         strays = [
             path.name for path in (extension_dir / 'dist').rglob('*.js')
