@@ -100,25 +100,26 @@ suite('Таймаут соединения с Ollama (P20)', () => {
     assert.match(text, /два/, 'тело дочитано после таймаута соединения');
   });
 
-  test('OLL-10.3: провайдер отдаёт CONNECT_TIMEOUT быстро и не ретраит', async () => {
-    onRequest = () => undefined;
+  test('OLL-10.3: погашенный сервер отказывает быстро и без ретраев (тишина ≠ отказ)', async () => {
+    // Прежняя редакция ждала CONNECT_TIMEOUT от сервера, который соединение ПРИНЯЛ,
+    // но молчал. Это не мёртвый хост, а загружающаяся модель: такой случай теперь
+    // ждёт local.requestTimeout. Отказ — это закрытый порт (ECONNREFUSED).
     __setConnectTimeoutForTests(200);
-    const provider = new OllamaProvider({ name: 'local', baseUrl: `http://127.0.0.1:${port}`, models: ['qwen3:8b'] });
+    const dead = new OllamaProvider({ name: 'local', baseUrl: 'http://127.0.0.1:1', models: ['qwen3:8b'] });
 
     const started = Date.now();
     await assert.rejects(
       async () => {
-        for await (const _ of provider.chat([{ role: 'user', content: 'q' }], { model: 'qwen3:8b' })) {
+        for await (const _ of dead.chat([{ role: 'user', content: 'q' }], { model: 'qwen3:8b' })) {
           /* consume */
         }
       },
       (err: any) => {
-        assert.strictEqual(err.code, 'CONNECT_TIMEOUT');
-        assert.match(err.message, /baseUrl/);
+        assert.match(String(err.message), /ECONNREFUSED|остановлен намеренно/, 'видно, что сервер не отвечает');
         return true;
       },
     );
-    assert.ok(Date.now() - started < 2000, 'без ретраев и без 300 с');
+    assert.ok(Date.now() - started < 2000, 'без ретраев и без ожидания requestTimeout');
   });
 
   test('OLL-10.4: отмена пользователя не маскируется под таймаут соединения', async () => {

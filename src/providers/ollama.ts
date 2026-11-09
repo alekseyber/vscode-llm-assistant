@@ -54,6 +54,25 @@ export function effectivePromptWindow(numCtx: number): number {
  * `CONNECT_TIMEOUT` вместо ответа ровно в самом частом случае — «первый запрос после простоя».
  */
 export const DEFAULT_CONNECT_TIMEOUT_MS = 30_000;
+
+/**
+ * Подсказка для случая «сервер принял соединение, но молчит».
+ *
+ * 30-секундный таймаут уместен для discovery (там ответ приходит мгновенно),
+ * а у чата это ожидание первого байта: холодная загрузка модели и преффил
+ * большого промпта на CPU легко занимают минуты, и «сервер недоступен» —
+ * ложный диагноз.
+ */
+/** Запас общего таймаута над ожиданием первого байта: подсказка должна сработать первой. */
+const HEADER_GRACE_MS = 2_000;
+
+function chatWaitHint(timeoutMs: number): string {
+  return (
+    `Сервер принял соединение, но не прислал ответ: возможно, модель загружается в память ` +
+    `или промпт большой. Поднимите «local.requestTimeout» (сейчас ${Math.round(timeoutMs / 1000)} с) ` +
+    'или дождитесь загрузки модели.'
+  );
+}
 let connectTimeoutMs = DEFAULT_CONNECT_TIMEOUT_MS;
 
 /** Переопределение таймаута соединения — только для тестов. */
@@ -76,6 +95,8 @@ export async function fetchWithConnectTimeout(
   init: RequestInit,
   signal: AbortSignal | undefined,
   timeoutMs: number,
+  /** Что подсказать, если сервер не прислал даже заголовки. */
+  hint?: string,
 ): Promise<Response> {
   const controller = new AbortController();
   let timedOut = false;
@@ -93,9 +114,12 @@ export async function fetchWithConnectTimeout(
     return await fetch(input, { ...init, signal: controller.signal });
   } catch (error: any) {
     if (timedOut && !signal?.aborted) {
+      const seconds = Math.round(timeoutMs / 1000 * 10) / 10;
       const err: any = new Error(
-        `Ollama не ответила за ${Math.round(timeoutMs / 1000 * 10) / 10} с: сервер недоступен или не отвечает. ` +
-          'Проверьте, что он запущен и baseUrl верный.',
+        hint
+          ? `Ollama не начала отвечать за ${seconds} с. ${hint}`
+          : `Ollama не ответила за ${seconds} с: сервер недоступен или не отвечает. ` +
+            'Проверьте, что он запущен и baseUrl верный.',
       );
       err.code = 'CONNECT_TIMEOUT';
       throw err;
@@ -412,7 +436,14 @@ export class OllamaProvider extends BaseProvider {
   }
 
   /** POST к нативному API с маппингом ошибок в терминах RetryHandler. */
-  private async post(path: string, body: unknown, signal: AbortSignal): Promise<Response> {
+  private async post(
+    path: string,
+    body: unknown,
+    signal: AbortSignal,
+    /** Ожидание заголовков: у чата это преффил, у discovery — короткий запрос. */
+    timeoutMs: number = connectTimeoutMs,
+    hint?: string,
+  ): Promise<Response> {
     let response: Response;
     try {
       response = await fetchWithConnectTimeout(
@@ -423,7 +454,8 @@ export class OllamaProvider extends BaseProvider {
           body: JSON.stringify(body),
         },
         signal,
-        connectTimeoutMs,
+        timeoutMs,
+        hint,
       );
     } catch (error: any) {
       // Отдельный таймаут соединения: уже содержит подсказку и код, оборачивать не надо
@@ -538,7 +570,7 @@ export class OllamaProvider extends BaseProvider {
     onRetry?: RetryCallback,
   ): AsyncIterable<string> {
     const local = readOllamaLocalSettings(this.overrides);
-    const { signal: composed, reset, cleanup } = createTimeoutSignal(signal, local.requestTimeoutMs);
+    const { signal: composed, reset, cleanup } = createTimeoutSignal(signal, local.requestTimeoutMs + HEADER_GRACE_MS);
     if (options.extraBody) {
       debugLog('[ollama] extraBody игнорируется: нативный API не принимает произвольные поля');
     }
@@ -546,13 +578,13 @@ export class OllamaProvider extends BaseProvider {
     try {
       const body = this.buildBody(options.model, messages, options, true);
       const response = local.retryEnabled
-        ? await withRetry(() => this.post('/api/chat', body, composed), {
+        ? await withRetry(() => this.post('/api/chat', body, composed, local.requestTimeoutMs, chatWaitHint(local.requestTimeoutMs)), {
             signal: composed,
             onRetry,
             maxRetries: local.maxRetries,
             requestTimeoutMs: local.requestTimeoutMs,
           })
-        : await this.post('/api/chat', body, composed);
+        : await this.post('/api/chat', body, composed, local.requestTimeoutMs, chatWaitHint(local.requestTimeoutMs));
 
       let contentChars = 0;
       let thinkingChars = 0;
@@ -588,18 +620,18 @@ export class OllamaProvider extends BaseProvider {
     onRetry?: RetryCallback,
   ): Promise<string> {
     const local = readOllamaLocalSettings(this.overrides);
-    const { signal: composed, cleanup } = createTimeoutSignal(signal, local.requestTimeoutMs);
+    const { signal: composed, cleanup } = createTimeoutSignal(signal, local.requestTimeoutMs + HEADER_GRACE_MS);
 
     try {
       const body = this.buildBody(options.model, messages, options, false);
       const response = local.retryEnabled
-        ? await withRetry(() => this.post('/api/chat', body, composed), {
+        ? await withRetry(() => this.post('/api/chat', body, composed, local.requestTimeoutMs, chatWaitHint(local.requestTimeoutMs)), {
             signal: composed,
             onRetry,
             maxRetries: local.maxRetries,
             requestTimeoutMs: local.requestTimeoutMs,
           })
-        : await this.post('/api/chat', body, composed);
+        : await this.post('/api/chat', body, composed, local.requestTimeoutMs, chatWaitHint(local.requestTimeoutMs));
 
       const json: any = await response.json();
       this.notePromptUsage(options.model, json, local.numCtx);
@@ -625,7 +657,7 @@ export class OllamaProvider extends BaseProvider {
     onRetry?: RetryCallback,
   ): AsyncIterable<string> {
     const local = readOllamaLocalSettings(this.overrides);
-    const { signal: composed, reset, cleanup } = createTimeoutSignal(signal, local.requestTimeoutMs);
+    const { signal: composed, reset, cleanup } = createTimeoutSignal(signal, local.requestTimeoutMs + HEADER_GRACE_MS);
 
     try {
       const body: Record<string, any> = {
@@ -641,13 +673,13 @@ export class OllamaProvider extends BaseProvider {
       };
 
       const response = local.retryEnabled
-        ? await withRetry(() => this.post('/api/chat', body, composed), {
+        ? await withRetry(() => this.post('/api/chat', body, composed, local.requestTimeoutMs, chatWaitHint(local.requestTimeoutMs)), {
             signal: composed,
             onRetry,
             maxRetries: local.maxRetries,
             requestTimeoutMs: local.requestTimeoutMs,
           })
-        : await this.post('/api/chat', body, composed);
+        : await this.post('/api/chat', body, composed, local.requestTimeoutMs, chatWaitHint(local.requestTimeoutMs));
 
       let contentChars = 0;
       let thinkingChars = 0;
@@ -693,7 +725,7 @@ export class OllamaProvider extends BaseProvider {
     if (extraBody) {
       debugLog('[ollama] extraBody в createWithTools игнорируется: рассуждение гасится флагом think');
     }
-    const { signal: composed, cleanup } = createTimeoutSignal(signal, local.requestTimeoutMs);
+    const { signal: composed, cleanup } = createTimeoutSignal(signal, local.requestTimeoutMs + HEADER_GRACE_MS);
 
     try {
       const body: Record<string, any> = {
@@ -712,13 +744,13 @@ export class OllamaProvider extends BaseProvider {
       );
 
       const response = local.retryEnabled
-        ? await withRetry(() => this.post('/api/chat', body, composed), {
+        ? await withRetry(() => this.post('/api/chat', body, composed, local.requestTimeoutMs, chatWaitHint(local.requestTimeoutMs)), {
             signal: composed,
             onRetry,
             maxRetries: local.maxRetries,
             requestTimeoutMs: local.requestTimeoutMs,
           })
-        : await this.post('/api/chat', body, composed);
+        : await this.post('/api/chat', body, composed, local.requestTimeoutMs, chatWaitHint(local.requestTimeoutMs));
 
       const json: any = await response.json();
       this.notePromptUsage(model, json, local.numCtx);

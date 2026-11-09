@@ -14,6 +14,8 @@ import {
   toNativeVisionMessages,
   toOpenAIToolCalls,
   __resetTruncationWarningState,
+  __setConnectTimeoutForTests,
+  __resetConnectTimeout,
 } from '../../src/providers/ollama';
 
 interface Captured {
@@ -584,6 +586,39 @@ suite('OllamaProvider (нативный /api/chat)', () => {
       /* consume */
     }
   }
+
+  test('OLL-13.1: чат ждёт первый байт по local.requestTimeout, а не по 30-секундному connect-таймауту', async () => {
+    // Соединение есть сразу, но Ollama молчит: холодная загрузка модели или преффил.
+    // Раньше это считалось «сервер недоступен» через 30 с (DEFAULT_CONNECT_TIMEOUT_MS).
+    __setConnectTimeoutForTests(50);
+    localSettings['local.requestTimeout'] = 10;
+    handler = (_req, res) => {
+      setTimeout(() => ndjson(res, [{ message: { content: 'ок' }, done: true }]), 300);
+    };
+
+    let text = '';
+    for await (const chunk of provider().chat([{ role: 'user', content: 'q' }], { model: 'qwen3:8b' })) text += chunk;
+
+    assert.strictEqual(text, 'ок', 'медленный первый байт — это не отказ сервера');
+  });
+
+  test('OLL-13.2: выход за local.requestTimeout объясняет причину, а не «сервер недоступен»', async () => {
+    __setConnectTimeoutForTests(50);
+    localSettings['local.requestTimeout'] = 1;
+    handler = (_req, res) => {
+      setTimeout(() => ndjson(res, [{ message: { content: 'ок' }, done: true }]), 1500);
+    };
+
+    await assert.rejects(
+      async () => { for await (const _ of provider().chat([{ role: 'user', content: 'q' }], { model: 'qwen3:8b' })) { /* consume */ } },
+      (err: any) => {
+        assert.match(err.message, /не начала отвечать/);
+        assert.match(err.message, /local\.requestTimeout/, 'подсказка, что крутить');
+        assert.doesNotMatch(err.message, /сервер недоступен/);
+        return true;
+      },
+    );
+  });
 
   test('OLL-12.1: фактический расход из финального чанка уходит вызывающей стороне', async () => {
     handler = (_req, res) =>
