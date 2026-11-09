@@ -397,6 +397,17 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     try {
       const systemPrompt = await this.getSystemPrompt(mode, providerName);
       const historyMessages = await this.conversationManager.getMessagesForRequest(provider);
+
+      // Сообщение не влезло в контекст: раньше оно молча выбрасывалось и модель
+      // отвечала мимо вопроса. Теперь обрезаем и говорим об этом.
+      const truncation = this.conversationManager.getLastTruncation();
+      if (truncation) {
+        console.warn(`[chat] сообщение обрезано: ${truncation.kept} из ${truncation.total} знаков`);
+        void vscode.window.showWarningMessage(
+          `Сообщение не влезло в контекст: отправлено ${truncation.kept.toLocaleString('ru-RU')} из ${truncation.total.toLocaleString('ru-RU')} знаков. ` +
+          `Поднимите «chat.maxContextTokens» или numCtx у провайдера.`,
+        );
+      }
       const messages: any[] = historyMessages;
       if (messages.length === 0 || messages[0].role !== 'system') {
         messages.unshift({ role: 'system', content: systemPrompt });

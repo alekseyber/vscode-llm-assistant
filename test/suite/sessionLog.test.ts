@@ -178,6 +178,20 @@ suite('SessionLog', () => {
     assert.strictEqual(trimmed[0].content, 'A'.repeat(40));
   });
 
+  test('SLT-1: текущее сообщение больше контекста — обрезается, а не выбрасывается', () => {
+    // Ровно случай из прогона 09.11: огромный документ уходил в trimmed целиком,
+    // модель получала один system-промпт (141 токен) и отвечала мимо вопроса.
+    log.append(ev('user/message', { content: 'Д'.repeat(4000) }));
+
+    const { messages, truncation } = log.deriveMessagesWithTrimmed(sid, 100);
+
+    assert.strictEqual(messages.length, 1, 'сообщение должно остаться в запросе');
+    assert.strictEqual(messages[0].role, 'user');
+    assert.ok(messages[0].content.length < 4000, 'текст обрезан по бюджету');
+    assert.match(messages[0].content, /обрезано \d+ знаков из 4000/, 'видно, сколько не отправлено');
+    assert.deepStrictEqual(truncation, { kept: 400, total: 4000 }, 'цифры для предупреждения');
+  });
+
   test('deriveMessages(): pendingContext прикрепляется к user/message', () => {
     log.append(ev('user/message', { content: 'текст', pendingContext: 'контекст кода' }));
     const messages = log.deriveMessages(sid);

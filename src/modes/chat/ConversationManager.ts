@@ -51,6 +51,13 @@ export class ConversationManager {
   }
 
   /** Сообщения для отправки в LLM: system prompt + AGENTS.md + [summary] + история + контекст */
+  /** Обрезка текущего сообщения в последнем запросе (для предупреждения пользователю). */
+  private lastTruncation?: { kept: number; total: number };
+
+  getLastTruncation(): { kept: number; total: number } | undefined {
+    return this.lastTruncation;
+  }
+
   async getMessagesForRequest(provider?: import('../../providers/types').LLMProvider): Promise<ChatMessage[]> {
     const config = vscode.workspace.getConfiguration('llmAssistant');
     const maxTokens = config.get<number>('chat.maxContextTokens', 4096);
@@ -75,10 +82,12 @@ export class ConversationManager {
       const r = this.sessionLog.deriveMessagesWithTrimmed(sessionId, maxTokens - usedTokens);
       history = r.messages;
       trimmed = r.trimmed;
+      this.lastTruncation = r.truncation;
     } else {
       const r = this.buildHistoryWithTrimmed(maxTokens, usedTokens);
       history = r.history;
       trimmed = r.trimmed;
+      this.lastTruncation = undefined;
     }
 
     // --- Слой 04: Summary при переполнении контекста ---

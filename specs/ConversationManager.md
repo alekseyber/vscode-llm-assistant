@@ -1,6 +1,6 @@
 ---
 component: ConversationManager
-version: 0.13.0
+version: 0.13.1
 status: stable
 since: 0.1.0
 ---
@@ -88,4 +88,5 @@ since: 0.1.0
 |--------|------|-----------|
 | 0.1.0 | 2026-08-04 | Базовая реализация |
 | 0.11.3 | 2026-08-22 | F1 5a/5b/5c/5d: sessionLog-инъекция; addMessageTo → лог; getMessagesForRequest → deriveMessagesWithTrimmed; getMessages → deriveMessages (fallback на SessionManager) |
+| 0.13.1 | 2026-11-09 | `getLastTruncation()` — факт обрезки текущего сообщения из последнего `getMessagesForRequest()`; `ChatViewProvider` показывает предупреждение с числами отправленных знаков. AC `SLT-1` |
 | 0.13.0 | 2026-08-23 | `getMessages()` → `deriveMessages({includeContext:false})` — чистые промпты в WebView (фикс «--- Файл ---» в истории) |

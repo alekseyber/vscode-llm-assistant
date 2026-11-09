@@ -258,7 +258,10 @@ export class SessionLog {
    * Проекция + обрезка (для getMessagesForRequest, SL-3/5b): возвращает включённые
    * сообщения и обрезанные (для summary). Не мутирует лог.
    */
-  deriveMessagesWithTrimmed(sessionId: string, maxContextTokens: number): { messages: ChatMessage[]; trimmed: ChatMessage[] } {
+  deriveMessagesWithTrimmed(
+    sessionId: string,
+    maxContextTokens: number,
+  ): { messages: ChatMessage[]; trimmed: ChatMessage[]; truncation?: { kept: number; total: number } } {
     const full = this.deriveMessages(sessionId);
     const hasSummary = full.length > 0 && full[0].role === 'system';
     const prefix = hasSummary ? [full[0]] : [];
@@ -278,7 +281,21 @@ export class SessionLog {
         kept.unshift(body[i]);
       }
     }
-    return { messages: [...prefix, ...kept], trimmed };
+    // Текущее сообщение не выбрасываем никогда: раньше большое сообщение целиком
+    // уходило в trimmed, модель получала один system-промпт (141 токен) и отвечала
+    // мимо вопроса — молча, без предупреждения.
+    let truncation: { kept: number; total: number } | undefined;
+    const lastUser = body.length > 0 && body[body.length - 1].role === 'user' ? body[body.length - 1] : undefined;
+    if (lastUser && !kept.includes(lastUser)) {
+      const budgetChars = Math.max(400, (maxContextTokens - used) * 4);
+      const total = lastUser.content.length;
+      const head = lastUser.content.slice(0, budgetChars);
+      const marker = `\n\n[…обрезано ${total - head.length} знаков из ${total}: сообщение не влезло в контекст]`;
+      kept.push({ role: 'user', content: head + marker });
+      truncation = { kept: head.length, total };
+    }
+
+    return { messages: [...prefix, ...kept], trimmed, truncation };
   }
 
   /**

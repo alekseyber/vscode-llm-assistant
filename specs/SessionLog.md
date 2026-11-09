@@ -1,6 +1,6 @@
 ---
 component: SessionLog
-version: 0.13.0
+version: 0.13.1
 status: stable
 ---
 
@@ -104,6 +104,7 @@ status: stable
 | 0.1.0 | 2026-08-22 | UI-хвост: toTranscript() + fork(targetId) + команды exportSession/forkSession |
 | 0.1.0 | 2026-08-22 | Stage 5 (5b/5c/5d): deriveMessagesWithTrimmed() + clearSession(); лог подключён к getMessagesForRequest и UI |
 | 0.1.0 | 2026-08-22 | deleteSession/pruneUnknown/clearAll/truncate — полный жизненный цикл лога (удаление, ре-консиляция сирот, обрезка старых событий) |
+| 0.13.1 | 2026-11-09 | `deriveMessagesWithTrimmed()` не выбрасывает текущее сообщение: если оно не влезло в бюджет, текст обрезается (голова + маркер «…обрезано N знаков из M»), в результате появляется `truncation: {kept, total}`. Раньше огромный документ целиком уходил в `trimmed`, модель получала один system-промпт и отвечала мимо вопроса. AC `SLT-1` |
 | 0.13.0 | 2026-08-22 | P0 Этап 5: `role?` в tool/call+tool/result; toTranscript группирует 🔧-шаги по воркерам (`### 01-{role}`) |
 | 0.13.0 | 2026-08-23 | `deriveMessages({includeContext:false})` — чистая проекция без pendingContext (фикс загрязнения промпта в WebView) |
 | 0.13.0 | 2026-08-23 | `toTranscript`: заголовок воркера `### ${role}` без двойной нумерации (роль уже несёт префикс `01-`) |
