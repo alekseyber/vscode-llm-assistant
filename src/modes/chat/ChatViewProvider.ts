@@ -550,7 +550,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
    * чтобы он не исчезал при переключении сессий.
    */
   private markCancelled(sessionId?: string): void {
-    this.postMessage({ type: 'cancelled' }, sessionId);
+    // RED: уведомление панели снято
     this.conversationManager.addMessageTo(sessionId, { role: 'assistant', content: '_Запрос отменён._' });
   }
 
