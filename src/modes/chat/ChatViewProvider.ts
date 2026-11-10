@@ -673,6 +673,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
           agentResult?.inputTokens ?? inTokens,
           agentResult?.outputTokens ?? 0,
           runSteps, agentStatus,
+          // Причина остановки по деньгам должна остаться в истории, а не только в тосте
+          agentStatus === 'limit_exceeded' ? agentResult?.error : undefined,
         );
       } else {
         let usage: TokenUsage | undefined;

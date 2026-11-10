@@ -199,6 +199,36 @@ suite('ChatViewProvider.handleSendMessage', () => {
     assert.strictEqual(reserved.size, 0, `резерв должен быть снят, осталось ${reserved.size}`);
   });
 
+  test('MR-16: лимит сессии останавливает агентский прогон посреди цикла', async () => {
+    // Прогноз укладывается в лимит (иначе вопрос до отправки), а фактический расход шага — нет
+    configOverrides['budget.sessionLimitUsd'] = 0.01;
+    configOverrides['maxTokens'] = 128;
+    configOverrides['agent.maxIterations'] = 5;
+    mockLLM.createWithTools = async () => ({
+      choices: [{
+        message: {
+          role: 'assistant',
+          tool_calls: [{ id: `c${Math.random()}`, type: 'function', function: { name: 'read_file', arguments: '{"path":"a.txt"}' } }],
+        },
+      }],
+      usage: { prompt_tokens: 100_000, completion_tokens: 100_000 },
+    });
+
+    const postSpy = sandbox.spy(provider as any, 'postMessage');
+    await send('читай файл', 'agent');
+
+    const run = history.getRuns()[0];
+    assert.strictEqual(run.status, 'limit_exceeded', `агентский прогон остановлен лимитом: ${run.status}`);
+    assert.match(String(run.error), /Лимит сессии/, `причина с числами: ${run.error}`);
+    assert.strictEqual(run.steps, 1, 'остановка после первого шага, а не после maxIterations');
+    const errors = postSpy.getCalls()
+      .map((c: any) => c.args[0])
+      .filter((msg: any) => msg?.type === 'error')
+      .map((msg: any) => String(msg.text))
+      .join(' | ');
+    assert.match(errors, /Лимит сессии/, `пользователь видит причину в панели: ${errors}`);
+  });
+
   test('MR-14: дневной лимит блокирует запрос до отправки (новая сессия не обнуляет)', async () => {
     const chatSpy = sandbox.spy(mockLLM, 'chat');
     sandbox.stub(vscode.window, 'showWarningMessage').resolves(undefined as any); // отказ
