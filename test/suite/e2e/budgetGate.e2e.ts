@@ -89,7 +89,7 @@ suite('E2E-11: лимит бюджета отменяет прогон до за
 
     view.send({ type: 'sendMessage', text: 'привет, это дорогая модель', mode: 'chat', provider: 'paid', model: 'gpt-4o' });
 
-    const run = await waitFor(
+    const run = (await waitFor(
       () => {
         const record = history.getRuns(1)[0];
         return record && record.status !== 'running' ? record : undefined;
@@ -97,7 +97,7 @@ suite('E2E-11: лимит бюджета отменяет прогон до за
       15000,
       50,
       'запись прогона в конечном статусе',
-    );
+    ))!;
     assert.strictEqual(run.status, 'cancelled', 'прогон отменён, а не отправлен');
     assert.ok(/лимит/i.test(String(run.error ?? '')), `причина отмены про лимит: ${String(run.error)}`);
 
@@ -106,8 +106,8 @@ suite('E2E-11: лимит бюджета отменяет прогон до за
 
     const dialog = dialogs.find((d) => /Лимит сессии/.test(d));
     assert.ok(dialog, `диалог о превышении показан, получено: ${dialogs.join(' | ')}`);
-    assert.ok(/прогноз \$0\.\d{4}/.test(dialog!), `в диалоге есть прогноз: ${dialog}`);
-    assert.ok(/перерасход \$0\.\d{4}/.test(dialog!), `в диалоге есть перерасход: ${dialog}`);
+    assert.ok(/прогноз \$0\.\d{4}/.test(dialog as string), `в диалоге есть прогноз: ${dialog}`);
+    assert.ok(/перерасход \$0\.\d{4}/.test(dialog as string), `в диалоге есть перерасход: ${dialog}`);
   });
 
   test('E2E-11b: для агента прогноз умножается на число шагов', async function () {
@@ -115,12 +115,12 @@ suite('E2E-11: лимит бюджета отменяет прогон до за
     await buildPanel(stub.url, { 'agent.maxIterations': 3 });
 
     view.send({ type: 'sendMessage', text: 'сделай что-нибудь в проекте', mode: 'agent', provider: 'paid', model: 'gpt-4o' });
-    const agentDialog = await waitFor(
+    const agentDialog = (await waitFor(
       () => dialogs.find((d) => /шагов агента/.test(d)),
       15000,
       50,
       'диалог с множителем шагов',
-    );
+    )) as string;
 
     // Множитель виден в тексте и совпадает с настройкой: иначе лимит обходится ReAct-циклом
     assert.ok(/\(3 шагов агента\)/.test(agentDialog), `шаги агента в диалоге: ${agentDialog}`);
