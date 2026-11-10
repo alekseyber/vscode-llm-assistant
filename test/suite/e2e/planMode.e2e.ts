@@ -110,7 +110,8 @@ suite('E2E-13: Plan Mode — план на диске и имплементац�
   test('E2E-13a: планировщик пишет план файлом через write_file', async function () {
     this.timeout(60000);
     const provider = new OllamaProvider({ name: 'local', baseUrl: stub.url, models: ['qwen3:8b'] });
-    const manager = new PlanModeManager(root, 'e2e-plan', () => undefined);
+    const events: any[] = [];
+    const manager = new PlanModeManager(root, 'e2e-plan', (event) => events.push(event));
 
     const plan = await manager.generatePlan('спланируй проверку', provider, 'qwen3:8b');
 
@@ -118,7 +119,8 @@ suite('E2E-13: Plan Mode — план на диске и имплементац�
       fs.existsSync(plan.planPath),
       `файл плана создан на диске: ${plan.planPath}; вызовов стаба: ${JSON.stringify(stub.hits)}; ` +
         `обращений планировщика: ${plannerCalls}; путь из промпта: ${stubPlanPath}; ` +
-        `создано менеджером: ${plan.planPath}; ответ менеджера: ${plan.content.slice(0, 120)}`,
+        `создано менеджером: ${plan.planPath}; ответ менеджера: ${plan.content.slice(0, 120)}; ` +
+        `события воркера: ${JSON.stringify(events.slice(-4)).slice(0, 500)}`,
     );
     const onDisk = fs.readFileSync(plan.planPath, 'utf-8');
     assert.ok(onDisk.includes(PLAN_MARKER), 'содержимое записано инструментом, а не подставлено менеджером');
