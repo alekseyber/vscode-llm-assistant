@@ -119,6 +119,14 @@ export function visionUnsupportedWarning(model: string): string {
 /** Ключ globalState: расход за текущие сутки (дневной cap P9.1). */
 export const DAILY_SPEND_KEY = 'llmAssistant.dailySpend';
 
+/** Локальная дата YYYY-MM-DD: дневной счётчик живёт по времени пользователя, не по UTC. */
+export function todayLocalDate(): string {
+  const now = new Date();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${now.getFullYear()}-${month}-${day}`;
+}
+
 /** Ключ globalState: последний выбранный в панели провайдер и модель (для Edit). */
 const CHOSEN_KEY = 'llmAssistant.lastChosen';
 
@@ -135,6 +143,9 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
   /** Зарезервированные суммы по сессиям: два параллельных запроса не должны видеть один и тот же остаток. */
   private readonly budgetReserved = new Map<string, number>();
+
+  /** Кэш дневного расхода в памяти окна: защищает от потери при параллельных прогонах. */
+  private dailySpendCache?: { date: string; usd: number };
 
   /** Резерв конкретного прогона — чтобы снять ровно его в finalizeRun. */
   private readonly runReservations = new Map<string, { sessionId: string; usd: number }>();
@@ -808,23 +819,44 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
    * Хелперы дневного лимита (P9.1). Счётчик хранится с датой: смена суток
    * автоматически обнуляет расход, а команда «Сбросить дневной лимит» — вручную.
    */
-  private readDailySpend(): { date: string; usd: number } {
-    const date = new Date().toISOString().slice(0, 10);
-    const raw = this.context.globalState.get<{ date?: string; usd?: number }>(DAILY_SPEND_KEY);
-    if (!raw || raw.date !== date || typeof raw.usd !== 'number') return { date, usd: 0 };
-    return { date, usd: raw.usd };
+  /**
+   * Локальная дата «сегодня», а не UTC: иначе в UTC+3 счётчик обнулялся бы
+   * в 03:00 по местному времени, и дневной лимит «перезагружался» посреди ночи.
+   */
+  private static today(): string {
+    return todayLocalDate();
   }
 
-  /** Учесть фактический расход прогона в дневном счётчике. */
+  private readDailySpend(): { date: string; usd: number } {
+    const date = ChatViewProvider.today();
+    const raw = this.context.globalState.get<{ date?: string; usd?: number }>(DAILY_SPEND_KEY);
+    // Number.isFinite, а не typeof: NaN имеет тип 'number' и отравил бы счётчик
+    if (!raw || raw.date !== date || !Number.isFinite(raw.usd)) return { date, usd: 0 };
+    return { date, usd: raw.usd as number };
+  }
+
+  /**
+   * Учесть фактический расход прогона.
+   *
+   * Считаем через память, а не только через `globalState`: два прогона подряд
+   * (параллельные запросы) иначе читают одно значение и затирают расход друг друга.
+   * Полной атомарности между окнами VS Code это не даёт, но в пределах окна
+   * счётчик не теряется.
+   */
   private addDailySpend(usd: number): void {
-    if (!(usd > 0)) return;
-    const current = this.readDailySpend();
-    void this.context.globalState.update(DAILY_SPEND_KEY, { date: current.date, usd: current.usd + usd });
+    if (!(usd > 0) || !Number.isFinite(usd)) return;
+    const date = ChatViewProvider.today();
+    if (this.dailySpendCache?.date !== date) {
+      this.dailySpendCache = { date, usd: this.readDailySpend().usd };
+    }
+    this.dailySpendCache.usd += usd;
+    void this.context.globalState.update(DAILY_SPEND_KEY, { date, usd: this.dailySpendCache.usd });
   }
 
   /** Сбросить расход за сегодня (команда «Сбросить дневной лимит»). */
   public resetDailySpend(): void {
-    const date = new Date().toISOString().slice(0, 10);
+    const date = ChatViewProvider.today();
+    this.dailySpendCache = { date, usd: 0 };
     void this.context.globalState.update(DAILY_SPEND_KEY, { date, usd: 0 });
     this.debugChannel.appendLine('[budget] дневной счётчик сброшен вручную');
   }

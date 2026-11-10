@@ -520,7 +520,9 @@ export class HistoryViewProvider implements vscode.WebviewViewProvider {
           (typeof entry.forecastUsd === 'number'
             ? '<div><span class="label">Прогноз / факт:</span> $' + entry.forecastUsd.toFixed(6) +
               ' / $' + entry.cost.toFixed(6) +
-              (entry.forecastUsd > 0
+              // Процент считаем только при реальном расходе: у отменённого прогона факт $0,
+              // и «0% прогноза» читается как ошибка оценки
+              (entry.forecastUsd > 0 && entry.cost > 0
                 ? ' <span class="label">(' + Math.round((entry.cost / entry.forecastUsd) * 100) + '% прогноза)</span>'
                 : '') +
               '</div>'

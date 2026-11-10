@@ -6,7 +6,7 @@ import * as sinon from 'sinon';
 import * as vscode from 'vscode';
 import * as assert from 'assert';
 import * as path from 'path';
-import { ChatViewProvider, buildProviderListFromConfig, resolveModelForProvider, resolveVisionSupport, visionUnsupportedWarning } from '../../src/modes/chat/ChatViewProvider';
+import { ChatViewProvider, buildProviderListFromConfig, resolveModelForProvider, resolveVisionSupport, visionUnsupportedWarning, todayLocalDate } from '../../src/modes/chat/ChatViewProvider';
 import { ConversationManager } from '../../src/modes/chat/ConversationManager';
 import { RunHistoryStore } from '../../src/shared/RunHistoryStore';
 import { PlanModeManager } from '../../src/modes/chat/PlanModeManager';
@@ -229,12 +229,35 @@ suite('ChatViewProvider.handleSendMessage', () => {
     assert.match(errors, /Лимит сессии/, `пользователь видит причину в панели: ${errors}`);
   });
 
+  test('MR-17: два прогона подряд суммируются в дневном счётчике, расход не теряется', async () => {
+    configOverrides['maxTokens'] = 512;
+    await send('первый', 'chat');
+    const afterFirst = provider.getDailySpend().usd;
+    await send('второй', 'chat');
+
+    const afterSecond = provider.getDailySpend().usd;
+    assert.ok(afterFirst > 0, `первый прогон учтён: ${afterFirst}`);
+    assert.ok(afterSecond > afterFirst, `второй прогон добавлен, а не затёр первый: ${afterFirst} → ${afterSecond}`);
+    // Сумма должна совпасть с суммой стоимостей записей истории
+    const sumRuns = history.getRuns().reduce((s, r) => s + (r.cost || 0), 0);
+    assert.ok(Math.abs(afterSecond - sumRuns) < 1e-9, `счётчик ${afterSecond} = сумме прогонов ${sumRuns}`);
+  });
+
+  test('MR-18: битое значение счётчика (NaN) не отравляет дневной лимит', async () => {
+    await globalState.update('llmAssistant.dailySpend', { date: todayLocalDate(), usd: Number.NaN });
+
+    assert.strictEqual(provider.getDailySpend().usd, 0, 'NaN трактуется как «сегодня 0»');
+    configOverrides['maxTokens'] = 512;
+    await send('привет', 'chat');
+    assert.ok(provider.getDailySpend().usd > 0, 'после прогона счётчик снова числовой');
+  });
+
   test('MR-14: дневной лимит блокирует запрос до отправки (новая сессия не обнуляет)', async () => {
     const chatSpy = sandbox.spy(mockLLM, 'chat');
     sandbox.stub(vscode.window, 'showWarningMessage').resolves(undefined as any); // отказ
     configOverrides['budget.dailyLimitUsd'] = 0.005;
     // Сегодня уже потрачено больше лимита — дневной счётчик общий для всех сессий
-    await globalState.update('llmAssistant.dailySpend', { date: new Date().toISOString().slice(0, 10), usd: 0.01 });
+    await globalState.update('llmAssistant.dailySpend', { date: todayLocalDate(), usd: 0.01 });
     cm.session.createSession('Новая сессия'); // сессионный счётчик здесь пуст
 
     await send('привет', 'chat');
@@ -252,7 +275,7 @@ suite('ChatViewProvider.handleSendMessage', () => {
     const stored = globalState.get('llmAssistant.dailySpend') as { date: string; usd: number };
     assert.ok(stored, 'дневной счётчик записан в globalState');
     assert.ok(stored.usd > 0, `расход учтён: ${stored.usd}`);
-    assert.strictEqual(stored.date, new Date().toISOString().slice(0, 10), 'счётчик привязан к сегодняшней дате');
+    assert.strictEqual(stored.date, todayLocalDate(), 'счётчик привязан к локальной дате пользователя, не к UTC');
 
     // Перезапуск окна: новый провайдер поверх того же globalState видит расход
     const reloaded = new ChatViewProvider(ctxRef, pmRef, cm, history, undefined, undefined);

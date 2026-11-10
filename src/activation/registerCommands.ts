@@ -152,8 +152,8 @@ export function registerCommands(deps: CommandDependencies): void {
   // Без этой команды сработавший дневной лимит нечем снять до смены суток
   context.subscriptions.push(
     vscode.commands.registerCommand('llmAssistant.resetDailyBudget', async () => {
-      const { DAILY_SPEND_KEY } = await import('../modes/chat/ChatViewProvider');
-      const date = new Date().toISOString().slice(0, 10);
+      const { DAILY_SPEND_KEY, todayLocalDate } = await import('../modes/chat/ChatViewProvider');
+      const date = todayLocalDate();
       const before = context.globalState.get<{ usd?: number }>(DAILY_SPEND_KEY)?.usd ?? 0;
       await context.globalState.update(DAILY_SPEND_KEY, { date, usd: 0 });
       vscode.window.showInformationMessage(
