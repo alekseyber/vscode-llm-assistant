@@ -68,10 +68,12 @@ suite('E2E-13: Plan Mode — план на диске и имплементац�
                     {
                       function: {
                         name: 'write_file',
-                        arguments: {
+                        // Аргументы строкой JSON: так их отдаёт и настоящий Ollama,
+                        // и провайдер не переупаковывает объект в строку повторно
+                        arguments: JSON.stringify({
                           path: planPath,
                           content: `# План\n\n${PLAN_MARKER}\n\n## AC-1\nСделать проверку\n`,
-                        },
+                        }),
                       },
                     },
                   ],
