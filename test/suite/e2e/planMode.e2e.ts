@@ -103,7 +103,11 @@ suite('E2E-13: Plan Mode — план на диске и имплементац�
 
     const plan = await manager.generatePlan('спланируй проверку', provider, 'qwen3:8b');
 
-    assert.ok(fs.existsSync(plan.planPath), `файл плана создан на диске: ${plan.planPath}`);
+    assert.ok(
+      fs.existsSync(plan.planPath),
+      `файл плана создан на диске: ${plan.planPath}; вызовов стаба: ${JSON.stringify(stub.hits)}; ` +
+        `обращений планировщика: ${plannerCalls}; ответ менеджера: ${plan.content.slice(0, 120)}`,
+    );
     const onDisk = fs.readFileSync(plan.planPath, 'utf-8');
     assert.ok(onDisk.includes(PLAN_MARKER), 'содержимое записано инструментом, а не подставлено менеджером');
     assert.ok(plan.content.includes(PLAN_MARKER), 'менеджер читает план с диска');
