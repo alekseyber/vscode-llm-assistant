@@ -245,4 +245,36 @@ suite('ProviderManager — локальный провайдер', () => {
     );
     assert.deepStrictEqual(manager.pricingMap.get('qwen3:8b'), { input: 0, output: 0 });
   });
+
+  test('PRM-1.7: явная цена в настройках сильнее эвристики «локальный адрес»', () => {
+    // Платный шлюз на 127.0.0.1 (свой прокси к Azure, LiteLLM): адрес локальный,
+    // но модель стоит денег — иначе лимит бюджета не срабатывает вовсе (найдено в E2E-11)
+    createMockVscodeConfig({
+      providers: {
+        gateway: {
+          type: 'openai',
+          baseUrl: 'http://127.0.0.1:8765/v1',
+          apiKey: 'x',
+          models: [
+            { name: 'gpt-4o', pricing: { input: 2.5, output: 10 } },
+            'gpt-4o-mini',
+          ],
+        },
+      },
+    });
+
+    const manager = new ProviderManager();
+
+    assert.deepStrictEqual(
+      manager.pricingMap.get('gpt-4o'),
+      { input: 2.5, output: 10 },
+      'цена из настроек не обнулена, хотя адрес локальный',
+    );
+    assert.ok(calculateCost('gpt-4o', 1000, 1000, manager.pricingMap) > 0, 'стоимость считается');
+    assert.deepStrictEqual(
+      manager.pricingMap.get('gpt-4o-mini'),
+      { input: 0, output: 0 },
+      'модель без явной цены по-прежнему бесплатная',
+    );
+  });
 });

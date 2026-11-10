@@ -84,6 +84,14 @@ export class ProviderManager {
    */
   private readonly localModels = new Set<string>();
 
+  /**
+   * Модели, для которых цена задана ЯВНО в настройках (`models: [{ name, pricing }]`).
+   * Такие цены не обнуляются даже у провайдера на локальном адресе: за localhost
+   * часто стоит платный шлюз (свой прокси к Azure, LiteLLM), и «$0» там — не экономия,
+   * а отключённая защита бюджета. Найдено при написании `E2E-11`.
+   */
+  private readonly explicitPricing = new Set<string>();
+
   constructor() {
     // При создании сразу читаем конфигурацию
     this.refresh();
@@ -134,6 +142,12 @@ export class ProviderManager {
       const providerPricing = buildPricingMap(rawModels);
       for (const [m, p] of providerPricing) {
         this._pricingMap.set(m, p);
+      }
+      // Какие цены пришли из настроек явно — их нельзя обнулять по признаку «локальный адрес»
+      for (const entry of rawModels) {
+        if (typeof entry !== 'string' && entry.pricing) {
+          this.explicitPricing.add(entry.name);
+        }
       }
 
       // Тип провайдера: отсутствие поля = 'openai' (обратная совместимость)
@@ -203,6 +217,9 @@ export class ProviderManager {
    */
   setZeroPricing(modelNames: string[]): void {
     for (const model of modelNames) {
+      // Явная цена из настроек сильнее эвристики «адрес локальный»: иначе платный шлюз
+      // на 127.0.0.1 показывал $0 и лимит бюджета не срабатывал вовсе
+      if (this.explicitPricing.has(model)) continue;
       this.localModels.add(model);
       this._pricingMap.set(model, { input: 0, output: 0 });
     }
