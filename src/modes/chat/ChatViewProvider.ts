@@ -129,6 +129,12 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
   /** Сессии, по которым уже предупредили о лимите бюджета (по одному разу, не спамим). */
   private readonly budgetWarnedSessions = new Set<string>();
+
+  /** Зарезервированные суммы по сессиям: два параллельных запроса не должны видеть один и тот же остаток. */
+  private readonly budgetReserved = new Map<string, number>();
+
+  /** Резерв конкретного прогона — чтобы снять ровно его в finalizeRun. */
+  private readonly runReservations = new Map<string, { sessionId: string; usd: number }>();
   private readonly sessionLog?: SessionLog;
   /** Контроллеры отмены по сессии — поддержка параллельных процессов */
   private abortControllers = new Map<string, AbortController>();
@@ -470,10 +476,13 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       );
       const mayOverride = !userChoseModel || routeConfig.get<boolean>('routing.overrideChosen', false);
       if (route.auto && mayOverride) {
+        // Модель из настроек маршрутизации может не поддерживаться текущим провайдером:
+        // резолвим её так же, как явный выбор, чтобы не отправить запрос в никуда
+        const routedModel = await resolveModelForProvider(provider, route.model, route.model, providerName);
         this.debugChannel.appendLine(
-          `[routing] сложность=${route.complex ? 'сложная' : 'простая'} (${route.reason}) → ${route.model}`,
+          `[routing] сложность=${route.complex ? 'сложная' : 'простая'} (${route.reason}) → ${routedModel}`,
         );
-        model = route.model;
+        model = routedModel;
       } else if (route.auto) {
         this.debugChannel.appendLine(
           `[routing] модель выбрана пользователем (${model}), авто-выбор не применяется`,
@@ -482,21 +491,44 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
       // ── P9: прогноз стоимости и лимит бюджета сессии ──
       const maxOutputTokens = routeConfig.get<number>('maxTokens', 4096);
-      const estimate = estimateRequestCost(
+      // Агент тратит не один вызов: резервируем по числу допустимых шагов,
+      // иначе лимит пробивается ровно тем сценарием, ради которого он нужен
+      const agentSteps = isAgentMode
+        ? Math.max(1, routeConfig.get<number>('agent.maxIterations', 15))
+        : 1;
+      const oneStep = estimateRequestCost(
         inTokens, maxOutputTokens, model, this.providerManager.pricingMap,
       );
+      const estimate = { ...oneStep, cost: oneStep.cost * agentSteps };
+      if (agentSteps > 1) {
+        this.debugChannel.appendLine(
+          `[budget] прогноз на прогон: ${agentSteps} шагов × $${oneStep.cost.toFixed(6)} = $${estimate.cost.toFixed(6)}`,
+        );
+      }
+      if (oneStep.cost === 0 && !String(model).startsWith('qwen') && !provider?.isLocal) {
+        this.debugChannel.appendLine(
+          `[budget] цена модели «${model}» неизвестна (pricingMap) — прогноз $0, лимит не защищает`,
+        );
+      }
       const budgetSessionId = this.resolveSessionId(sessionId) ?? 'default';
       const sessionSpent = this.runHistoryStore.getRuns()
         .filter((run) => run.sessionId === budgetSessionId)
         .reduce((sum, run) => sum + (run.cost || 0), 0);
+      // Резерв параллельных прогонов тоже считается расходом: иначе два окна
+      // проходят проверку на одном и том же остатке
+      const reserved = this.budgetReserved.get(budgetSessionId) ?? 0;
+      const budgetLimit = routeConfig.get<number>('budget.sessionLimitUsd', 0);
       const budget = checkBudget(
-        { limitUsd: routeConfig.get<number>('budget.sessionLimitUsd', 0), spentUsd: sessionSpent },
+        { limitUsd: budgetLimit, spentUsd: sessionSpent + reserved },
         estimate.cost,
       );
       if (budget.kind === 'exceed') {
         const proceed = await vscode.window.showWarningMessage(
-          `Лимит бюджета сессии $${(sessionSpent).toFixed(4)} + прогноз $${estimate.cost.toFixed(4)} ` +
-          `превышает $${(sessionSpent + estimate.cost).toFixed(4)}: перерасход $${budget.overUsd.toFixed(4)}. Продолжить?`,
+          `Лимит сессии $${budgetLimit.toFixed(4)}. Уже потрачено $${sessionSpent.toFixed(4)}` +
+          (reserved > 0 ? ` (+ $${reserved.toFixed(4)} в работе)` : '') +
+          `, прогноз $${estimate.cost.toFixed(4)}` +
+          (agentSteps > 1 ? ` (${agentSteps} шагов агента)` : '') +
+          `, перерасход $${budget.overUsd.toFixed(4)}. Продолжить?`,
           { modal: true },
           'Продолжить',
         );
@@ -511,6 +543,12 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         void vscode.window.showWarningMessage(
           `Израсходовано ${budget.percent}% лимита сессии ($${sessionSpent.toFixed(4)}). Лимит: $${routeConfig.get<number>('budget.sessionLimitUsd', 0).toFixed(2)}.`,
         );
+      }
+
+      // Резервируем прогноз за этим прогоном: снимаем в finalizeRun (успех, ошибка, отмена)
+      if (budgetLimit > 0 && estimate.cost > 0) {
+        this.budgetReserved.set(budgetSessionId, reserved + estimate.cost);
+        this.runReservations.set(runId, { sessionId: budgetSessionId, usd: estimate.cost });
       }
 
       const debug = vscode.workspace.getConfiguration('llmAssistant').get<boolean>('debug', false);
@@ -677,6 +715,15 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   ): void {
     const duration = Date.now() - startTime;
     const cost = calculateCost(model, tokensIn, tokensOut, this.providerManager.pricingMap);
+
+    // Снимаем резерв бюджета: прогон закончился в любом статусе
+    const reservation = this.runReservations.get(runId);
+    if (reservation) {
+      this.runReservations.delete(runId);
+      const left = Math.max(0, (this.budgetReserved.get(reservation.sessionId) ?? 0) - reservation.usd);
+      if (left > 0) this.budgetReserved.set(reservation.sessionId, left);
+      else this.budgetReserved.delete(reservation.sessionId);
+    }
     // Замер: какие инструменты и сколько раз звал агент на этом прогоне
     const stats = takeToolCallStats();
     const tools = Object.entries(stats)

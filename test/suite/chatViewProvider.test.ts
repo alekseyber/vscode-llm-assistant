@@ -182,6 +182,16 @@ suite('ChatViewProvider.handleSendMessage', () => {
     assert.ok(last, 'прогон помечен отменённым');
   });
 
+  test('MR-11: резерв бюджета снимается после прогона (не накапливается)', async () => {
+    configOverrides['budget.sessionLimitUsd'] = 1;
+    configOverrides['maxTokens'] = 512;
+
+    await send('привет', 'chat');
+
+    const reserved = (provider as any).budgetReserved as Map<string, number>;
+    assert.strictEqual(reserved.size, 0, `резерв должен быть снят, осталось ${reserved.size}`);
+  });
+
   test('CVP-6: в историю попадает расход от сервера, а не оценка по символам', async () => {
     // Провайдер отдаёт usage, как локальный движок; текст ответа короткий,
     // а промпт длинный — оценка по символам дала бы совсем другие цифры.
