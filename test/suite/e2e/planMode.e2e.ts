@@ -60,7 +60,8 @@ suite('E2E-13: Plan Mode — план на диске и имплементац�
 
         if (system.includes('планировщик')) {
           plannerCalls += 1;
-          const planPath = /plan_\d{4}-\d{2}-\d{2}_[0-9a-f]{8}\.md/.exec(JSON.stringify(body))?.[0];
+          // Полный путь, не только имя файла: относительный путь write_file пишет в корень workspace
+          const planPath = /\/[A-Za-z0-9_\/.\-]*plan_\d{4}-\d{2}-\d{2}_[0-9a-f]{8}\.md/.exec(JSON.stringify(body))?.[0];
           stubPlanPath = planPath ?? '(в промпте нет пути плана)';
           if (planPath && plannerCalls === 1) {
             // Нативные tool_calls Ollama: AgentWorker читает message.tool_calls, а не JSON в тексте.
