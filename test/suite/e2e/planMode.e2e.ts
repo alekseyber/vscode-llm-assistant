@@ -12,7 +12,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { PlanModeManager } from '../../../src/modes/chat/PlanModeManager';
 import { OllamaProvider } from '../../../src/providers/ollama';
-import { startStub, ndjson } from './helpers/net';
+import { startStub, json } from './helpers/net';
 import { applySettings, SettingsSnapshot } from './helpers/settings';
 
 const PLAN_MARKER = 'E2E-PLAN-MARKER';
@@ -48,41 +48,41 @@ suite('E2E-13: Plan Mode — план на диске и имплементац�
     stub = await startStub(
       (_req, res, body) => {
         const system = String(body?.messages?.[0]?.content ?? '');
+        // createWithTools ходит НЕ стримингом (stream:false): один JSON-объект, не NDJSON
         const reply = (text: string) =>
-          ndjson(res, [
-            { message: { role: 'assistant', content: text }, done: false },
-            { message: { role: 'assistant', content: '' }, done: true, prompt_eval_count: 40, eval_count: 10 },
-          ]);
+          json(res, {
+            message: { role: 'assistant', content: text },
+            done: true,
+            prompt_eval_count: 40,
+            eval_count: 10,
+          });
 
         if (system.includes('планировщик')) {
           plannerCalls += 1;
           const planPath = /plan_\d{4}-\d{2}-\d{2}_[0-9a-f]{8}\.md/.exec(JSON.stringify(body))?.[0];
           if (planPath && plannerCalls === 1) {
-            // Нативные tool_calls Ollama: AgentWorker читает message.tool_calls, а не JSON в тексте
-            ndjson(res, [
-              {
-                message: {
-                  role: 'assistant',
-                  content: '',
-                  tool_calls: [
-                    {
-                      function: {
-                        name: 'write_file',
-                        // Аргументы строкой JSON: так их отдаёт и настоящий Ollama,
-                        // и провайдер не переупаковывает объект в строку повторно
-                        arguments: JSON.stringify({
-                          path: planPath,
-                          content: `# План\n\n${PLAN_MARKER}\n\n## AC-1\nСделать проверку\n`,
-                        }),
+            // Нативные tool_calls Ollama: AgentWorker читает message.tool_calls, а не JSON в тексте.
+            // Аргументы объектом — как отдаёт настоящий сервер Ollama.
+            json(res, {
+              message: {
+                role: 'assistant',
+                content: '',
+                tool_calls: [
+                  {
+                    function: {
+                      name: 'write_file',
+                      arguments: {
+                        path: planPath,
+                        content: `# План\n\n${PLAN_MARKER}\n\n## AC-1\nСделать проверку\n`,
                       },
                     },
-                  ],
-                },
-                done: true,
-                prompt_eval_count: 40,
-                eval_count: 10,
+                  },
+                ],
               },
-            ]);
+              done: true,
+              prompt_eval_count: 40,
+              eval_count: 10,
+            });
             return;
           }
           reply('План записан.');
