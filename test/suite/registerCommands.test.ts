@@ -72,8 +72,8 @@ suite('registerCommands', () => {
     const deps = makeDeps();
     registerCommands(deps);
 
-    // 13 команд регистрируются через context.subscriptions.push (0.14.82: +showRulesSources)
-    assert.strictEqual(deps.context.subscriptions.push.callCount, 13);
+    // 13 команд + один общий канал «Правила» (создаётся один раз) = 14 подписок
+    assert.strictEqual(deps.context.subscriptions.push.callCount, 14);
   });
 
   test('chat.open: reveal контейнера + revealChat (вместо легаси ChatPanel)', async () => {

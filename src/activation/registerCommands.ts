@@ -149,15 +149,22 @@ export function registerCommands(deps: CommandDependencies): void {
   );
 
   // ── 13. llmAssistant.showRulesSources — что реально попало в промпт из файлов правил ──
+  // Канал создаём один раз: иначе каждый вызов плодит новый и копит их до перезагрузки окна
+  const rulesChannel = vscode.window.createOutputChannel('LLM Assistant · Правила');
+  context.subscriptions.push(rulesChannel);
   context.subscriptions.push(
     vscode.commands.registerCommand('llmAssistant.showRulesSources', async () => {
       const { buildRulesReport } = await import('../shared/AgentsMdLoader');
-      const report = await buildRulesReport();
-      // Канал, а не тост: отчёт копируют в чат и тикеты, тост исчезает через секунды
-      const channel = vscode.window.createOutputChannel('LLM Assistant · Правила');
-      channel.clear();
-      channel.appendLine(report);
-      channel.show(true);
+      let report: string;
+      try {
+        report = await buildRulesReport();
+      } catch (error: any) {
+        // Команда диагностики не должна падать сама: показываем текст ошибки
+        report = `Не удалось собрать отчёт: ${error?.message ?? String(error)}`;
+      }
+      rulesChannel.clear();
+      rulesChannel.appendLine(report);
+      rulesChannel.show(true);
     }),
   );
 

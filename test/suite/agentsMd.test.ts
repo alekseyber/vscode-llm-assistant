@@ -234,9 +234,23 @@ suite('AgentsMdLoader', () => {
 
     assert.match(report, /AGENTS\.md: \d+ знаков/, 'видно объём источника');
     assert.match(report, /Скилы: 1/);
-    assert.match(report, /\.claude\/skills\/coder\/SKILL\.md|Скилы: 1/, 'скилы учтены');
+    assert.match(report, /Скилы: 1/, 'счётчик скилов');
+    assert.match(report, /coder — \.claude\/skills\/coder\/SKILL\.md, \d+ знаков/, 'путь и объём каждого скила');
     assert.ok(!report.includes(tempDir), 'абсолютного пути в отчёте нет');
     assert.ok(!report.includes('Секретное правило проекта'), 'содержимое файла не утекает в отчёт');
+  });
+
+  test('AGM-8: отчёт не врёт о составе — число знаков совпадает с фактическим промптом', async () => {
+    await fs.writeFile(path.join(tempDir, 'AGENTS.md'), 'Правило А', 'utf-8');
+    await fs.writeFile(path.join(tempDir, 'CLAUDE.md'), 'Правило Б', 'utf-8');
+    mockWorkspace(tempDir);
+    invalidateCache();
+
+    const merged = await loadAgentsMd();
+    const report = await buildRulesReport();
+    const stated = Number(/в промпт ушло (\d+)/.exec(report)?.[1]);
+
+    assert.strictEqual(stated, merged!.length, 'отчёт показывает реальный объём, а не приблизительный');
   });
 
   // ── Нет workspace → null ──

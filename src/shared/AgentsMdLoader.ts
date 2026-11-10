@@ -7,6 +7,7 @@
 
 import * as vscode from 'vscode';
 import * as fs from 'fs/promises';
+import { readFileSync } from 'fs';
 import * as path from 'path';
 import { getSkillCatalog, loadClaudeAgentRoles } from './RoleAgentsMdLoader';
 
@@ -157,9 +158,13 @@ export async function buildRulesReport(): Promise<string> {
   const folders = vscode.workspace.workspaceFolders ?? [];
   const projectName = folders.length > 0 ? path.basename(resolveRoot() ?? folders[0].uri.fsPath) : '(нет проекта)';
   report.push(`Правила проекта: ${projectName}`);
+  if (folders.length > 1) {
+    report.push(`  в рабочем пространстве ${folders.length} корней: правила берутся из корня активного редактора`);
+  }
 
   if (!enabled) {
     report.push('  автоинжект выключен (agentsMd.enabled = false) — правила в промпт не попадают');
+    report.push('  каталог скилов от этой настройки не зависит: скилы перечислены ниже');
   } else {
     const merged = await loadAgentsMd();
     if (!merged) {
@@ -179,17 +184,24 @@ export async function buildRulesReport(): Promise<string> {
   try {
     const root = resolveRoot();
     if (root) {
+      const normalize = (value: string): string => value.replace(/\\/g, '/');
       const skills: Array<{ name: string; path: string }> = getSkillCatalog(root);
-      const own = skills.filter((s) => s.path.startsWith('.llma/')).length;
+      const own = skills.filter((s) => normalize(s.path).startsWith('.llma/')).length;
       const claude = skills.length - own;
       report.push('');
-      report.push(`Скилы: ${skills.length}` + (skills.length > 0 ? ` (.llma: ${own}, .claude: ${claude})` : ''));
-      if (skills.length > 0) {
-        report.push(`  ${skills.map((s) => s.name).join(', ')}`);
+      report.push(`Скилы: ${skills.length} каталог${skills.length === 1 ? '' : 'ов'}` + (skills.length > 0 ? ` (.llma: ${own}, .claude: ${claude})` : ''));
+      for (const skill of skills) {
+        report.push(`  ${skill.name} — ${normalize(skill.path)}, ${fileChars(root, skill.path)} знаков`);
       }
-      const roles: Array<{ name: string }> = loadClaudeAgentRoles(root);
+
+      const roles = loadClaudeAgentRoles(root);
       report.push('');
-      report.push(`Роли из .claude/agents: ${roles.length}` + (roles.length > 0 ? ` (${roles.map((r) => r.name).join(', ')})` : ''));
+      report.push(`Роли из .claude/agents: ${roles.length}`);
+      for (const role of roles) {
+        const tools = role.allowedTools === undefined ? 'все инструменты'
+          : role.allowedTools.length === 0 ? 'инструменты запрещены' : role.allowedTools.join(', ');
+        report.push(`  ${role.name} — ${tools}`);
+      }
     }
   } catch {
     report.push('');
@@ -199,6 +211,15 @@ export async function buildRulesReport(): Promise<string> {
   report.push('');
   report.push('Содержимое файлов здесь не показывается: его видно в промпте при llmAssistant.debug = true.');
   return report.join('\n');
+}
+
+/** Размер файла в знаках (для отчёта); ошибка чтения — «?». */
+function fileChars(root: string, relPath: string): number | '?' {
+  try {
+    return readFileSync(path.join(root, relPath), 'utf-8').length;
+  } catch {
+    return '?';
+  }
 }
 
 /** Сброс кеша: тесты и команда «Обновить правила». */
