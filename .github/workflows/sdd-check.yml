@@ -4,9 +4,13 @@ on:
   pull_request:
     paths:
       - 'src/**/*.ts'
+      - 'specs/**/*.md'
   push:
     paths:
       - 'src/**/*.ts'
+      - 'specs/**/*.md'
+  # Ручной запуск: проверить согласованность на любой ревизии без изменений в src
+  workflow_dispatch:
 
 jobs:
   sdd-check:
