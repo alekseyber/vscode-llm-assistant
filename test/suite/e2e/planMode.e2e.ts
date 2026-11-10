@@ -131,16 +131,14 @@ suite('E2E-13: Plan Mode — план на диске и имплементац�
 
   test('E2E-13b: имплементация проходит цикл воркеров и оставляет план на месте', async function () {
     this.timeout(90000);
-    const files = fs.existsSync(plansDir) ? fs.readdirSync(plansDir).filter((f) => f.endsWith('.md')) : [];
-    if (files.length === 0) {
-      // Зависит от предыдущего теста: честнее пропустить, чем пройти вхолостую
-      this.skip();
-      return;
-    }
-
+    // Тест самодостаточен: setup/teardown выполняются на каждый тест, поэтому
+    // файла от 13a здесь уже нет — создаём план заново
     const provider = new OllamaProvider({ name: 'local', baseUrl: stub.url, models: ['qwen3:8b'] });
     const manager = new PlanModeManager(root, 'e2e-plan', () => undefined);
-    const planPath = path.join(plansDir, files[0]);
+    const plan = await manager.generatePlan('спланируй проверку', provider, 'qwen3:8b');
+    assert.ok(fs.existsSync(plan.planPath), 'план создан перед имплементацией');
+
+    const planPath = plan.planPath;
     const logs: string[] = [];
 
     const result = await manager.implementPlan(planPath, provider, 'qwen3:8b', (msg) => logs.push(msg));
