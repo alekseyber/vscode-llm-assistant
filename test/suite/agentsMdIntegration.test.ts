@@ -59,10 +59,10 @@ suite('AGENTS.md — интеграция с system prompt', () => {
     let systemPrompt = 'Ты — AI-ассистент.';
     
     if (agentsMd) {
-      systemPrompt += `\n\n## Правила проекта (AGENTS.md):\n${agentsMd}`;
+      systemPrompt += `\n\n## Правила проекта:\n${agentsMd}`;
     }
 
-    assert.ok(systemPrompt.includes('## Правила проекта (AGENTS.md)'), 'System prompt должен содержать заголовок AGENTS.md');
+    assert.ok(systemPrompt.includes('## Правила проекта:'), 'System prompt должен содержать заголовок правил проекта');
     assert.ok(systemPrompt.includes('🚀'), 'System prompt должен содержать правила из AGENTS.md');
     assert.ok(systemPrompt.includes('Капитан'), 'System prompt должен содержать Капитан');
   });

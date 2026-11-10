@@ -1113,7 +1113,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     // Автоинжект AGENTS.md (слой 01 System Policy)
     const agentsMd = await loadAgentsMd();
     if (agentsMd) {
-      prompt += `\n\n## Правила проекта (AGENTS.md):\n${agentsMd}`;
+      prompt += `\n\n## Правила проекта:\n${agentsMd}`;
     }
 
     // Автоинжект каталога скилов (SC-1: агент видит доступные скилы)

@@ -99,12 +99,14 @@ suite('AgentsMdLoader', () => {
     const result1 = await loadAgentsMd();
     assert.strictEqual(result1, content);
 
-    // Изменяем файл на диске (симулируем внешнее изменение)
-    await fs.writeFile(tempAgentsMdPath, '# Правила v2', 'utf-8');
-
-    // Без инвалидации кеш должен вернуть старое значение
+    // Файл не менялся — повторный вызов отдаёт то же самое (кеш работает)
     const result2 = await loadAgentsMd();
-    assert.strictEqual(result2, content, 'Без инвалидации должен вернуть закешированное значение');
+    assert.strictEqual(result2, content, 'Без изменений кеш отдаёт прежнее содержимое');
+
+    // А после правки кеш сверяется по mtime/size и отдаёт новый текст
+    await fs.writeFile(tempAgentsMdPath, '# Правила v2', 'utf-8');
+    const result3 = await loadAgentsMd();
+    assert.strictEqual(result3, '# Правила v2', 'Правка файла видна без перезапуска окна');
   });
 
   // ── AC-1.6: инвалидация кеша при изменении файла ──
@@ -121,12 +123,63 @@ suite('AgentsMdLoader', () => {
     const newContent = '# Правила v2 — обновлённые';
     await fs.writeFile(tempAgentsMdPath, newContent, 'utf-8');
 
-    // Инвалидируем кеш вручную
+    // Кеш сверяется по mtime/size: правка файла видна без ручной инвалидации
+    const result2 = await loadAgentsMd();
+    assert.strictEqual(result2, newContent, 'Правка файла видна без перезапуска окна');
+  });
+
+  // ── AGM: стандартные файлы правил (AGENTS.md, CLAUDE.md) ──
+  test('AGM-2: AGENTS.md и CLAUDE.md склеиваются, AGENTS.md первым', async () => {
+    await fs.writeFile(path.join(tempDir, 'AGENTS.md'), 'Правило A', 'utf-8');
+    await fs.writeFile(path.join(tempDir, 'CLAUDE.md'), 'Правило C', 'utf-8');
+    mockWorkspace(tempDir);
     invalidateCache();
 
-    // Следующий вызов должен прочитать новый файл
-    const result2 = await loadAgentsMd();
-    assert.strictEqual(result2, newContent, 'После инвалидации должен вернуть новое содержимое');
+    const result = await loadAgentsMd();
+
+    assert.ok(result, 'правила должны загрузиться');
+    assert.match(result!, /Правило A/);
+    assert.match(result!, /Правило C/);
+    assert.ok(result!.indexOf('Правило A') < result!.indexOf('Правило C'), 'AGENTS.md идёт раньше CLAUDE.md');
+    assert.match(result!, /### Источник: AGENTS\.md/, 'источник подписан');
+  });
+
+  test('AGM-3: лимит agentsMd.maxChars обрезает и помечает', async () => {
+    await fs.writeFile(path.join(tempDir, 'AGENTS.md'), 'А'.repeat(300), 'utf-8');
+    await fs.writeFile(path.join(tempDir, 'CLAUDE.md'), 'Б'.repeat(300), 'utf-8');
+    mockWorkspace(tempDir);
+    sandbox.restore();
+    sandbox = sinon.createSandbox();
+    sandbox.stub(vscode.workspace, 'workspaceFolders').value([{ uri: vscode.Uri.file(tempDir), name: 'test', index: 0 }]);
+    sandbox.stub(vscode.workspace, 'getConfiguration').returns({
+      get: (key: string, def?: unknown) => (key === 'agentsMd.maxChars' ? 200 : key === 'agentsMd.enabled' ? true : def),
+      has: () => false,
+      inspect: () => undefined,
+      update: () => Promise.resolve(),
+    } as any);
+    invalidateCache();
+
+    const result = await loadAgentsMd();
+
+    assert.ok(result!.includes('обрезано лимитом agentsMd.maxChars = 200'), 'видно, что отрезано');
+    assert.ok(result!.length < 700, 'склейка не превышает лимит заметно');
+  });
+
+  test('AGM-4: невалидный maxChars не обнуляет правила', async () => {
+    await fs.writeFile(path.join(tempDir, 'AGENTS.md'), 'Правило A', 'utf-8');
+    sandbox.restore();
+    sandbox = sinon.createSandbox();
+    sandbox.stub(vscode.workspace, 'workspaceFolders').value([{ uri: vscode.Uri.file(tempDir), name: 'test', index: 0 }]);
+    sandbox.stub(vscode.workspace, 'getConfiguration').returns({
+      get: (key: string, def?: unknown) => (key === 'agentsMd.maxChars' ? false : key === 'agentsMd.enabled' ? true : def),
+      has: () => false,
+      inspect: () => undefined,
+      update: () => Promise.resolve(),
+    } as any);
+    invalidateCache();
+
+    const result = await loadAgentsMd();
+    assert.strictEqual(result, 'Правило A', 'битая настройка — берём дефолт, правила на месте');
   });
 
   // ── Нет workspace → null ──
@@ -217,8 +270,8 @@ suite('AgentsMd Integration — ConversationManager и system prompt', () => {
 
     const systemContent = messages[0].content as string;
     assert.ok(
-      systemContent.includes('## Правила проекта (AGENTS.md):'),
-      'System prompt должен содержать заголовок "## Правила проекта (AGENTS.md):"'
+      systemContent.includes('## Правила проекта:'),
+      'System prompt должен содержать заголовок "## Правила проекта:"'
     );
     assert.ok(
       systemContent.includes(agentsMdContent),

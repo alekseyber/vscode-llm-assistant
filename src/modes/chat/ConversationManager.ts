@@ -66,7 +66,7 @@ export class ConversationManager {
     // Автоинжект AGENTS.md (слой 01 System Policy)
     const agentsMd = await loadAgentsMd();
     if (agentsMd) {
-      systemPrompt += `\n\n## Правила проекта (AGENTS.md):\n${agentsMd}`;
+      systemPrompt += `\n\n## Правила проекта:\n${agentsMd}`;
     }
 
     const systemMessage: ChatMessage = { role: 'system', content: systemPrompt };
