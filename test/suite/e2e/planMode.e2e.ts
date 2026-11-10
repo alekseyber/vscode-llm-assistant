@@ -53,16 +53,29 @@ suite('E2E-13: Plan Mode — план на диске и имплементац�
           plannerCalls += 1;
           const planPath = /plan_\d{4}-\d{2}-\d{2}_[0-9a-f]{8}\.md/.exec(JSON.stringify(body))?.[0];
           if (planPath && plannerCalls === 1) {
-            // Формат, который разбирает AgentController: {"tool": "...", "arguments": {...}}
-            reply(
-              JSON.stringify({
-                tool: 'write_file',
-                arguments: {
-                  path: planPath,
-                  content: `# План\n\n${PLAN_MARKER}\n\n## AC-1\nСделать проверку\n`,
+            // Нативные tool_calls Ollama: AgentWorker читает message.tool_calls, а не JSON в тексте
+            ndjson(res, [
+              {
+                message: {
+                  role: 'assistant',
+                  content: '',
+                  tool_calls: [
+                    {
+                      function: {
+                        name: 'write_file',
+                        arguments: {
+                          path: planPath,
+                          content: `# План\n\n${PLAN_MARKER}\n\n## AC-1\nСделать проверку\n`,
+                        },
+                      },
+                    },
+                  ],
                 },
-              }),
-            );
+                done: true,
+                prompt_eval_count: 40,
+                eval_count: 10,
+              },
+            ]);
             return;
           }
           reply('План записан.');
