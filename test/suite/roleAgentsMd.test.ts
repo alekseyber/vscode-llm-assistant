@@ -5,7 +5,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as sinon from 'sinon';
-import { loadRoleAgentsMd, invalidateRoleCache, parseFrontmatter, getSkillCatalog, getSkillTemplate } from '../../src/shared/RoleAgentsMdLoader';
+import { loadRoleAgentsMd, invalidateRoleCache, parseFrontmatter, getSkillCatalog, getSkillTemplate, loadSkillMd } from '../../src/shared/RoleAgentsMdLoader';
 
 function setupDir(files: Record<string, string>): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vscode-llm-test-ma5-'));
@@ -196,6 +196,43 @@ suite('RoleAgentsMdLoader', () => {
       const template = getSkillTemplate(dir);
       assert.match(template, /каталог обрезан лимитом/);
       assert.ok(template.length < 9000, `промпт не раздут каталогом (${template.length})`);
+    } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  });
+
+  test('CLS-5: порядок каталога детерминирован, `|` в описании не ломает таблицу', () => {
+    const dir = setupDir({
+      '.llma/skills/zeta.md': ['---', 'name: zeta', 'description: a | b', '---'].join('\n'),
+      '.llma/skills/alpha.md': ['---', 'name: alpha', 'description: первая', '---'].join('\n'),
+    });
+    try {
+      const catalog = getSkillCatalog(dir);
+      assert.deepStrictEqual(catalog.map((s) => s.name), ['alpha', 'zeta'], 'порядок по имени, а не по readdir');
+      const template = getSkillTemplate(dir);
+      assert.match(template, /a \\?\| b/, 'вертикальная черта экранирована');
+    } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  });
+
+  test('CLS-6: loadSkillMd находит скил по имени из frontmatter и отвергает ../', () => {
+    const sb = sinon.createSandbox();
+    const dir = setupDir({
+      '.claude/skills/reviewer-dir/SKILL.md': ['---', 'name: reviewer', 'description: Проверка', '---', 'ТЕЛО СКИЛА'].join('\n'),
+    });
+    try {
+      mockWs(sb, dir);
+      assert.match(String(loadSkillMd('reviewer')), /ТЕЛО СКИЛА/, 'имя из frontmatter, не имя каталога');
+      assert.strictEqual(loadSkillMd('../etc/passwd'), null, 'выход за пределы workspace запрещён');
+    } finally { sb.restore(); fs.rmSync(dir, { recursive: true, force: true }); }
+  });
+
+  test('CLS-7: незакрытый frontmatter не попадает в описание', () => {
+    const dir = setupDir({
+      '.claude/skills/broken/SKILL.md': ['---', 'name: broken', 'Инструкция без закрывающего блока'].join('\n'),
+    });
+    try {
+      const catalog = getSkillCatalog(dir);
+      assert.strictEqual(catalog.length, 1);
+      assert.doesNotMatch(catalog[0].description, /name: broken/, 'служебные строки вырезаны');
+      assert.match(catalog[0].description, /Инструкция/);
     } finally { fs.rmSync(dir, { recursive: true, force: true }); }
   });
 

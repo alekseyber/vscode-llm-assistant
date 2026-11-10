@@ -53,8 +53,9 @@ export function getSkillTemplate(workspacePath?: string): string {
       const header = '\n\n## Доступные скилы\n\n| Имя | Описание | Файл |\n|-----|----------|------|\n';
       const rows: string[] = [];
       let size = header.length;
+      const cell = (value: string): string => value.replace(/\|/g, '\\|');
       for (const skill of catalog) {
-        const row = `| ${skill.name} | ${skill.description} | ${skill.path} |`;
+        const row = `| ${cell(skill.name)} | ${cell(skill.description)} | ${cell(skill.path)} |`;
         // Каталог не должен съедать контекст: пока влезает — добавляем, дальше считаем
         if (size + row.length + 1 > MAX_CATALOG_CHARS) break;
         rows.push(row);
@@ -67,7 +68,11 @@ export function getSkillTemplate(workspacePath?: string): string {
       template +=
         `${header}${rows.join('\n')}${tail}\n\n` +
         '**ПРАВИЛО:** если задача пользователя соответствует скилу — ПЕРВЫМ ДЕЛОМ вызови ' +
-        'read_file(<Файл> из таблицы) и строго следуй его правилам. НЕ ПРИСТУПАЙ к задаче пока не прочитал скил.';
+        'read_file(<Файл> из таблицы) и строго следуй его правилам. НЕ ПРИСТУПАЙ к задаче пока не прочитал скил.' +
+        (hidden > 0
+          ? ' Если пользователь назвал скил, которого нет в таблице (каталог обрезан), проверь ' +
+            '`.llma/skills/<имя>.md` и `.claude/skills/<имя>/SKILL.md`.'
+          : '');
     }
   }
 
@@ -133,7 +138,7 @@ export function getSkillCatalog(workspacePath: string): SkillInfo[] {
       for (const entry of fs.readdirSync(skillsDir, { withFileTypes: true })) {
         if (!entry.isFile() || !entry.name.endsWith('.md')) continue;
         const filePath = path.join(skillsDir, entry.name);
-        if (isReadableSkillFile(filePath)) continue; // пропускаем гигантские/битые
+        if (entry.isSymbolicLink() || isSkippableSkillFile(filePath)) continue;
         const content = tryReadFile(filePath) || '';
         const fm = parseFrontmatter(content);
         const name = fm.name || fm.role || entry.name.replace(/\.md$/, '');
@@ -152,7 +157,7 @@ export function getSkillCatalog(workspacePath: string): SkillInfo[] {
       for (const entry of fs.readdirSync(claudeDir, { withFileTypes: true })) {
         if (!entry.isDirectory() || entry.isSymbolicLink()) continue;
         const skillFile = path.join(claudeDir, entry.name, 'SKILL.md');
-        if (!fs.existsSync(skillFile) || isReadableSkillFile(skillFile)) continue;
+        if (!fs.existsSync(skillFile) || isSkippableSkillFile(skillFile)) continue;
         const content = tryReadFile(skillFile) || '';
         const fm = parseFrontmatter(content);
         // Имя из frontmatter канонично, но только если оно похоже на имя скила:
@@ -167,16 +172,28 @@ export function getSkillCatalog(workspacePath: string): SkillInfo[] {
     /* нет каталога — нормально */
   }
 
-  return catalog;
+  // Порядок в каталоге должен быть одинаковым на всех ОС: readdir не сортирует,
+  // а обрезка лимитом отбрасывает хвост — иначе в промпт попадали бы разные скилы
+  return catalog.sort((a, b) => a.name.localeCompare(b.name));
 }
 
 /** Тело скила без frontmatter — для описания, когда `description` не задан. */
 function stripFrontmatter(content: string): string {
-  return content.replace(/^---\n[\s\S]*?\n---\n?/, '').trim();
+  const closed = content.match(/^---\n[\s\S]*?\n---\n?/);
+  if (closed) return content.slice(closed[0].length).trim();
+  // Незакрытый блок: убираем строки «ключ: значение» в начале, иначе в описание
+  // попадёт «--- name: …» и агент увидит мусор вместо назначения скила
+  if (content.startsWith('---')) {
+    const lines = content.split('\n').slice(1);
+    let i = 0;
+    while (i < lines.length && /^[\w-]+:/.test(lines[i].trim())) i += 1;
+    return lines.slice(i).join('\n').trim();
+  }
+  return content.trim();
 }
 
-/** true, если файл читать не стоит (слишком большой). */
-function isReadableSkillFile(filePath: string): boolean {
+/** true, если файл нужно пропустить: симлинк или больше лимита. */
+function isSkippableSkillFile(filePath: string): boolean {
   try {
     const stat = fs.lstatSync(filePath);
     if (stat.isSymbolicLink()) return true;
@@ -298,11 +315,26 @@ export function loadSkillMd(skillName: string): string | null {
   const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
   if (!workspaceFolder) return null;
   const root = workspaceFolder.uri.fsPath;
-  const own = path.join(root, '.llma', 'skills', `${skillName}.md`);
-  const ownContent = tryReadFile(own);
-  if (ownContent) return ownContent;
-  const claude = path.join(root, '.claude', 'skills', skillName, 'SKILL.md');
-  return tryReadFile(claude);
+
+  // Имя приходит из команды `/skill <имя>` — только безопасные символы,
+  // иначе `../` уводит чтение за пределы рабочего пространства
+  if (!/^[a-zA-Z0-9._-]+$/.test(skillName) || skillName.startsWith('.')) return null;
+
+  // Сначала ищем по каталогу: имя может не совпадать с именем файла/каталога
+  const fromCatalog = getSkillCatalog(root).find((s) => s.name === skillName);
+  const candidates = fromCatalog
+    ? [path.join(root, fromCatalog.path)]
+    : [
+        path.join(root, '.llma', 'skills', `${skillName}.md`),
+        path.join(root, '.claude', 'skills', skillName, 'SKILL.md'),
+      ];
+
+  for (const candidate of candidates) {
+    if (isSkippableSkillFile(candidate)) continue;
+    const content = tryReadFile(candidate);
+    if (content) return content;
+  }
+  return null;
 }
 
 export function invalidateRoleCache(): void { roleCache.clear(); }
