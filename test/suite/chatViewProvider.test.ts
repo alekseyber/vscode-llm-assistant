@@ -31,6 +31,9 @@ suite('ChatViewProvider.handleSendMessage', () => {
   let wsFolders: any = undefined;
   /** Переопределения настроек для отдельного теста (сбрасываются в setup). */
   let configOverrides: Record<string, unknown> = {};
+  /** Ссылки на контекст и менеджер провайдеров — нужны тестам перезапуска окна. */
+  let ctxRef: any;
+  let pmRef: any;
 
   setup(() => {
     sandbox = sinon.createSandbox();
@@ -74,12 +77,14 @@ suite('ChatViewProvider.handleSendMessage', () => {
       keys: sandbox.stub().returns([]),
       setKeysForSync: sandbox.stub(),
     };
+    // Ключи независимы: раньше заглушка хранила одно значение на все ключи,
+    // и запись дневного счётчика затирала историю прогонов
     globalState = (() => {
-      let runStorage: any[] = [];
+      const store = new Map<string, any>();
       return {
-        get: sandbox.stub().callsFake((_key: string, def: unknown) => runStorage.length > 0 ? runStorage : def),
-        update: sandbox.stub().callsFake((_key: string, value: any) => { runStorage = Array.isArray(value) ? [...value] : value; return Promise.resolve(); }),
-        keys: sandbox.stub().returns([]),
+        get: sandbox.stub().callsFake((key: string, def: unknown) => (store.has(key) ? store.get(key) : def)),
+        update: sandbox.stub().callsFake((key: string, value: any) => { store.set(key, value); return Promise.resolve(); }),
+        keys: sandbox.stub().callsFake(() => [...store.keys()]),
         setKeysForSync: sandbox.stub(),
       };
     })();
@@ -120,6 +125,8 @@ suite('ChatViewProvider.handleSendMessage', () => {
       updateWorker: sandbox.stub(),
     };
 
+    ctxRef = ctx;
+    pmRef = pm;
     provider = new ChatViewProvider(ctx, pm, cm, history, undefined, orchestratorView);
   });
 
@@ -190,6 +197,38 @@ suite('ChatViewProvider.handleSendMessage', () => {
 
     const reserved = (provider as any).budgetReserved as Map<string, number>;
     assert.strictEqual(reserved.size, 0, `резерв должен быть снят, осталось ${reserved.size}`);
+  });
+
+  test('MR-14: дневной лимит блокирует запрос до отправки (новая сессия не обнуляет)', async () => {
+    const chatSpy = sandbox.spy(mockLLM, 'chat');
+    sandbox.stub(vscode.window, 'showWarningMessage').resolves(undefined as any); // отказ
+    configOverrides['budget.dailyLimitUsd'] = 0.005;
+    // Сегодня уже потрачено больше лимита — дневной счётчик общий для всех сессий
+    await globalState.update('llmAssistant.dailySpend', { date: new Date().toISOString().slice(0, 10), usd: 0.01 });
+    cm.session.createSession('Новая сессия'); // сессионный счётчик здесь пуст
+
+    await send('привет', 'chat');
+
+    assert.strictEqual(chatSpy.callCount, 0, 'запрос не ушёл: дневной лимит не зависит от сессии');
+    const blocked = history.getRuns().find((r) => r.status === 'limit_exceeded');
+    assert.ok(blocked, 'прогон помечен как превышение лимита');
+    assert.match(String(blocked!.error), /дневн/i, `причина про дневной лимит: ${blocked!.error}`);
+  });
+
+  test('MR-15: фактический расход попадает в дневной счётчик и виден новому окну', async () => {
+    configOverrides['maxTokens'] = 512;
+    await send('привет', 'chat');
+
+    const stored = globalState.get('llmAssistant.dailySpend') as { date: string; usd: number };
+    assert.ok(stored, 'дневной счётчик записан в globalState');
+    assert.ok(stored.usd > 0, `расход учтён: ${stored.usd}`);
+    assert.strictEqual(stored.date, new Date().toISOString().slice(0, 10), 'счётчик привязан к сегодняшней дате');
+
+    // Перезапуск окна: новый провайдер поверх того же globalState видит расход
+    const reloaded = new ChatViewProvider(ctxRef, pmRef, cm, history, undefined, undefined);
+    assert.ok(reloaded.getDailySpend().usd > 0, 'расход переживает перезапуск');
+    reloaded.resetDailySpend();
+    assert.strictEqual(reloaded.getDailySpend().usd, 0, 'команда сброса обнуляет счётчик');
   });
 
   test('MR-12: в историю пишется прогноз стоимости, который видел пользователь', async () => {

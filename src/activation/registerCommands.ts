@@ -148,6 +148,20 @@ export function registerCommands(deps: CommandDependencies): void {
     })
   );
 
+  // ── 14. llmAssistant.resetDailyBudget — сброс дневного расхода (P9.1) ──
+  // Без этой команды сработавший дневной лимит нечем снять до смены суток
+  context.subscriptions.push(
+    vscode.commands.registerCommand('llmAssistant.resetDailyBudget', async () => {
+      const { DAILY_SPEND_KEY } = await import('../modes/chat/ChatViewProvider');
+      const date = new Date().toISOString().slice(0, 10);
+      const before = context.globalState.get<{ usd?: number }>(DAILY_SPEND_KEY)?.usd ?? 0;
+      await context.globalState.update(DAILY_SPEND_KEY, { date, usd: 0 });
+      vscode.window.showInformationMessage(
+        `Дневной расход обнулён (было $${before.toFixed(4)}). Лимит снова доступен полностью.`,
+      );
+    }),
+  );
+
   // ── 13. llmAssistant.showRulesSources — что реально попало в промпт из файлов правил ──
   // Канал создаём один раз: иначе каждый вызов плодит новый и копит их до перезагрузки окна
   const rulesChannel = vscode.window.createOutputChannel('LLM Assistant · Правила');

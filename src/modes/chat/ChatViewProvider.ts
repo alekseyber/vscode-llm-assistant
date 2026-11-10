@@ -116,6 +116,9 @@ export function visionUnsupportedWarning(model: string): string {
     + 'Выберите модель с capability vision (например, gemma3:4b).\n\n';
 }
 
+/** Ключ globalState: расход за текущие сутки (дневной cap P9.1). */
+export const DAILY_SPEND_KEY = 'llmAssistant.dailySpend';
+
 /** Ключ globalState: последний выбранный в панели провайдер и модель (для Edit). */
 const CHOSEN_KEY = 'llmAssistant.lastChosen';
 
@@ -558,6 +561,28 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
           : {}),
       });
 
+      // ── P9.1: дневной cap. Сессионный лимит обнулялся новой сессией,
+      // поэтому «не больше $N в день» настроить было нельзя
+      const dailyLimit = routeConfig.get<number>('budget.dailyLimitUsd', 0);
+      const dailySpent = this.readDailySpend().usd;
+      if (dailyLimit > 0) {
+        const dailyBudget = checkBudget({ limitUsd: dailyLimit, spentUsd: dailySpent }, estimate.cost);
+        if (dailyBudget.kind === 'exceed') {
+          const proceed = await vscode.window.showWarningMessage(
+            `Дневной лимит $${dailyLimit.toFixed(2)}. Сегодня израсходовано $${dailySpent.toFixed(4)}` +
+            `, прогноз $${estimate.cost.toFixed(4)}, перерасход $${dailyBudget.overUsd.toFixed(4)}. Продолжить?`,
+            { modal: true },
+            'Продолжить',
+          );
+          if (!proceed) {
+            this.debugChannel.appendLine('[budget] запрос отменён пользователем: прогноз выше дневного лимита');
+            this.finalizeRun(runId, startTime, model, providerDisplayName, 0, 0, 0, 'limit_exceeded', 'Превышение дневного лимита бюджета');
+            return;
+          }
+          this.debugChannel.appendLine(`[budget] дневной лимит превышен с подтверждением, перерасход $${dailyBudget.overUsd.toFixed(4)}`);
+        }
+      }
+
       // Резервируем прогноз за этим прогоном: снимаем в finalizeRun (успех, ошибка, отмена)
       if (budgetLimit > 0 && estimate.cost > 0) {
         this.budgetReserved.set(budgetSessionId, reserved + estimate.cost);
@@ -632,14 +657,22 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
           this.finalizeRun(runId, startTime, model, providerDisplayName, inTokens, 0, 0, 'error', 'Нет createWithTools');
           return;
         }
-        const agentResult = await this.runAgentLoop(provider, model, messages, onRetry, sid, abortController.signal);
+        // Стоп по деньгам внутри ReAct-цикла: лимит проверялся только до отправки,
+        // и длинный агентский прогон пробивал его штатным сценарием (P9.1)
+        const budgetStop = this.makeBudgetStop(model, budgetLimit, budgetSessionId, sessionSpent, dailyLimit, runId);
+        const agentResult = await this.runAgentLoop(provider, model, messages, onRetry, sid, abortController.signal, budgetStop);
         const runSteps = agentResult?.iterations || this.sessionLog?.computeStats(this.resolveSessionId(sessionId) ?? '')?.steps || 1;
+        // Стоп по деньгам посреди цикла — это «лимит», а не «успех»: иначе статистика врёт
+        const agentStatus = agentResult?.budgetExceeded ? 'limit_exceeded' : 'success';
+        if (agentResult?.budgetExceeded) {
+          this.postMessage({ type: 'error', text: agentResult.error ?? 'Прогон остановлен лимитом бюджета' }, sessionId);
+        }
         // Токены берём из результата воркера: раньше выходные всегда писались нулём
         this.finalizeRun(
           runId, startTime, model, providerDisplayName,
           agentResult?.inputTokens ?? inTokens,
           agentResult?.outputTokens ?? 0,
-          runSteps, 'success',
+          runSteps, agentStatus,
         );
       } else {
         let usage: TokenUsage | undefined;
@@ -747,6 +780,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       console.log(`[run] инструменты: ${tools} (шагов ${steps})`);
     }
 
+    // Дневной cap: расход учитывается по факту, а не по прогнозу
+    this.addDailySpend(cost);
     this.runHistoryStore.updateRun(runId, {
       // Модель и провайдер перезаписываем фактом: при авто-выборе запись создавалась
       // до маршрутизации, и в истории оставалось имя модели, которая не отвечала
@@ -767,7 +802,70 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
   /** ReAct-цикл с инструментами (только для агентного режима).
    *  Делегирует выполнение AgentWorker — общему движку для чат-агента и оркестратора. */
-  private async runAgentLoop(provider: any, model: string, messages: any[], onRetry?: (attempt: number, maxRetries: number, delayMs: number, errorMsg: string) => void, sessionId?: string, signal?: AbortSignal): Promise<{ inputTokens: number; outputTokens: number; iterations: number } | undefined> {
+  /**
+   * Хелперы дневного лимита (P9.1). Счётчик хранится с датой: смена суток
+   * автоматически обнуляет расход, а команда «Сбросить дневной лимит» — вручную.
+   */
+  private readDailySpend(): { date: string; usd: number } {
+    const date = new Date().toISOString().slice(0, 10);
+    const raw = this.context.globalState.get<{ date?: string; usd?: number }>(DAILY_SPEND_KEY);
+    if (!raw || raw.date !== date || typeof raw.usd !== 'number') return { date, usd: 0 };
+    return { date, usd: raw.usd };
+  }
+
+  /** Учесть фактический расход прогона в дневном счётчике. */
+  private addDailySpend(usd: number): void {
+    if (!(usd > 0)) return;
+    const current = this.readDailySpend();
+    void this.context.globalState.update(DAILY_SPEND_KEY, { date: current.date, usd: current.usd + usd });
+  }
+
+  /** Сбросить расход за сегодня (команда «Сбросить дневной лимит»). */
+  public resetDailySpend(): void {
+    const date = new Date().toISOString().slice(0, 10);
+    void this.context.globalState.update(DAILY_SPEND_KEY, { date, usd: 0 });
+    this.debugChannel.appendLine('[budget] дневной счётчик сброшен вручную');
+  }
+
+  /** Публичный снимок дневного расхода — для команды и тестов. */
+  public getDailySpend(): { date: string; usd: number } {
+    return this.readDailySpend();
+  }
+
+  /**
+   * Стоп по деньгам внутри ReAct-цикла: считает накопленный расход прогона
+   * и сравнивает с остатком сессии и дневным лимитом.
+   */
+  private makeBudgetStop(
+    model: string,
+    sessionLimit: number,
+    budgetSessionId: string,
+    sessionSpent: number,
+    dailyLimit: number,
+    runId: string,
+  ): (usage: { inputTokens: number; outputTokens: number }) => string | undefined {
+    return ({ inputTokens, outputTokens }) => {
+      const runCost = calculateCost(model, inputTokens, outputTokens, this.providerManager.pricingMap);
+      if (sessionLimit > 0) {
+        // Свой резерв не считаем дважды: он всё ещё числится за прогоном
+        const own = this.runReservations.get(runId)?.usd ?? 0;
+        const others = Math.max(0, (this.budgetReserved.get(budgetSessionId) ?? 0) - own);
+        const left = sessionLimit - sessionSpent - others;
+        if (runCost > left) {
+          return `Лимит сессии $${sessionLimit.toFixed(4)}: прогон израсходовал $${runCost.toFixed(4)} при остатке $${Math.max(0, left).toFixed(4)}. Прогон остановлен.`;
+        }
+      }
+      if (dailyLimit > 0) {
+        const spentToday = this.readDailySpend().usd;
+        if (spentToday + runCost > dailyLimit) {
+          return `Дневной лимит $${dailyLimit.toFixed(2)}: сегодня израсходовано $${spentToday.toFixed(4)}, прогон добавил бы ещё $${runCost.toFixed(4)}. Прогон остановлен.`;
+        }
+      }
+      return undefined;
+    };
+  }
+
+  private async runAgentLoop(provider: any, model: string, messages: any[], onRetry?: (attempt: number, maxRetries: number, delayMs: number, errorMsg: string) => void, sessionId?: string, signal?: AbortSignal, budgetStop?: (usage: { inputTokens: number; outputTokens: number }) => string | undefined): Promise<{ inputTokens: number; outputTokens: number; iterations: number; budgetExceeded?: boolean; error?: string } | undefined> {
     // Лимит шагов агента: был захардкожен (5) и обрывал реальные задачи
     const MAX_ITER = vscode.workspace.getConfiguration('llmAssistant').get<number>('agent.maxIterations', 15);
     const allowListConfig = loadToolAllowListConfig();
@@ -818,6 +916,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         extraTools: mcpTools,
         enableSummary: true,
         signal,
+        budgetStop,
         sessionId: this.resolveSessionId(sessionId === 'default' ? undefined : sessionId),
         onEvent: (e) => this.sessionLog?.append(e),
         onConfirm: async (toolName, args) => {
@@ -853,7 +952,12 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     this.postMessage({ type: 'done' }, sessionId);
     this.conversationManager.addMessageTo(sessionId, { role: 'assistant', content: answerWithSummary });
     this.postTokens(messages, result.answer, model);
-    return { inputTokens: result.inputTokens, outputTokens: result.outputTokens, iterations: result.iterations };
+    return {
+      inputTokens: result.inputTokens,
+      outputTokens: result.outputTokens,
+      iterations: result.iterations,
+      ...(result.budgetExceeded ? { budgetExceeded: true, error: result.error } : {}),
+    };
   }
 
   /** Plan Mode: генерация плана (Этап 1) */

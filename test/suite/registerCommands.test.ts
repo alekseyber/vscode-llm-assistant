@@ -46,7 +46,7 @@ suite('registerCommands', () => {
     };
   }
 
-  test('регистрирует все 13 команд', () => {
+  test('регистрирует все 14 команд', () => {
     registerCommands(makeDeps());
 
     const names = registerSpy.getCalls().map((c) => c.args[0]);
@@ -61,19 +61,20 @@ suite('registerCommands', () => {
       'llmAssistant.exportSession',
       'llmAssistant.forkSession',
       'llmAssistant.openHistory',
+      'llmAssistant.resetDailyBudget',
       'llmAssistant.review.file',
       'llmAssistant.selectProvider',
       'llmAssistant.showRulesSources',
     ].sort());
-    assert.strictEqual(registerSpy.callCount, 13);
+    assert.strictEqual(registerSpy.callCount, 14);
   });
 
   test('все команды добавляются в context.subscriptions', () => {
     const deps = makeDeps();
     registerCommands(deps);
 
-    // 13 команд + один общий канал «Правила» (создаётся один раз) = 14 подписок
-    assert.strictEqual(deps.context.subscriptions.push.callCount, 14);
+    // 14 команд + один общий канал «Правила» (создаётся один раз) = 15 подписок
+    assert.strictEqual(deps.context.subscriptions.push.callCount, 15);
   });
 
   test('chat.open: reveal контейнера + revealChat (вместо легаси ChatPanel)', async () => {

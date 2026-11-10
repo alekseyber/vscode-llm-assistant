@@ -70,6 +70,8 @@ export interface WorkerResult {
   error?: string;
   /** true, если агент исчерпал лимит итераций без финального ответа */
   limitExceeded?: boolean;
+  /** true, если прогон остановлен лимитом бюджета посреди шага */
+  budgetExceeded?: boolean;
 }
 
 /**
@@ -102,6 +104,15 @@ export interface AgentWorkerOptions {
    * а запрос уходил с `deepseek-ai/DeepSeek-V4-Flash-0731` → 404 от Ollama).
    */
   model?: string;
+  /**
+   * Стоп по деньгам ПОСРЕДИ прогона: вызывается после каждого шага с накопленным
+   * расходом. Возвращает текст причины, если прогон нужно оборвать.
+   *
+   * Зачем: проверка до отправки резервирует прогноз, но ReAct-цикл может уйти
+   * дальше прогноза (длинные ответы, лишние шаги) — раньше деньги внутри цикла
+   * никто не считал, и лимит обходился штатным сценарием.
+   */
+  budgetStop?: (usage: { inputTokens: number; outputTokens: number }) => string | undefined;
 }
 
 /**
@@ -292,14 +303,32 @@ export class AgentWorker {
 
         // Используем реальные токены из API, если доступны
         inputTokens += response.usage?.prompt_tokens ?? 0;
+        const usageOut = response.usage?.completion_tokens;
+
+        // Стоп по деньгам: считаем ПОСЛЕ получения ответа, до выполнения инструментов,
+        // чтобы следующий (уже оплаченный) шаг не начинался
+        const budgetMessage = this.options.budgetStop?.({ inputTokens, outputTokens: outputTokens + (usageOut ?? 0) });
+        if (budgetMessage) {
+          emit({ iteration: i, type: 'error', message: budgetMessage });
+          return {
+            answer: budgetMessage,
+            steps,
+            iterations: i,
+            inputTokens,
+            outputTokens: outputTokens + (usageOut ?? 0),
+            cost: 0,
+            error: budgetMessage,
+            budgetExceeded: true,
+          };
+        }
 
         const toolCalls = choice.message?.tool_calls;
 
         // Нет tool calls — финальный ответ
         if (!toolCalls || toolCalls.length === 0) {
           const content = choice.message?.content || '';
-          // Реальные выходные токены из usage, или оценка chars/4
-          outputTokens += response.usage?.completion_tokens ?? Math.ceil(content.length / 4);
+          // Реальные выходные токены из usage, или оценка chars/4 (usage уже посчитан выше)
+          outputTokens += usageOut ?? Math.ceil(content.length / 4);
           finalAnswer = content;
           emit({ iteration: i, type: 'response', message: content.slice(0, 200) });
           // assistant/message пишет ConversationManager.addMessageTo (5a) — здесь не дублируем

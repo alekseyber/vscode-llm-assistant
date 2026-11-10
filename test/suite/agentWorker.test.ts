@@ -520,6 +520,44 @@ suite('AgentWorker / отказы пользователя', () => {
   });
 });
 
+// ─────────── Стоп по бюджету посреди цикла (P9.1) ───────────
+suite('AgentWorker / лимит бюджета', () => {
+  test('BUD-1: budgetStop обрывает прогон после шага, следующий запрос не уходит', async () => {
+    const responses = [
+      mockToolCallResponse('read_file', { path: 'a.txt' }),
+      mockToolCallResponse('read_file', { path: 'b.txt' }),
+      mockTextResponse('готово'),
+    ];
+    const provider = createMockProvider(responses);
+    const capped = new AgentWorker(
+      { name: 't', systemPrompt: 'Тест' },
+      provider as any,
+      {
+        maxIterations: 5,
+        // Имитируем «деньги кончились» после первого шага
+        budgetStop: () => 'Лимит сессии $0.01: прогон остановлен.',
+      },
+    );
+
+    const result = await capped.run('читай файлы');
+
+    assert.strictEqual(result.budgetExceeded, true, 'прогон помечен остановленным по бюджету');
+    assert.match(String(result.answer), /Лимит сессии/, 'пользователь видит причину, а не пустоту');
+    assert.strictEqual(result.iterations, 1, 'остановка после первого шага, без второго запроса');
+    assert.strictEqual((provider.createWithTools as sinon.SinonStub).callCount, 1, 'второй запрос не отправлялся');
+  });
+
+  test('BUD-2: без budgetStop прогон идёт обычным путём', async () => {
+    const provider = createMockProvider([mockTextResponse('готово')]);
+    const worker = new AgentWorker({ name: 't', systemPrompt: 'Тест' }, provider as any, { maxIterations: 3 });
+
+    const result = await worker.run('просто ответь');
+
+    assert.strictEqual(result.budgetExceeded, undefined, 'флага остановки нет');
+    assert.strictEqual(result.answer, 'готово');
+  });
+});
+
 // ─────────── Лимит шагов агента ───────────
 suite('AgentWorker / лимит шагов', () => {
   test('ITER-1: дефолтный лимит 15 и совпадает с настройкой llmAssistant.agent.maxIterations', () => {
