@@ -160,7 +160,17 @@ suite('E2E-13: Plan Mode от плана до имплементации', () =>
       50000,
       100,
       'сообщение с планом в сессии',
-    );
+    ).catch((error) => {
+      // Диагностика в самом падении: иначе из CI видно только «не дождались»
+      const errors = messagesOfType(view, 'error').map((m) => m.text);
+      const runs = history.getRuns().map((r) => `${r.provider}/${r.status}: ${r.error ?? ''}`);
+      const plans = fs.existsSync(plansDir) ? fs.readdirSync(plansDir) : [];
+      const all = messagesOf(conversation, sid);
+      throw new Error(
+        `${error.message}; ошибки панели: ${JSON.stringify(errors)}; прогоны: ${JSON.stringify(runs)}; ` +
+          `файлы планов: ${JSON.stringify(plans)}; сообщения сессии: ${JSON.stringify(all.slice(-3))}`,
+      );
+    });
     assert.ok(planMessage, 'план сохранён в историю сессии, а не только в webview');
 
     const files = fs.existsSync(plansDir) ? fs.readdirSync(plansDir).filter((f) => f.endsWith('.md')) : [];
