@@ -28,6 +28,7 @@ suite('E2E-13: Plan Mode — план на диске и имплементац�
   let root: string;
   let plansDir: string;
   let plannerCalls = 0;
+  let stubPlanPath = '(стаб ещё не вызывался)';
   let snap: SettingsSnapshot | undefined;
 
   setup(async () => {
@@ -60,6 +61,7 @@ suite('E2E-13: Plan Mode — план на диске и имплементац�
         if (system.includes('планировщик')) {
           plannerCalls += 1;
           const planPath = /plan_\d{4}-\d{2}-\d{2}_[0-9a-f]{8}\.md/.exec(JSON.stringify(body))?.[0];
+          stubPlanPath = planPath ?? '(в промпте нет пути плана)';
           if (planPath && plannerCalls === 1) {
             // Нативные tool_calls Ollama: AgentWorker читает message.tool_calls, а не JSON в тексте.
             // Аргументы объектом — как отдаёт настоящий сервер Ollama.
@@ -115,7 +117,8 @@ suite('E2E-13: Plan Mode — план на диске и имплементац�
     assert.ok(
       fs.existsSync(plan.planPath),
       `файл плана создан на диске: ${plan.planPath}; вызовов стаба: ${JSON.stringify(stub.hits)}; ` +
-        `обращений планировщика: ${plannerCalls}; ответ менеджера: ${plan.content.slice(0, 120)}`,
+        `обращений планировщика: ${plannerCalls}; путь из промпта: ${stubPlanPath}; ` +
+        `создано менеджером: ${plan.planPath}; ответ менеджера: ${plan.content.slice(0, 120)}`,
     );
     const onDisk = fs.readFileSync(plan.planPath, 'utf-8');
     assert.ok(onDisk.includes(PLAN_MARKER), 'содержимое записано инструментом, а не подставлено менеджером');
