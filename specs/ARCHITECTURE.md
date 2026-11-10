@@ -1,6 +1,6 @@
 ---
 document: ARCHITECTURE
-version: 0.14.0
+version: 0.14.54
 status: living
 ---
 
@@ -17,7 +17,7 @@ extension.ts (вход)
 ├── ПРОВАЙДЕРЫ
 │   ├── ProviderManager          [spec ✅] — управление LLM-провайдерами (fallback на первый настроенный)
 │   ├── OpenAIProvider            [spec ✅] — OpenAI-совместимый API (+ extraBody в тело запроса)
-│   ├── OllamaProvider            [spec ✅ beta] — нативный /api/chat: think, num_predict, /api/tags, /api/show; скрытая обрезка промпта, таймаут соединения 10 с
+│   ├── OllamaProvider            [spec ✅ beta] — нативный /api/chat: think, num_predict, /api/tags, /api/show, /api/ps; предупреждение об обрезке промпта (окно = context_length/2), первый байт ждётся по local.requestTimeout, 30 с — только discovery
 │   ├── isLocalBaseUrl()          [base.ts] — локальность по АДРЕСУ (loopback): второй движок llama.cpp/LM Studio/vLLM через type: "openai"
 │   ├── BaseProvider              [spec ✅] — абстрактный класс
 │   └── types.ts (частично ✅)   — ModelPricing, calculateCost, CompletionOptions.extraBody
@@ -30,6 +30,7 @@ extension.ts (вход)
 │   │   ├── SessionLog            [spec ✅] — append-only лог (единственный источник правды, F1)
 │   │   ├── ChatAgentTools        [spec ✅] — инструменты чат-агента (read/write/replace/list/search/terminal/delegate)
 │   │   ├── AskUserTool            [spec ✅] — уточняющие вопросы (QuickPick/InputBox)
+│   │   ├── ModelRouter            [spec ✅] — прогноз стоимости, лимит бюджета сессии, авто-выбор модели по сложности (routing.*)
 │   │   └── PlanModeManager        [spec ✅] — Plan Mode (план → имплементация → рефлексия)
 │   │
 │   ├── 🤖 Агент (ReAct через чат)
@@ -251,6 +252,7 @@ AgentController (Apply Mode)
 
 | Версия | Дата | Изменения |
 |--------|------|-----------|
+| 0.14.54 | 2026-11-10 | `ModelRouter` в карте компонентов (прогноз стоимости, лимит сессии, авто-выбор модели); описание `OllamaProvider` приведено к факту: `/api/ps`, окно = `context_length/2`, первый байт по `local.requestTimeout`, 30 с — только discovery |
 | 0.14.53 | 2026-11-09 | Порог предупреждения об обрезке промпта исправлен на реальную границу `numCtx/2` (`effectivePromptWindow`); e2e-покрытие `E2E-3..E2E-9` в реальном Extension Host (42 e2e, 611 юнит) |
 | 0.14.51 | 2026-11-09 | E2E для локального пути в реальном Extension Host (`E2E-1`, `E2E-2`); хост-раннер собирает e2e из каталога вместо захардкоженного списка |
 | 0.14.46 | 2026-11-09 | Локальность по адресу (`isLocalBaseUrl`), второй локальный движок (llama.cpp) без новых настроек, `title` и override-поля в записи провайдера, диагностика обрезки промпта, таймаут соединения 10 с |
