@@ -81,6 +81,7 @@ version: 0.14.29
 | E2E-1 | `e2e/localEngines.e2e.ts` → «настройки из настоящего settings.json доходят до провайдеров и до numCtx» (Extension Host) | ✅ |
 | E2E-2 | `e2e/localEngines.e2e.ts` → «запрос к живому HTTP-серверу из хост-процесса и предупреждение не ломают прогон» | ✅ |
 | E2E-4a/b/c | `e2e/confirmGate.e2e.ts` → «отказ и второй отказ останавливают прогон», «согласие записывает файл и сводку», «`toolLoop=false` не вызывает инструменты» | ✅ |
+| Контекст → сверка окна с сервером | `OLL-14.1..14.3` (`ollamaProviderLocal.test.ts`) | ✅ |
 | Контекст → текущее сообщение не выбрасывается | `SLT-1` (`sessionLog.test.ts`) → «обрезается, а не выбрасывается» | ✅ |
 | Токены → Ollama отдаёт расход | `OLL-12.1/12.2` (`ollamaProviderLocal.test.ts`) | ✅ |
 | Токены → локальный openai-движок отдаёт usage | `OAI-4.1/4.2` (`usageTokens.test.ts`) | ✅ |

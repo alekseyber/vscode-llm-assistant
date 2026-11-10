@@ -138,6 +138,9 @@ export async function fetchWithConnectTimeout(
  */
 const truncationWarned = new Set<string>();
 
+/** Сколько живёт кэш выданного сервером окна (`/api/ps`). */
+const SERVER_CONTEXT_TTL_MS = 5 * 60 * 1000;
+
 /** Сброс состояния предупреждений — только для тестов (в проде не вызывается). */
 export function __resetTruncationWarningState(): void {
   truncationWarned.clear();
@@ -383,6 +386,9 @@ function parseLine(line: string): any | undefined {
 export class OllamaProvider extends BaseProvider {
   /** Признак локального провайдера — по нему AgentWorker/ChatViewProvider меняют поведение. */
   public readonly isLocal = true;
+
+  /** Кэш `context_length` из `/api/ps`: сколько окна сервер реально выдал модели. */
+  private readonly serverContextCache = new Map<string, { value?: number; at: number }>();
   public readonly supportsVision: boolean;
   /** Кэш discovery: список моделей и время заполнения. */
   private modelsCache?: { at: number; models: string[] };
@@ -543,12 +549,58 @@ export class OllamaProvider extends BaseProvider {
     debugLog(
       `[ollama] prompt_eval_count=${promptTokens ?? '?'} num_ctx=${numCtx} model=${model}`,
     );
-    const warning = buildTruncationWarning({ model, promptTokens, numCtx });
+    // Сверка с состоянием сервера: /api/ps знает, какое окно реально выдано модели.
+    void this.warnIfServerWindowSmaller(model, numCtx);
+
+    // Если сервер уже сказал, что окно меньше запрошенного, порог считаем по факту
+    const serverCtx = this.serverContextCache.get(model)?.value;
+    const windowUsed = serverCtx && serverCtx < numCtx ? serverCtx : numCtx;
+    const warning = buildTruncationWarning({ model, promptTokens, numCtx: windowUsed });
     if (!warning) return;
     const key = `${this.name}:${model}`;
     if (truncationWarned.has(key)) return;
     truncationWarned.add(key);
     void vscode.window.showWarningMessage(warning);
+  }
+
+  /**
+   * Какое окно сервер реально выдал загруженной модели (`context_length` из `/api/ps`).
+   *
+   * Нужно, потому что `numCtx` — наша просьба, а не гарантия: если она больше
+   * возможностей сервера или модели, Ollama молча урезает окно, и порог обрезки,
+   * посчитанный по `numCtx`, оказывается выше реального — предупреждение не срабатывает.
+   * Кэш на 5 минут: `/api/ps` дёргать на каждое сообщение незачем.
+   */
+  private async serverContextLength(model: string): Promise<number | undefined> {
+    const cached = this.serverContextCache.get(model);
+    const now = Date.now();
+    if (cached && now - cached.at < SERVER_CONTEXT_TTL_MS) return cached.value;
+    try {
+      const response = await fetch(`${this.baseUrl}/api/ps`, { method: 'GET' });
+      if (!response.ok) return undefined;
+      const json: any = await response.json();
+      const entry = (json?.models ?? []).find((m: any) => m?.name === model || m?.model === model);
+      const value = typeof entry?.context_length === 'number' ? entry.context_length : undefined;
+      this.serverContextCache.set(model, { value, at: now });
+      return value;
+    } catch {
+      // Сервер мог не ответить на /api/ps — это не повод падать: проверка необязательная
+      return undefined;
+    }
+  }
+
+  /** Предупредить, если сервер выдал окно меньше запрошенного (модель или сервер урезали). */
+  private async warnIfServerWindowSmaller(model: string, numCtx: number): Promise<void> {
+    const serverCtx = await this.serverContextLength(model);
+    if (!serverCtx || serverCtx >= numCtx) return;
+    const key = `${this.name}:${model}:server`;
+    if (truncationWarned.has(key)) return;
+    truncationWarned.add(key);
+    void vscode.window.showWarningMessage(
+      `Сервер Ollama выдал модели «${model}» окно ${serverCtx} токенов, хотя запрошено ${numCtx}: ` +
+      `настройка не применяется целиком. Так бывает, когда запрошено больше, чем поддерживает модель ` +
+      `или сервер (OLLAMA_CONTEXT_LENGTH). Порог обрезки считается по выданному окну.`,
+    );
   }
 
   /** Расшифровка пустого content при непустом thinking — самая частая ловушка локальных моделей. */

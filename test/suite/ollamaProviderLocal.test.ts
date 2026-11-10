@@ -32,6 +32,8 @@ suite('OllamaProvider (нативный /api/chat)', () => {
   let hits: Record<string, number> = {};
   // Поведение сервера настраивается в каждом тесте
   let handler: (req: http.IncomingMessage, res: http.ServerResponse, body: any) => void;
+  // Ответ на фоновый /api/ps (сверка окна, OLL-14.x); по умолчанию 404
+  let psHandler: ((res: http.ServerResponse) => void) | undefined;
   // Шпион за предупреждениями UI (OLL-9.x): мок не пишет вызовы сам, поэтому оборачиваем
   let warnSpy: sinon.SinonSpy;
 
@@ -57,6 +59,7 @@ suite('OllamaProvider (нативный /api/chat)', () => {
     sandbox = sinon.createSandbox();
     captured = [];
     hits = {};
+    psHandler = undefined;
     for (const key of Object.keys(localSettings)) delete localSettings[key];
     stubConfig();
     // Сброс module-level состояния предупреждений: иначе тесты влияют друг на друга (R2 ревью)
@@ -66,6 +69,13 @@ suite('OllamaProvider (нативный /api/chat)', () => {
     server = http.createServer((req, res) => {
       const pathName = (req.url ?? '').split('?')[0];
       hits[pathName] = (hits[pathName] ?? 0) + 1;
+      // /api/ps опрашивается фоном (сверка окна) — по умолчанию отвечаем 404,
+      // чтобы фоновый запрос не подменял тело основного запроса в тестах
+      if (pathName === '/api/ps') {
+        if (psHandler) return psHandler(res);
+        res.writeHead(404);
+        return res.end();
+      }
       let raw = '';
       req.on('data', (chunk) => (raw += chunk));
       req.on('end', () => {
@@ -89,6 +99,12 @@ suite('OllamaProvider (нативный /api/chat)', () => {
 
   function provider(): OllamaProvider {
     return new OllamaProvider({ name: 'local', baseUrl, models: ['qwen3:8b'] });
+  }
+
+  /** Ответ JSON (для /api/ps, /api/tags). */
+  function jsonResponse(res: http.ServerResponse, body: any): void {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(body));
   }
 
   /** Ответ NDJSON: массив объектов, каждый — отдельной строкой. */
@@ -646,6 +662,40 @@ suite('OllamaProvider (нативный /api/chat)', () => {
     })) { /* consume */ }
 
     assert.strictEqual(calls, 0, 'нет цифр — не выдумываем их');
+  });
+
+  test('OLL-14.1: сервер выдал окно меньше запрошенного → предупреждение с числами', async () => {
+    localSettings['local.numCtx'] = 16384;
+    psHandler = (res) => jsonResponse(res, { models: [{ name: 'qwen3:8b', context_length: 8192 }] });
+    handler = (_req, res) => ndjson(res, [{ message: { content: 'ок' }, done: true, prompt_eval_count: 10 }]);
+
+    await drain(provider());
+    // /api/ps опрашивается фоном: даём промису шанс завершиться
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    const text = String(warnSpy.firstCall?.args[0] ?? '');
+    assert.match(text, /выдал модели «qwen3:8b» окно 8192/);
+    assert.match(text, /запрошено 16384/);
+  });
+
+  test('OLL-14.2: сервер выдал ровно запрошенное окно → тишина', async () => {
+    localSettings['local.numCtx'] = 8192;
+    psHandler = (res) => jsonResponse(res, { models: [{ name: 'qwen3:8b', context_length: 8192 }] });
+    handler = (_req, res) => ndjson(res, [{ message: { content: 'ок' }, done: true, prompt_eval_count: 10 }]);
+
+    await drain(provider());
+
+    assert.strictEqual(warnSpy.callCount, 0, 'окно совпало — предупреждать не о чем');
+  });
+
+  test('OLL-14.3: /api/ps недоступен → тишина и никаких падений', async () => {
+    localSettings['local.numCtx'] = 16384;
+    psHandler = (res) => { res.writeHead(500); res.end(); };
+    handler = (_req, res) => ndjson(res, [{ message: { content: 'ок' }, done: true, prompt_eval_count: 10 }]);
+
+    await drain(provider());
+
+    assert.strictEqual(warnSpy.callCount, 0, 'необязательная проверка не мешает ответу');
   });
 
   test('OLL-9.1: prompt_eval_count == эффективное окно (numCtx/2) → предупреждение об обрезке', async () => {
