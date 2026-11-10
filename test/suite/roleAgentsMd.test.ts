@@ -5,7 +5,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as sinon from 'sinon';
-import { loadRoleAgentsMd, invalidateRoleCache, parseFrontmatter, getSkillCatalog, getSkillTemplate, loadSkillMd } from '../../src/shared/RoleAgentsMdLoader';
+import { loadRoleAgentsMd, loadAllAgentRoles, loadOrchestratorRoles, loadClaudeAgentRoles, invalidateRoleCache, parseFrontmatter, getSkillCatalog, getSkillTemplate, loadSkillMd } from '../../src/shared/RoleAgentsMdLoader';
 
 function setupDir(files: Record<string, string>): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vscode-llm-test-ma5-'));
@@ -234,6 +234,58 @@ suite('RoleAgentsMdLoader', () => {
       assert.doesNotMatch(catalog[0].description, /name: broken/, 'служебные строки вырезаны');
       assert.match(catalog[0].description, /Инструкция/);
     } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  });
+
+  test('CLA-1: роль из .claude/agents — name/description/тело, tools фильтруются allowlist', () => {
+    const dir = setupDir({
+      '.claude/agents/reviewer.md': [
+        '---',
+        'name: reviewer',
+        'description: Проверяет код',
+        'tools: [read_file, search_files, rm_rf, mcp_evil_tool]',
+        '---',
+        'Ты проверяешь код по чек-листу.',
+      ].join('\n'),
+    });
+    try {
+      const roles = loadClaudeAgentRoles(dir);
+      assert.strictEqual(roles.length, 1);
+      assert.strictEqual(roles[0].name, 'reviewer');
+      assert.match(roles[0].systemPrompt, /Проверяет код/);
+      assert.match(roles[0].systemPrompt, /чек-листу/);
+      assert.deepStrictEqual(roles[0].allowedTools, ['read_file', 'search_files'], 'незнакомые инструменты отброшены');
+    } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  });
+
+  test('CLA-2: конфликт имён — приоритет у .llma/agents', () => {
+    const sb = sinon.createSandbox();
+    const dir = setupDir({
+      '.llma/agents/coder.md': 'Свой кодер',
+      '.claude/agents/coder.md': ['---', 'name: coder', '---', 'Чужой кодер'].join('\n'),
+      '.claude/agents/architect.md': ['---', 'name: architect', '---', 'Чужой архитектор'].join('\n'),
+    });
+    try {
+      mockWs(sb, dir);
+      const roles = loadAllAgentRoles();
+      const coders = roles.filter((r) => r.name === 'coder');
+      assert.strictEqual(coders.length, 1, 'роль не дублируется');
+      assert.match(coders[0].systemPrompt, /Свой кодер/, 'осталась своя роль');
+      assert.ok(roles.some((r) => r.name === 'architect' && /Чужой архитектор/.test(r.systemPrompt)), 'новая роль добавлена');
+    } finally { sb.restore(); fs.rmSync(dir, { recursive: true, force: true }); }
+  });
+
+  test('CLA-3: без .llma/agents оркестрация берётся из .claude, битое имя — из файла', () => {
+    const sb = sinon.createSandbox();
+    const dir = setupDir({
+      '.claude/agents/02-impl.md': ['---', 'name: [битое', '---', 'Пиши код'].join('\n'),
+    });
+    try {
+      mockWs(sb, dir);
+      const roles = loadOrchestratorRoles();
+      assert.strictEqual(roles.length, 1);
+      assert.strictEqual(roles[0].name, '02-impl', 'запасное имя — имя файла');
+      assert.match(roles[0].systemPrompt, /Пиши код/);
+    } finally { sb.restore(); fs.rmSync(dir, { recursive: true, force: true }); }
   });
 
   test('SC-2: parseFrontmatter() — валидный frontmatter', () => {

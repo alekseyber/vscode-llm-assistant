@@ -243,22 +243,28 @@ export function loadOrchestratorRoles(): AgentRole[] {
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
     if (!workspaceFolder) return getFallbackRoles();
 
-    const agentsDir = path.join(workspaceFolder.uri.fsPath, '.llma', 'agents');
-    if (!fs.existsSync(agentsDir)) return getFallbackRoles();
+    const root = workspaceFolder.uri.fsPath;
+    const agentsDir = path.join(root, '.llma', 'agents');
+    const chained: AgentRole[] = [];
 
-    const entries = fs.readdirSync(agentsDir);
-    const chainedFiles = entries
-      .filter(f => f.endsWith('.md') && /^\d{2}-/.test(f))
-      .sort();
+    if (fs.existsSync(agentsDir)) {
+      const chainedFiles = fs.readdirSync(agentsDir)
+        .filter(f => f.endsWith('.md') && /^\d{2}-/.test(f))
+        .sort();
+      for (const fileName of chainedFiles) {
+        const roleName = fileName.replace(/\.md$/, '');
+        const systemPrompt = tryReadFile(path.join(agentsDir, fileName)) || `Ты — ${roleName}. Отвечай кратко, по-русски.`;
+        chained.push({ name: roleName, systemPrompt });
+      }
+    }
 
-    if (chainedFiles.length === 0) return getFallbackRoles();
+    // Роли из .claude/agents добавляем после цепочки .llma: проекты под Claude Code
+    // получают свою оркестрацию, даже если .llma/agents вообще нет
+    const claudeRoles = loadClaudeAgentRoles(root)
+      .filter((role) => !chained.some((own) => own.name === role.name));
 
-    return chainedFiles.map(fileName => {
-      const roleName = fileName.replace(/\.md$/, '');
-      const filePath = path.join(agentsDir, fileName);
-      const systemPrompt = tryReadFile(filePath) || `Ты — ${roleName}. Отвечай кратко, по-русски.`;
-      return { name: roleName, systemPrompt };
-    });
+    const result = [...chained, ...claudeRoles];
+    return result.length > 0 ? result : getFallbackRoles();
   } catch {
     return getFallbackRoles();
   }
@@ -273,21 +279,98 @@ export function loadAllAgentRoles(): AgentRole[] {
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
     if (!workspaceFolder) return [];
 
-    const agentsDir = path.join(workspaceFolder.uri.fsPath, '.llma', 'agents');
-    if (!fs.existsSync(agentsDir)) return [];
+    const root = workspaceFolder.uri.fsPath;
+    const agentsDir = path.join(root, '.llma', 'agents');
+    const own: AgentRole[] = [];
 
-    const entries = fs.readdirSync(agentsDir);
-    return entries
-      .filter(f => f.endsWith('.md'))
-      .map(fileName => {
+    if (fs.existsSync(agentsDir)) {
+      for (const fileName of fs.readdirSync(agentsDir).filter(f => f.endsWith('.md'))) {
         const roleName = fileName.replace(/\.md$/, '');
-        const filePath = path.join(agentsDir, fileName);
-        const systemPrompt = tryReadFile(filePath) || `Ты — ${roleName}. Отвечай кратко, по-русски.`;
-        return { name: roleName, systemPrompt };
-      });
+        const systemPrompt = tryReadFile(path.join(agentsDir, fileName)) || `Ты — ${roleName}. Отвечай кратко, по-русски.`;
+        own.push({ name: roleName, systemPrompt });
+      }
+    }
+
+    // .claude/agents — после своих ролей; одноимённые не дублируются
+    const claudeRoles = loadClaudeAgentRoles(root)
+      .filter((role) => !own.some((mine) => mine.name === role.name));
+    return [...own, ...claudeRoles];
   } catch {
     return [];
   }
+}
+
+/**
+ * Инструменты, которые роли вообще можно разрешать.
+ *
+ * Список фиксированный: `tools` из чужого файла роли не должен включать ничего,
+ * чего у нас нет, и уж тем более «все инструменты MCP» по имени.
+ */
+export const ASSIGNABLE_TOOLS = [
+  'read_file',
+  'write_file',
+  'replace_in_file',
+  'list_files',
+  'search_files',
+  'run_terminal',
+  'delegate_to_agent',
+  'web_fetch',
+  'ask_user',
+] as const;
+
+/** Разобрать `tools:` из frontmatter: `[a, b]`, `a, b` или `a b`. */
+export function parseToolsField(raw: string | undefined): string[] | undefined {
+  if (!raw) return undefined;
+  const cleaned = raw.replace(/^\[/, '').replace(/\]$/, '');
+  const names = cleaned
+    .split(/[,\s]+/)
+    .map((name) => name.trim().replace(/^['"]|['"]$/g, ''))
+    .filter(Boolean);
+  const allowed = new Set<string>(ASSIGNABLE_TOOLS);
+  const valid = names.filter((name) => allowed.has(name));
+  // Незнакомые имена отбрасываем: роль не должна получать инструмент, которого нет
+  return valid.length > 0 ? [...new Set(valid)] : undefined;
+}
+
+/**
+ * Роли из `.claude/agents/*.md` (формат Claude Code: frontmatter + тело).
+ * Приоритет у `.llma/agents` — при совпадении имени роль из `.claude` не берётся.
+ */
+export function loadClaudeAgentRoles(workspacePath: string): AgentRole[] {
+  const roles: AgentRole[] = [];
+  try {
+    const agentsDir = path.join(workspacePath, '.claude', 'agents');
+    if (!fs.existsSync(agentsDir)) return [];
+
+    for (const entry of fs.readdirSync(agentsDir, { withFileTypes: true })) {
+      if (!entry.isFile() || !entry.name.endsWith('.md') || entry.isSymbolicLink()) continue;
+      const filePath = path.join(agentsDir, entry.name);
+      if (isSkippableSkillFile(filePath)) continue;
+
+      const content = tryReadFile(filePath) || '';
+      if (!content.trim()) continue;
+      const fm = parseFrontmatter(content);
+      const rawName = (fm.name ?? '').trim();
+      const fallback = entry.name.replace(/\.md$/, '');
+      const name = /^[a-zA-Z0-9._-]+$/.test(rawName) ? rawName : fallback;
+      const body = stripFrontmatter(content);
+      const description = (fm.description ?? '').trim();
+      const systemPrompt = description && !body.startsWith(description)
+        ? `${description}\n\n${body}`.trim()
+        : (body || description);
+      if (!systemPrompt) continue;
+
+      const allowedTools = parseToolsField(fm.tools);
+      roles.push({
+        name,
+        systemPrompt,
+        ...(allowedTools ? { allowedTools } : {}),
+      });
+    }
+  } catch {
+    return [];
+  }
+  return roles.sort((a, b) => a.name.localeCompare(b.name));
 }
 
 /** Fallback-роли, если .llma/agents/ пуст или отсутствует */
