@@ -29,14 +29,18 @@ suite('ChatViewProvider.handleSendMessage', () => {
   let provider: ChatViewProvider;
   let mockLLM: any;
   let wsFolders: any = undefined;
+  /** Переопределения настроек для отдельного теста (сбрасываются в setup). */
+  let configOverrides: Record<string, unknown> = {};
 
   setup(() => {
     sandbox = sinon.createSandbox();
     noteChosenCalls = [];
+    configOverrides = {};
 
     // ── vscode.workspace ──
     const config = {
       get: sandbox.fake((key: string, defaultValue?: unknown) => {
+        if (key in configOverrides) return configOverrides[key];
         if (key === 'chat.maxContextTokens') return 4096;
         if (key === 'chat.systemPrompt') return '';
         if (key === 'chat.summaryEnabled') return false;
@@ -157,6 +161,25 @@ suite('ChatViewProvider.handleSendMessage', () => {
   test('SEL-1: смена провайдера в селекторе запоминается сразу (Edit идёт за ней)', async () => {
     await (provider as any).handleWebviewMessage({ type: 'selectionChanged', provider: 'local', model: 'qwen3:8b' });
     assert.deepStrictEqual(noteChosenCalls.at(-1), ['local', 'qwen3:8b'], 'выбор провайдера запомнен без отправки сообщения');
+  });
+
+  test('MR-10: превышение лимита бюджета — запрос не уходит, прогон отменён', async () => {
+    const chatSpy = sandbox.spy(mockLLM, 'chat');
+    sandbox.stub(vscode.window, 'showWarningMessage').resolves(undefined as any); // пользователь отказался
+    configOverrides['budget.sessionLimitUsd'] = 0.000001;
+    configOverrides['maxTokens'] = 4096;
+    // Расход сессии уже есть: 0.01 при лимите 0.000001
+    const sid = cm.session.getActive()!.meta.id;
+    history.recordRun({
+      id: 'prev', timestamp: Date.now(), mode: 'chat', task: 'ранее', provider: 'test', model: 'm',
+      steps: 1, tokensIn: 100, tokensOut: 100, cost: 0.01, duration: 10, status: 'success', sessionId: sid,
+    });
+
+    await send('привет', 'chat');
+
+    assert.strictEqual(chatSpy.callCount, 0, 'запрос к модели не отправлялся');
+    const last = history.getRuns().find((r) => r.status === 'cancelled');
+    assert.ok(last, 'прогон помечен отменённым');
   });
 
   test('CVP-6: в историю попадает расход от сервера, а не оценка по символам', async () => {

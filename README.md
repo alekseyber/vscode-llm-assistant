@@ -317,6 +317,11 @@ ollama pull gemma3:4b        # ~3.4 ГБ, работает и с картинк�
 
 | Ключ | Тип | По умолчанию | Описание |
 |------|-----|-------------|----------|
+| `budget.sessionLimitUsd` | number | `0` | Лимит расходов на сессию в USD (0 — без лимита): перед запросом показывается прогноз, при превышении задаётся вопрос |
+| `routing.auto` | boolean | `false` | Авто-выбор модели по сложности задачи (нужны `routing.simpleModel` и `routing.complexModel`) |
+| `routing.simpleModel` | string | `""` | Модель для простых задач: короткий вопрос, чат |
+| `routing.complexModel` | string | `""` | Модель для сложных задач: агент, длинный контекст, маркеры «рефактор/спроект/почему» |
+| `routing.overrideChosen` | boolean | `false` | Разрешить авто-выбору переопределять модель, выбранную в панели |
 | `agentsMd.enabled` | boolean | `true` | Автоинжект правил проекта: `AGENTS.md`, затем `.llma/main.md`, затем `CLAUDE.md` |
 | `agentsMd.maxChars` | number | `12000` | Лимит знаков на все файлы правил вместе; лишнее отрезается с пометкой в промпте |
 
@@ -461,7 +466,7 @@ ollama pull gemma3:4b        # ~3.4 ГБ, работает и с картинк�
 ## Разработка
 
 - **Стек:** TypeScript, VS Code Extension API, WebView, Webpack
-- **Тесты:** Mocha + Sinon (**661** mocked-тестов), E2E в реальном Extension Host (**42** теста: сокеты, панель, настройки, гейт подтверждения, workspace-контекст), GitHub Actions CI (юниты и e2e идут параллельно)
+- **Тесты:** Mocha + Sinon (**671** mocked-тестов), E2E в реальном Extension Host (**42** теста: сокеты, панель, настройки, гейт подтверждения, workspace-контекст), GitHub Actions CI (юниты и e2e идут параллельно)
 - **SDD:** 41 spec-файлов (`specs/`), валидатор, pre-commit + CI
 - **Репозиторий:** github.com/alekseyber/vscode-llm-assistant
 - **Спецификации:** [specs/](https://github.com/alekseyber/vscode-llm-assistant/tree/main/specs) — 38 компонентов (+3 мета-документа), интерфейсы, контракты, AC
@@ -471,7 +476,7 @@ ollama pull gemma3:4b        # ~3.4 ГБ, работает и с картинк�
 npm install
 npm run compile        # Сборка
 npm run lint           # Линтер
-npm run test:mocked    # Тесты без VS Code (661 шт.)
+npm run test:mocked    # Тесты без VS Code (671 шт.)
 node scripts/spec-validate.js  # Проверка SDD
 ```
 

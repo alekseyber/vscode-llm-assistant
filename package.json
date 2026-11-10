@@ -3,7 +3,7 @@
   "displayName": "LLM Assistant — AI Agent for VS Code",
   "description": "AI-ассистент для VS Code: чат, inline-правки, автокомплит, ReAct-агент с инструментами и MCP. Любой провайдер по своему ключу; локальные модели (Ollama, llama.cpp) — как опция офлайн-работы.",
   "publisher": "alekseyber",
-  "version": "0.14.83",
+  "version": "0.14.84",
   "icon": "media/icon.png",
   "repository": {
     "type": "git",
@@ -230,6 +230,32 @@
           "type": "boolean",
           "default": true,
           "description": "Запрашивать подтверждение перед записью/изменением файлов"
+        },
+        "llmAssistant.budget.sessionLimitUsd": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "description": "Лимит расходов на сессию чата в USD. 0 — без лимита. При превышении прогноза задаётся вопрос, запрос не уходит молча."
+        },
+        "llmAssistant.routing.auto": {
+          "type": "boolean",
+          "default": false,
+          "description": "Авто-выбор модели по сложности задачи. Требует заполненных routing.simpleModel и routing.complexModel. Явный выбор модели в панели не переопределяется."
+        },
+        "llmAssistant.routing.simpleModel": {
+          "type": "string",
+          "default": "",
+          "description": "Модель для простых задач (короткий вопрос, чат). Пусто — авто-выбор выключен."
+        },
+        "llmAssistant.routing.complexModel": {
+          "type": "string",
+          "default": "",
+          "description": "Модель для сложных задач (агент, длинный контекст, маркеры «рефактор/спроект/почему…»). Пусто — авто-выбор выключен."
+        },
+        "llmAssistant.routing.overrideChosen": {
+          "type": "boolean",
+          "default": false,
+          "description": "Разрешить авто-выбору переопределять модель, выбранную пользователем в панели."
         },
         "llmAssistant.agentsMd.maxChars": {
           "type": "number",

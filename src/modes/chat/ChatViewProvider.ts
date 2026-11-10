@@ -13,6 +13,7 @@ import { loadAgentsMd } from '../../shared/AgentsMdLoader';
 import { loadRoleAgentsMd, loadOrchestratorRoles, loadAllAgentRoles, getSkillTemplate, loadSkillMd, getSkillCatalog } from '../../shared/RoleAgentsMdLoader';
 import { loadToolAllowListConfig, isConfirmationRequired } from '../apply/ToolAllowList';
 import { takeToolCallStats } from './ChatAgentTools';
+import { chooseModel, estimateRequestCost, checkBudget } from './ModelRouter';
 import { McpClient, loadMcpConfig } from '../apply/McpClient';
 import { AgentWorker, AgentRole } from '../apply/AgentWorker';
 import { AgentOrchestrator, MultiAgentTask, MultiAgentResult } from '../apply/AgentOrchestrator';
@@ -125,6 +126,9 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   private readonly providerManager: ProviderManager;
   private readonly conversationManager: ConversationManager;
   private readonly runHistoryStore: RunHistoryStore;
+
+  /** Сессии, по которым уже предупредили о лимите бюджета (по одному разу, не спамим). */
+  private readonly budgetWarnedSessions = new Set<string>();
   private readonly sessionLog?: SessionLog;
   /** Контроллеры отмены по сессии — поддержка параллельных процессов */
   private abortControllers = new Map<string, AbortController>();
@@ -313,7 +317,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     const provider = providerName ? this.providerManager.getProvider(providerName) : this.providerManager.getDefault();
     if (!provider) { this.postMessage({ type: 'error', text: 'Провайдер не настроен.' }); return; }
     const explicitModel = (typeof modelName === 'object' && modelName !== null ? (modelName as any).name : modelName) || '';
-    const model = await resolveModelForProvider(
+    let model = await resolveModelForProvider(
       provider,
       explicitModel,
       config.get<string>('defaultModel') || 'gpt-4o',
@@ -457,9 +461,62 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         messages.reduce((s: number, m: any) =>
           s + (typeof m.content === 'string' ? m.content.length : JSON.stringify(m.content).length), 0) / 4);
 
+      // ── P9: авто-выбор модели по сложности (если включён и выбор не сделан руками) ──
+      const routeConfig = vscode.workspace.getConfiguration('llmAssistant');
+      const userChoseModel = Boolean(explicitModel);
+      const route = chooseModel(
+        { text, mode: isAgentMode ? 'agent' : 'chat', planMode, contextTokens: inTokens },
+        model,
+      );
+      const mayOverride = !userChoseModel || routeConfig.get<boolean>('routing.overrideChosen', false);
+      if (route.auto && mayOverride) {
+        this.debugChannel.appendLine(
+          `[routing] сложность=${route.complex ? 'сложная' : 'простая'} (${route.reason}) → ${route.model}`,
+        );
+        model = route.model;
+      } else if (route.auto) {
+        this.debugChannel.appendLine(
+          `[routing] модель выбрана пользователем (${model}), авто-выбор не применяется`,
+        );
+      }
+
+      // ── P9: прогноз стоимости и лимит бюджета сессии ──
+      const maxOutputTokens = routeConfig.get<number>('maxTokens', 4096);
+      const estimate = estimateRequestCost(
+        inTokens, maxOutputTokens, model, this.providerManager.pricingMap,
+      );
+      const budgetSessionId = this.resolveSessionId(sessionId) ?? 'default';
+      const sessionSpent = this.runHistoryStore.getRuns()
+        .filter((run) => run.sessionId === budgetSessionId)
+        .reduce((sum, run) => sum + (run.cost || 0), 0);
+      const budget = checkBudget(
+        { limitUsd: routeConfig.get<number>('budget.sessionLimitUsd', 0), spentUsd: sessionSpent },
+        estimate.cost,
+      );
+      if (budget.kind === 'exceed') {
+        const proceed = await vscode.window.showWarningMessage(
+          `Лимит бюджета сессии $${(sessionSpent).toFixed(4)} + прогноз $${estimate.cost.toFixed(4)} ` +
+          `превышает $${(sessionSpent + estimate.cost).toFixed(4)}: перерасход $${budget.overUsd.toFixed(4)}. Продолжить?`,
+          { modal: true },
+          'Продолжить',
+        );
+        if (!proceed) {
+          this.debugChannel.appendLine('[budget] запрос отменён пользователем: прогноз выше лимита');
+          this.finalizeRun(runId, startTime, model, providerDisplayName, 0, 0, 0, 'cancelled', 'Превышение лимита бюджета');
+          return;
+        }
+        this.debugChannel.appendLine(`[budget] превышение подтверждено, перерасход $${budget.overUsd.toFixed(4)}`);
+      } else if (budget.kind === 'warn' && !this.budgetWarnedSessions.has(budgetSessionId)) {
+        this.budgetWarnedSessions.add(budgetSessionId);
+        void vscode.window.showWarningMessage(
+          `Израсходовано ${budget.percent}% лимита сессии ($${sessionSpent.toFixed(4)}). Лимит: $${routeConfig.get<number>('budget.sessionLimitUsd', 0).toFixed(2)}.`,
+        );
+      }
+
       const debug = vscode.workspace.getConfiguration('llmAssistant').get<boolean>('debug', false);
       if (debug) {
         this.debugChannel.appendLine(`[DEBUG] === Отправка запроса (${mode}, ${messages.length} сообщений, ~${inTokens} токенов) ===`);
+        this.debugChannel.appendLine(`[DEBUG] прогноз стоимости: $${estimate.cost.toFixed(6)} (вход ~${estimate.inputTokens}, выход ~${estimate.outputTokens})`);
         for (let i = 0; i < messages.length; i++) {
           const m = messages[i];
           const content = typeof m.content === 'string' ? m.content : JSON.stringify(m.content);
