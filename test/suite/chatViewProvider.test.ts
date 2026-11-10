@@ -192,6 +192,33 @@ suite('ChatViewProvider.handleSendMessage', () => {
     assert.strictEqual(reserved.size, 0, `резерв должен быть снят, осталось ${reserved.size}`);
   });
 
+  test('MR-12: в историю пишется прогноз стоимости, который видел пользователь', async () => {
+    configOverrides['maxTokens'] = 512;
+
+    await send('привет', 'chat');
+
+    const run = history.getRuns()[0];
+    assert.ok(typeof run.forecastUsd === 'number', 'прогноз сохранён в записи прогона');
+    assert.ok((run.forecastUsd as number) > 0, `прогноз должен быть больше нуля, получено ${run.forecastUsd}`);
+    assert.ok(!run.autoModel, 'без routing.auto пометки авто-выбора нет');
+  });
+
+  test('MR-13: модель, выбранная роутером, помечена в истории вместе с причиной', async () => {
+    configOverrides['maxTokens'] = 512;
+    configOverrides['routing.auto'] = true;
+    configOverrides['routing.simpleModel'] = 'simple-x';
+    configOverrides['routing.complexModel'] = 'complex-x';
+
+    await send('привет', 'chat'); // короткий текст → простая задача
+
+    const run = history.getRuns()[0];
+    assert.strictEqual(run.autoModel, true, 'пометка авто-выбора в истории');
+    assert.strictEqual(run.model, 'simple-x', 'модель подставлена роутером');
+    assert.match(String(run.routeReason), /простая задача/, `причина решения в истории: ${run.routeReason}`);
+    // Прогноз считается уже по подставленной модели — иначе цифра в диалоге врёт
+    assert.ok((run.forecastUsd as number) > 0, 'прогноз сохранён и для авто-выбора');
+  });
+
   test('CVP-6: в историю попадает расход от сервера, а не оценка по символам', async () => {
     // Провайдер отдаёт usage, как локальный движок; текст ответа короткий,
     // а промпт длинный — оценка по символам дала бы совсем другие цифры.

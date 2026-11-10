@@ -240,6 +240,17 @@ export class HistoryViewProvider implements vscode.WebviewViewProvider {
     .mode-chat { background: #1e4a6b; color: #7cc4f8; }
     .mode-agent { background: #4a2e6b; color: #c4a4f8; }
     .mode-edit { background: #3e6b3e; color: #8cd88c; }
+    /* P9 S3: видно, что модель подставил роутер, а не пользователь */
+    .auto-badge {
+      display: inline-block;
+      margin-left: 4px;
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-size: 10px;
+      background: #6b5a1e;
+      color: #f8e07c;
+      cursor: help;
+    }
     .empty-state {
       display: flex;
       align-items: center;
@@ -459,7 +470,11 @@ export class HistoryViewProvider implements vscode.WebviewViewProvider {
 
             tr.innerHTML =
               '<td>' + date + '</td>' +
-              '<td><span class="mode-badge ' + modeClass + '">' + modeLabel + '</span></td>' +
+              '<td><span class="mode-badge ' + modeClass + '">' + modeLabel + '</span>' +
+                (run.autoModel
+                  ? '<span class="auto-badge" title="' + escapeHtml(run.routeReason || 'модель выбрана автоматически') + '">авто</span>'
+                  : '') +
+              '</td>' +
               '<td title="' + escapeHtml(run.task) + '">' + escapeHtml(taskText) + '</td>' +
               '<td>' + run.steps + '</td>' +
               '<td>' + tokensText + '</td>' +
@@ -492,12 +507,24 @@ export class HistoryViewProvider implements vscode.WebviewViewProvider {
           '<div><span class="label">Дата:</span> ' + date + '</div>' +
           '<div><span class="label">Режим:</span> ' + modeLabel + '</div>' +
           '<div><span class="label">Провайдер:</span> ' + entry.provider + '</div>' +
-          '<div><span class="label">Модель:</span> ' + entry.model + '</div>' +
+          '<div><span class="label">Модель:</span> ' + entry.model +
+            (entry.autoModel ? ' <span class="auto-badge">выбрана автоматически</span>' : '') + '</div>' +
+          (entry.autoModel && entry.routeReason
+            ? '<div><span class="label">Решение роутера:</span> ' + escapeHtml(entry.routeReason) + '</div>'
+            : '') +
           '<div><span class="label">Задача:</span> ' + escapeHtml(entry.task) + '</div>' +
           '<div><span class="label">Шагов:</span> ' + entry.steps + '</div>' +
           (entry.tools ? '<div><span class="label">Инструменты:</span> ' + entry.tools + '</div>' : '') +
           '<div><span class="label">Токены (вход / выход):</span> ' + entry.tokensIn + ' / ' + entry.tokensOut + '</div>' +
           '<div><span class="label">Стоимость:</span> $' + entry.cost.toFixed(6) + '</div>' +
+          (typeof entry.forecastUsd === 'number'
+            ? '<div><span class="label">Прогноз / факт:</span> $' + entry.forecastUsd.toFixed(6) +
+              ' / $' + entry.cost.toFixed(6) +
+              (entry.forecastUsd > 0
+                ? ' <span class="label">(' + Math.round((entry.cost / entry.forecastUsd) * 100) + '% прогноза)</span>'
+                : '') +
+              '</div>'
+            : '') +
           '<div><span class="label">Длительность:</span> ' + durationSec + ' сек</div>' +
           '<div><span class="label">Статус:</span> ' + statusLabel + '</div>' +
           (entry.error ? '<div><span class="label">Ошибка:</span> ' + escapeHtml(entry.error) + '</div>' : '');

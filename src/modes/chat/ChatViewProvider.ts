@@ -475,7 +475,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         model,
       );
       const mayOverride = !userChoseModel || routeConfig.get<boolean>('routing.overrideChosen', false);
+      let autoModelApplied = false;
+      let routeReason: string | undefined;
       if (route.auto && mayOverride) {
+        autoModelApplied = true;
+        routeReason = `${route.complex ? 'сложная' : 'простая'} задача: ${route.reason}`;
         // Модель из настроек маршрутизации может не поддерживаться текущим провайдером:
         // резолвим её так же, как явный выбор, чтобы не отправить запрос в никуда
         const routedModel = await resolveModelForProvider(provider, route.model, route.model, providerName);
@@ -544,6 +548,15 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
           `Израсходовано ${budget.percent}% лимита сессии ($${sessionSpent.toFixed(4)}). Лимит: $${routeConfig.get<number>('budget.sessionLimitUsd', 0).toFixed(2)}.`,
         );
       }
+
+      // P9 S3: прогноз и факт выбора модели сохраняем в историю — иначе лимит бюджета
+      // и авто-выбор невидимы: пользователь не понимает, сработал ли лимит и кто выбрал модель
+      this.runHistoryStore.updateRun(runId, {
+        forecastUsd: estimate.cost,
+        ...(autoModelApplied
+          ? { autoModel: true, ...(routeReason ? { routeReason } : {}) }
+          : {}),
+      });
 
       // Резервируем прогноз за этим прогоном: снимаем в finalizeRun (успех, ошибка, отмена)
       if (budgetLimit > 0 && estimate.cost > 0) {
@@ -735,6 +748,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     }
 
     this.runHistoryStore.updateRun(runId, {
+      // Модель и провайдер перезаписываем фактом: при авто-выборе запись создавалась
+      // до маршрутизации, и в истории оставалось имя модели, которая не отвечала
+      model,
+      provider,
       tokensIn,
       tokensOut,
       steps,

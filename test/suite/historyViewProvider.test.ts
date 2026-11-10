@@ -134,6 +134,14 @@ suite('HistoryViewProvider', () => {
     assert.match(html, /entry\.tools/, 'значение берётся из записи истории');
   });
 
+  test('HV-14: прогноз и авто-выбор модели видны в истории', () => {
+    const html = (provider as any).getHtmlContent();
+    assert.match(html, /forecastUsd/, 'прогноз стоимости рендерится в деталях');
+    assert.match(html, /Прогноз \/ факт/, 'рядом с фактом видно, что было обещано');
+    assert.match(html, /auto-badge/, 'пометка «авто» есть в разметке');
+    assert.match(html, /routeReason/, 'причина решения роутера выводится в деталях');
+  });
+
   test('getHtmlContent: детали — оверлей-дровер, не зарезервированная панель', () => {
     const html = (provider as any).getHtmlContent();
     assert.ok(html.includes('detail-overlay'), 'оверлей деталей есть');
