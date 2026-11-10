@@ -8,7 +8,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { loadAgentsMd, buildRulesReport } from '../../../src/shared/AgentsMdLoader';
-import { applySettings, SettingsSnapshot } from './helpers/settings';
+import { applySettings, getSetting, SettingsSnapshot } from './helpers/settings';
 
 /** Корень рабочего пространства, а не каталог репозитория: e2e открывает копию фикстуры. */
 function workspaceRoot(): string {
@@ -31,7 +31,10 @@ suite('E2E-12: источники правил проекта', () => {
     createdLlmaDir = !fs.existsSync(path.join(root, '.llma'));
     // Файлов .llma/main.md и CLAUDE.md в фикстуре нет: создаём и убираем за собой
     fs.mkdirSync(path.join(root, '.llma'), { recursive: true });
-    fs.writeFileSync(llmaMain, '# Правила плагина\nE2E-LLMA-MAIN-MARKER\n', 'utf-8');
+    // Тело намеренно длинное: минимально допустимый лимит в схеме — 1000 знаков,
+    // иначе обрезку нечем проверить на маленькой фикстуре
+    const longBody = Array.from({ length: 60 }, (_, i) => `правило ${i + 1}: держим однострочные комментарии`).join('\n');
+    fs.writeFileSync(llmaMain, `# Правила плагина\nE2E-LLMA-MAIN-MARKER\n${longBody}\n`, 'utf-8');
     fs.writeFileSync(claudeMd, '# Правила Claude Code\nE2E-CLAUDE-MARKER\n', 'utf-8');
     // Активный редактор в корне: загрузчик берёт корень активного редактора
     await vscode.window.showTextDocument(vscode.Uri.file(path.join(root, 'README.md')));
@@ -77,16 +80,18 @@ suite('E2E-12: источники правил проекта', () => {
     const full = await loadAgentsMd();
     assert.ok(full && full.includes('E2E-CLAUDE-MARKER'), 'при дефолтном лимите доходит до третьего источника');
 
-    // Смена настройки должна применяться сразу: лимит входит в ключ кеша (дефект ревью P7)
-    snap = await applySettings({ 'agentsMd.maxChars': 300 });
+    // Смена настройки должна применяться сразу: лимит входит в ключ кеша (дефект ревью P7).
+    // 1000 — минимум по схеме настройки, меньшее значение VS Code не примет.
+    snap = await applySettings({ 'agentsMd.maxChars': 1000 });
+    assert.strictEqual(getSetting<number>('agentsMd.maxChars'), 1000, 'лимит доехал до настроек');
     const limited = await loadAgentsMd();
     assert.ok(limited, 'правила собраны при малом лимите');
     assert.ok(!limited!.includes('E2E-CLAUDE-MARKER'), 'третий источник отрезан лимитом');
-    assert.ok(limited!.length <= 320, `в промпт ушло не больше лимита плюс запас: ${limited!.length}`);
+    assert.ok(limited!.length <= 1100, `в промпт ушло не больше лимита плюс запас: ${limited!.length}`);
 
     const report = await buildRulesReport();
     assert.ok(/обрезано лимитом/.test(report), `отчёт помечает обрезку:\n${report}`);
-    assert.ok(/лимит: 300 знаков/.test(report), 'в отчёте виден действующий лимит');
+    assert.ok(/лимит: 1000 знаков/.test(report), 'в отчёте виден действующий лимит');
   });
 
   test('E2E-12c: команда «Показать источники правил» отрабатывает и перечисляет файлы', async function () {

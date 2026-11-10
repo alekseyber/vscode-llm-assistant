@@ -87,10 +87,17 @@ suite('E2E-10: ReAct с patch_file и search_files (живой HTTP)', () => {
       assert.strictEqual(result.answer, 'Готово: файл обновлён.');
       assert.strictEqual(result.iterations, 3, 'два инструментальных шага и финальный ответ');
 
-      // 3) Observation действительно попал в следующий запрос — иначе цикл «реагирует» вхолостую
-      const secondBody = JSON.stringify(stub.bodies[1] ?? {});
+      // 3) Observation действительно попал в следующий запрос — иначе цикл «реагирует» вхолостую.
+      // Берём только тела /api/chat: в общий журнал попадают ещё /api/ps и /api/tags.
+      const chatBodies = stub.bodies.filter((body) => Array.isArray(body?.messages));
+      assert.ok(chatBodies.length >= 3, `запросов к /api/chat: ${chatBodies.length}`);
+      const secondBody = JSON.stringify(chatBodies[1]);
       assert.ok(secondBody.includes('содержимое'), 'во второй запрос ушёл результат search_files');
-      assert.ok(secondBody.includes('Файл обновлён') || secondBody.includes('новое содержимое'), 'результат patch_file вернулся агенту');
+      const thirdBody = JSON.stringify(chatBodies[2]);
+      assert.ok(
+        thirdBody.includes('Файл обновлён') || thirdBody.includes('новое содержимое'),
+        'результат patch_file вернулся агенту',
+      );
     } finally {
       await stub.close();
     }

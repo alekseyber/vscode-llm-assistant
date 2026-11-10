@@ -11,7 +11,7 @@ import { ConversationManager } from '../../../src/modes/chat/ConversationManager
 import { ProviderManager } from '../../../src/providers/manager';
 import { RunHistoryStore } from '../../../src/shared/RunHistoryStore';
 import { SessionLog } from '../../../src/shared/SessionLog';
-import { applySettings, SettingsSnapshot } from './helpers/settings';
+import { applySettings, getSetting, SettingsSnapshot } from './helpers/settings';
 import { startStub, json } from './helpers/net';
 import { createFakeWebviewView, messagesOfType } from './helpers/webview';
 import { waitFor } from './helpers/wait';
@@ -45,7 +45,7 @@ suite('E2E-11: лимит бюджета отменяет прогон до за
       },
       defaultProvider: 'paid',
       defaultModel: 'gpt-4o',
-      'budget.sessionLimitUsd': 0.000001,
+      'budget.sessionLimitUsd': 0.005,
       'chat.summaryEnabled': false,
       'chat.includeOpenFile': false,
       'retry.enabled': false,
@@ -89,6 +89,7 @@ suite('E2E-11: лимит бюджета отменяет прогон до за
 
     view.send({ type: 'sendMessage', text: 'привет, это дорогая модель', mode: 'chat', provider: 'paid', model: 'gpt-4o' });
 
+    assert.strictEqual(getSetting<number>('budget.sessionLimitUsd'), 0.005, 'лимит бюджета доехал до настроек');
     const run = (await waitFor(
       () => {
         const record = history.getRuns(1)[0];
@@ -98,7 +99,7 @@ suite('E2E-11: лимит бюджета отменяет прогон до за
       50,
       'запись прогона в конечном статусе',
     ))!;
-    assert.strictEqual(run.status, 'cancelled', 'прогон отменён, а не отправлен');
+    assert.strictEqual(run.status, 'cancelled', `прогон отменён, а не отправлен (диалоги: ${dialogs.join(' | ')})`);
     assert.ok(/лимит/i.test(String(run.error ?? '')), `причина отмены про лимит: ${String(run.error)}`);
 
     assert.ok(!stub.hits['/chat/completions'], 'провайдер не получил ни одного запроса');
