@@ -50,10 +50,24 @@ export function getSkillTemplate(workspacePath?: string): string {
   if (workspacePath) {
     const catalog = getSkillCatalog(workspacePath);
     if (catalog.length > 0) {
-      const table = catalog
-        .map(s => `| ${s.name} | ${s.description} |`)
-        .join('\n');
-      template += `\n\n## Доступные скилы\n\n| Имя | Описание |\n|-----|----------|\n${table}\n\n**ПРАВИЛО:** если задача пользователя соответствует скилу — ПЕРВЫМ ДЕЛОМ вызови read_file(.llma/skills/<имя>.md) и строго следуй его правилам. НЕ ПРИСТУПАЙ к задаче пока не прочитал скил.`;
+      const header = '\n\n## Доступные скилы\n\n| Имя | Описание | Файл |\n|-----|----------|------|\n';
+      const rows: string[] = [];
+      let size = header.length;
+      for (const skill of catalog) {
+        const row = `| ${skill.name} | ${skill.description} | ${skill.path} |`;
+        // Каталог не должен съедать контекст: пока влезает — добавляем, дальше считаем
+        if (size + row.length + 1 > MAX_CATALOG_CHARS) break;
+        rows.push(row);
+        size += row.length + 1;
+      }
+      const hidden = catalog.length - rows.length;
+      const tail = hidden > 0
+        ? `\n\n…каталог обрезан лимитом: не показано ${hidden} скилов из ${catalog.length}`
+        : '';
+      template +=
+        `${header}${rows.join('\n')}${tail}\n\n` +
+        '**ПРАВИЛО:** если задача пользователя соответствует скилу — ПЕРВЫМ ДЕЛОМ вызови ' +
+        'read_file(<Файл> из таблицы) и строго следуй его правилам. НЕ ПРИСТУПАЙ к задаче пока не прочитал скил.';
     }
   }
 
@@ -64,7 +78,15 @@ export function getSkillTemplate(workspacePath?: string): string {
 export interface SkillInfo {
   name: string;
   description: string;
+  /** Путь относительно корня рабочего пространства — агент читает именно его. */
+  path: string;
 }
+
+/** Скил-файл больше этого не читаем: это не инструкция, а свалка. */
+const MAX_SKILL_FILE_BYTES = 256 * 1024;
+
+/** Лимит на таблицу каталога в промпте: каталог не должен съедать контекст. */
+const MAX_CATALOG_CHARS = 6_000;
 
 /** Парсинг YAML-подобного frontmatter между ---. Допустимые ключи. */
 export function parseFrontmatter(content: string): Record<string, string> {
@@ -84,25 +106,83 @@ export function parseFrontmatter(content: string): Record<string, string> {
   return result;
 }
 
-/** Сканирует .llma/skills/ и возвращает каталог скилов. */
+/**
+ * Каталог скилов из двух форматов:
+ *   `.llma/skills/<имя>.md`         — собственный формат плагина;
+ *   `.claude/skills/<имя>/SKILL.md` — формат Claude Code (frontmatter + тело).
+ *
+ * Приоритет у `.llma`: если имя совпадает, скил из `.claude` не дублируется.
+ * Симлинки пропускаем: скил-файл может указывать куда угодно, а читаем мы только
+ * то, что лежит внутри рабочего пространства.
+ */
 export function getSkillCatalog(workspacePath: string): SkillInfo[] {
+  const catalog: SkillInfo[] = [];
+  const seen = new Set<string>();
+
+  const addSkill = (name: string, description: string, relPath: string): void => {
+    const key = name.trim().toLowerCase();
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    catalog.push({ name, description, path: relPath });
+  };
+
+  // 1. .llma/skills/*.md
   try {
     const skillsDir = path.join(workspacePath, '.llma', 'skills');
-    if (!fs.existsSync(skillsDir)) return [];
-
-    const entries = fs.readdirSync(skillsDir);
-    return entries
-      .filter(f => f.endsWith('.md'))
-      .map(fileName => {
-        const filePath = path.join(skillsDir, fileName);
+    if (fs.existsSync(skillsDir)) {
+      for (const entry of fs.readdirSync(skillsDir, { withFileTypes: true })) {
+        if (!entry.isFile() || !entry.name.endsWith('.md')) continue;
+        const filePath = path.join(skillsDir, entry.name);
+        if (isReadableSkillFile(filePath)) continue; // пропускаем гигантские/битые
         const content = tryReadFile(filePath) || '';
         const fm = parseFrontmatter(content);
-        const name = fm.name || fm.role || fileName.replace(/\.md$/, '');
-        const description = fm.description || content.replace(/^---[\s\S]*?---\n?/, '').slice(0, 80).trim();
-        return { name, description };
-      });
+        const name = fm.name || fm.role || entry.name.replace(/\.md$/, '');
+        const description = fm.description || stripFrontmatter(content).slice(0, 80).trim();
+        addSkill(name, description, `.llma/skills/${entry.name}`);
+      }
+    }
   } catch {
-    return [];
+    /* нет каталога — это нормально */
+  }
+
+  // 2. .claude/skills/<имя>/SKILL.md
+  try {
+    const claudeDir = path.join(workspacePath, '.claude', 'skills');
+    if (fs.existsSync(claudeDir)) {
+      for (const entry of fs.readdirSync(claudeDir, { withFileTypes: true })) {
+        if (!entry.isDirectory() || entry.isSymbolicLink()) continue;
+        const skillFile = path.join(claudeDir, entry.name, 'SKILL.md');
+        if (!fs.existsSync(skillFile) || isReadableSkillFile(skillFile)) continue;
+        const content = tryReadFile(skillFile) || '';
+        const fm = parseFrontmatter(content);
+        // Имя из frontmatter канонично, но только если оно похоже на имя скила:
+        // битый YAML вида `name: [не yaml` дал бы путь, который агент не прочитает
+        const rawName = (fm.name ?? '').trim();
+        const name = /^[a-zA-Z0-9._-]+$/.test(rawName) ? rawName : entry.name;
+        const description = fm.description || stripFrontmatter(content).slice(0, 80).trim();
+        addSkill(name, description, `.claude/skills/${entry.name}/SKILL.md`);
+      }
+    }
+  } catch {
+    /* нет каталога — нормально */
+  }
+
+  return catalog;
+}
+
+/** Тело скила без frontmatter — для описания, когда `description` не задан. */
+function stripFrontmatter(content: string): string {
+  return content.replace(/^---\n[\s\S]*?\n---\n?/, '').trim();
+}
+
+/** true, если файл читать не стоит (слишком большой). */
+function isReadableSkillFile(filePath: string): boolean {
+  try {
+    const stat = fs.lstatSync(filePath);
+    if (stat.isSymbolicLink()) return true;
+    return stat.size > MAX_SKILL_FILE_BYTES;
+  } catch {
+    return true;
   }
 }
 
@@ -210,12 +290,19 @@ function tryReadFile(filePath: string): string | null {
   } catch { return null; }
 }
 
-/** Загрузить скил из .llma/skills/{name}.md */
+/**
+ * Загрузить скил по имени: сначала `.llma/skills/<имя>.md`, затем
+ * `.claude/skills/<имя>/SKILL.md`. Возвращает содержимое файла (с frontmatter).
+ */
 export function loadSkillMd(skillName: string): string | null {
   const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
   if (!workspaceFolder) return null;
-  const skillPath = path.join(workspaceFolder.uri.fsPath, '.llma', 'skills', `${skillName}.md`);
-  return tryReadFile(skillPath);
+  const root = workspaceFolder.uri.fsPath;
+  const own = path.join(root, '.llma', 'skills', `${skillName}.md`);
+  const ownContent = tryReadFile(own);
+  if (ownContent) return ownContent;
+  const claude = path.join(root, '.claude', 'skills', skillName, 'SKILL.md');
+  return tryReadFile(claude);
 }
 
 export function invalidateRoleCache(): void { roleCache.clear(); }

@@ -1,6 +1,6 @@
 ---
 component: RoleAgentsMdLoader
-version: 0.9.0
+version: 0.10.0
 status: stable
 since: 0.7.0
 ---
@@ -128,6 +128,7 @@ interface SkillInfo {
 
 | Версия | Дата | Изменения |
 |--------|------|-----------|
+| 0.10.0 | 2026-11-10 | Каталог скилов из двух форматов: `.llma/skills/<имя>.md` и `.claude/skills/<имя>/SKILL.md` (P7 этап 2). В `SkillInfo` появился `path` — агент читает файл по фактическому пути из таблицы, а не по догадке `.llma/skills/<имя>.md`. Приоритет `.llma`, дубли по имени не грузятся. Симлинки и файлы >256 КБ пропускаются, битое имя во frontmatter заменяется именем каталога, каталог в промпте ограничен 6 000 знаков с пометкой об обрезке. AC `CLS-1..4` |
 | 0.9.0 | 2026-08-11 | .llma/skills/ вместо agents/; name вместо role; loadSkillMd(); /skill инжект |
 | 0.9.0 | 2026-08-08 | SKILL_TEMPLATE, getSkillCatalog, parseFrontmatter — каталог скилов |
 | 0.7.0 | 2026-08-05 | `loadRoleAgentsMd()` |

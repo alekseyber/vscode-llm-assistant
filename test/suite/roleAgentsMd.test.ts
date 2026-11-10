@@ -141,6 +141,64 @@ suite('RoleAgentsMdLoader', () => {
     } finally { fs.rmSync(dir, { recursive: true, force: true }); }
   });
 
+  test('CLS-1: скил из .claude/skills/<имя>/SKILL.md попадает в каталог с путём', () => {
+    const dir = setupDir({
+      '.claude/skills/reviewer/SKILL.md': [
+        '---',
+        'name: reviewer',
+        'description: Проверяет код по чек-листу',
+        '---',
+        '',
+        '# Reviewer',
+      ].join('\n'),
+    });
+    try {
+      const catalog = getSkillCatalog(dir);
+      assert.strictEqual(catalog.length, 1);
+      assert.strictEqual(catalog[0].name, 'reviewer');
+      assert.strictEqual(catalog[0].path, '.claude/skills/reviewer/SKILL.md', 'агент должен знать, что читать');
+      assert.match(catalog[0].description, /Проверяет код/);
+    } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  });
+
+  test('CLS-2: одно имя в двух каталогах — приоритет у .llma, дубля нет', () => {
+    const dir = setupDir({
+      '.llma/skills/coder.md': ['---', 'name: coder', 'description: Из .llma', '---', '# Role'].join('\n'),
+      '.claude/skills/coder/SKILL.md': ['---', 'name: coder', 'description: Из .claude', '---', '# Role'].join('\n'),
+    });
+    try {
+      const catalog = getSkillCatalog(dir);
+      assert.strictEqual(catalog.length, 1, 'дубль не должен попадать в каталог');
+      assert.strictEqual(catalog[0].path, '.llma/skills/coder.md');
+      assert.match(catalog[0].description, /Из \.llma/);
+    } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  });
+
+  test('CLS-3: битый frontmatter в .claude — имя из каталога, без падения', () => {
+    const dir = setupDir({
+      '.claude/skills/broken/SKILL.md': ['---', 'name: [не yaml', '---', 'Текст инструкции'].join('\n'),
+    });
+    try {
+      const catalog = getSkillCatalog(dir);
+      assert.strictEqual(catalog.length, 1);
+      assert.strictEqual(catalog[0].name, 'broken', 'запасное имя — имя каталога');
+      assert.match(catalog[0].description, /Текст инструкции/);
+    } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  });
+
+  test('CLS-4: каталог обрезается лимитом и говорит об этом', () => {
+    const files: Record<string, string> = {};
+    for (let i = 0; i < 120; i += 1) {
+      files[`.llma/skills/skill-${i}.md`] = ['---', `name: skill-${i}`, `description: ${'описание '.repeat(8)}`, '---'].join('\n');
+    }
+    const dir = setupDir(files);
+    try {
+      const template = getSkillTemplate(dir);
+      assert.match(template, /каталог обрезан лимитом/);
+      assert.ok(template.length < 9000, `промпт не раздут каталогом (${template.length})`);
+    } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  });
+
   test('SC-2: parseFrontmatter() — валидный frontmatter', () => {
     // name (приоритетный)
     const r1 = parseFrontmatter(['---', 'name: coder', 'version: 1.0', 'description: Dev', '---', '# Content'].join('\n'));
