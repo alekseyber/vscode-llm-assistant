@@ -12,8 +12,14 @@ export interface StubServer {
 
 export type StubHandler = (req: http.IncomingMessage, res: http.ServerResponse, body: any) => void;
 
-/** HTTP-сервер на эфемерном порту: отдаёт то, что велит обработчик, и журналирует запросы. */
-export async function startStub(handler: StubHandler, port = 0): Promise<StubServer> {
+/**
+ * HTTP-сервер на эфемерном порту: отдаёт то, что велит обработчик, и журналирует запросы.
+ *
+ * `host` нужен, когда адрес важен для поведения плагина: провайдер на 127.0.0.1
+ * считается локальным (`isLocalBaseUrl`), и цены его моделей обнуляются. Тесты,
+ * которым нужен настоящий прайс, слушают не-loopback адрес.
+ */
+export async function startStub(handler: StubHandler, port = 0, host = '127.0.0.1'): Promise<StubServer> {
   const hits: Record<string, number> = {};
   const bodies: any[] = [];
   const server = http.createServer((req, res) => {
@@ -32,10 +38,10 @@ export async function startStub(handler: StubHandler, port = 0): Promise<StubSer
       handler(req, res, body);
     });
   });
-  await new Promise<void>((resolve) => server.listen(port, '127.0.0.1', () => resolve()));
+  await new Promise<void>((resolve) => server.listen(port, host, () => resolve()));
   const boundPort = (server.address() as any).port;
   return {
-    url: `http://127.0.0.1:${boundPort}`,
+    url: `http://${host === '0.0.0.0' ? '127.0.0.1' : host}:${boundPort}`,
     hits,
     bodies,
     close: () => new Promise<void>((resolve) => server.close(() => resolve())),

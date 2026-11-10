@@ -4,6 +4,7 @@
 
 import 'mocha';
 import * as assert from 'assert';
+import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { ChatViewProvider } from '../../../src/modes/chat/ChatViewProvider';
@@ -28,6 +29,19 @@ function memoryMemento(): any {
 }
 
 const REPO_ROOT = path.resolve(__dirname, '../../../..');
+
+/**
+ * Не-loopback адрес машины: провайдер на 127.0.0.1 плагин считает локальным
+ * (`isLocalBaseUrl`) и обнуляет цены его моделей — тогда лимит бюджета не проверить.
+ */
+function stubHost(): string | undefined {
+  for (const list of Object.values(os.networkInterfaces())) {
+    for (const entry of list ?? []) {
+      if (entry.family === 'IPv4' && !entry.internal) return entry.address;
+    }
+  }
+  return undefined;
+}
 
 suite('E2E-11: лимит бюджета отменяет прогон до запроса', () => {
   let snap: SettingsSnapshot | undefined;
@@ -66,14 +80,16 @@ suite('E2E-11: лимит бюджета отменяет прогон до за
     provider.resolveWebviewView(view as any, {} as any, { isCancellationRequested: false } as any);
   }
 
-  setup(async () => {
+  setup(async function () {
+    const host = stubHost();
+    if (!host) this.skip();
     dialogs.length = 0;
     // Отказ пользователя: модальный диалог вернул «ничего»
     (vscode.window as any).showWarningMessage = async (msg: string) => {
       dialogs.push(String(msg));
       return undefined;
     };
-    stub = await startStub((_req, res) => json(res, { error: 'до сюда доходить не должно' }, 500));
+    stub = await startStub((_req, res) => json(res, { error: 'до сюда доходить не должно' }, 500), 0, host!);
   });
 
   teardown(async () => {
