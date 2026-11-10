@@ -251,9 +251,36 @@ suite('RoleAgentsMdLoader', () => {
       const roles = loadClaudeAgentRoles(dir);
       assert.strictEqual(roles.length, 1);
       assert.strictEqual(roles[0].name, 'reviewer');
-      assert.match(roles[0].systemPrompt, /Проверяет код/);
+      assert.strictEqual(roles[0].description, 'Проверяет код', 'описание хранится отдельно, не в промпте');
       assert.match(roles[0].systemPrompt, /чек-листу/);
+      assert.doesNotMatch(roles[0].systemPrompt, /Проверяет код/, 'UI-подпись не уходит в системный промпт');
       assert.deepStrictEqual(roles[0].allowedTools, ['read_file', 'search_files'], 'незнакомые инструменты отброшены');
+    } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  });
+
+  test('CLA-4: `tools: []` — явный запрет инструментов, а не «все доступны»', () => {
+    const dir = setupDir({
+      '.claude/agents/reader.md': ['---', 'name: reader', 'tools: []', '---', 'Только читай'].join('\n'),
+      '.claude/agents/free.md': ['---', 'name: free', '---', 'Делай что хочешь'].join('\n'),
+    });
+    try {
+      const roles = loadClaudeAgentRoles(dir);
+      const reader = roles.find((r) => r.name === 'reader')!;
+      const free = roles.find((r) => r.name === 'free')!;
+      assert.deepStrictEqual(reader.allowedTools, [], 'пустой список — запрет всего');
+      assert.strictEqual(free.allowedTools, undefined, 'поле не задано — без ограничений');
+    } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  });
+
+  test('CLA-5: два файла с одним именем в .claude — одна роль', () => {
+    const dir = setupDir({
+      '.claude/agents/a-first.md': ['---', 'name: reviewer', '---', 'Первый'].join('\n'),
+      '.claude/agents/b-second.md': ['---', 'name: reviewer', '---', 'Второй'].join('\n'),
+    });
+    try {
+      const roles = loadClaudeAgentRoles(dir);
+      assert.strictEqual(roles.length, 1, 'дубль по имени отброшен');
+      assert.match(roles[0].systemPrompt, /Первый/);
     } finally { fs.rmSync(dir, { recursive: true, force: true }); }
   });
 

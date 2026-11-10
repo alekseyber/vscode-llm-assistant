@@ -206,7 +206,10 @@ function isSkippableSkillFile(filePath: string): boolean {
 const roleCache = new Map<string, string | null>();
 
 export function loadRoleAgentsMd(roleName: string): string | null {
-  const cacheKey = `role:${roleName}`;
+  const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+  if (!root) return null;
+  // Ключ включает корень: без него роль из одного проекта отдавалась в другом
+  const cacheKey = `role:${root}:${roleName}`;
   if (roleCache.has(cacheKey)) return roleCache.get(cacheKey) ?? null;
 
   try {
@@ -258,13 +261,12 @@ export function loadOrchestratorRoles(): AgentRole[] {
       }
     }
 
-    // Роли из .claude/agents добавляем после цепочки .llma: проекты под Claude Code
-    // получают свою оркестрацию, даже если .llma/agents вообще нет
-    const claudeRoles = loadClaudeAgentRoles(root)
-      .filter((role) => !chained.some((own) => own.name === role.name));
+    // Если цепочка этапов задана в .llma/agents — работаем по ней и не подмешиваем
+    // чужие роли: иначе @orchestrate теряет порядок этапов
+    if (chained.length > 0) return chained;
 
-    const result = [...chained, ...claudeRoles];
-    return result.length > 0 ? result : getFallbackRoles();
+    const claudeRoles = loadClaudeAgentRoles(root);
+    return claudeRoles.length > 0 ? claudeRoles : getFallbackRoles();
   } catch {
     return getFallbackRoles();
   }
@@ -294,6 +296,7 @@ export function loadAllAgentRoles(): AgentRole[] {
     // .claude/agents — после своих ролей; одноимённые не дублируются
     const claudeRoles = loadClaudeAgentRoles(root)
       .filter((role) => !own.some((mine) => mine.name === role.name));
+    own.sort((a, b) => a.name.localeCompare(b.name));
     return [...own, ...claudeRoles];
   } catch {
     return [];
@@ -318,18 +321,23 @@ export const ASSIGNABLE_TOOLS = [
   'ask_user',
 ] as const;
 
-/** Разобрать `tools:` из frontmatter: `[a, b]`, `a, b` или `a b`. */
+/**
+ * Разобрать `tools:` из frontmatter: `[a, b]`, `a, b` или `a b`.
+ *
+ * Возвращает `undefined`, если поле не задано (роль получает все инструменты),
+ * и `[]`, если задано пустым (`tools: []`) — это осознанный запрет всего.
+ * Разница важна: `[]` не должен превращаться в «все инструменты».
+ */
 export function parseToolsField(raw: string | undefined): string[] | undefined {
-  if (!raw) return undefined;
-  const cleaned = raw.replace(/^\[/, '').replace(/\]$/, '');
+  if (raw === undefined) return undefined;
+  const cleaned = raw.replace(/^\[/, '').replace(/\]$/, '').trim();
   const names = cleaned
     .split(/[,\s]+/)
     .map((name) => name.trim().replace(/^['"]|['"]$/g, ''))
     .filter(Boolean);
   const allowed = new Set<string>(ASSIGNABLE_TOOLS);
-  const valid = names.filter((name) => allowed.has(name));
   // Незнакомые имена отбрасываем: роль не должна получать инструмент, которого нет
-  return valid.length > 0 ? [...new Set(valid)] : undefined;
+  return [...new Set(names.filter((name) => allowed.has(name)))];
 }
 
 /**
@@ -337,7 +345,7 @@ export function parseToolsField(raw: string | undefined): string[] | undefined {
  * Приоритет у `.llma/agents` — при совпадении имени роль из `.claude` не берётся.
  */
 export function loadClaudeAgentRoles(workspacePath: string): AgentRole[] {
-  const roles: AgentRole[] = [];
+  const byName = new Map<string, AgentRole>();
   try {
     const agentsDir = path.join(workspacePath, '.claude', 'agents');
     if (!fs.existsSync(agentsDir)) return [];
@@ -353,24 +361,26 @@ export function loadClaudeAgentRoles(workspacePath: string): AgentRole[] {
       const rawName = (fm.name ?? '').trim();
       const fallback = entry.name.replace(/\.md$/, '');
       const name = /^[a-zA-Z0-9._-]+$/.test(rawName) ? rawName : fallback;
+      // `description` в Claude Code — подпись для выбора роли, а не инструкция.
+      // В системный промпт идёт только тело; описание храним отдельно.
       const body = stripFrontmatter(content);
       const description = (fm.description ?? '').trim();
-      const systemPrompt = description && !body.startsWith(description)
-        ? `${description}\n\n${body}`.trim()
-        : (body || description);
+      const systemPrompt = body || description;
       if (!systemPrompt) continue;
+      if (byName.has(name)) continue; // первый по алфавиту файл выигрывает, дублей нет
 
       const allowedTools = parseToolsField(fm.tools);
-      roles.push({
+      byName.set(name, {
         name,
         systemPrompt,
-        ...(allowedTools ? { allowedTools } : {}),
+        ...(description ? { description } : {}),
+        ...(allowedTools !== undefined ? { allowedTools } : {}),
       });
     }
   } catch {
     return [];
   }
-  return roles.sort((a, b) => a.name.localeCompare(b.name));
+  return [...byName.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 
 /** Fallback-роли, если .llma/agents/ пуст или отсутствует */

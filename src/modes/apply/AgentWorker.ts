@@ -27,10 +27,15 @@ export interface AgentRole {
   name: string;
   /** Системный промпт — определяет поведение агента */
   systemPrompt: string;
-  /** Разрешённые инструменты (имена). Пустой массив = все доступны */
+  /**
+   * Разрешённые инструменты (имена). `undefined` — все доступны,
+   * `[]` — запрещены все (роль явно ограничила себя).
+   */
   allowedTools?: string[];
   /** Модель для этого воркера (если не указана — используется глобальная) */
   model?: string;
+  /** Подпись роли для выбора/логов (не часть системного промпта) */
+  description?: string;
 }
 
 /**
@@ -165,7 +170,9 @@ export class AgentWorker {
       : getToolSchemas();
     const extraTools = this.options.extraTools || [];
     const allToolSchemas = [...baseToolSchemas, ...extraTools];
-    const toolSchemas = this.role.allowedTools?.length
+    // `[]` — осознанный запрет инструментов, `undefined` — без ограничений
+    const restricted = Array.isArray(this.role.allowedTools);
+    const toolSchemas = restricted
       ? allToolSchemas.filter((t: any) => this.role.allowedTools!.includes(t.function.name))
       : allToolSchemas;
 
@@ -307,7 +314,7 @@ export class AgentWorker {
           if (!toolName) continue;
 
           // Проверяем allow-list (на уровне воркера)
-          if (this.role.allowedTools?.length && !this.role.allowedTools.includes(toolName)) {
+          if (Array.isArray(this.role.allowedTools) && !this.role.allowedTools.includes(toolName)) {
             messages.push({
               role: 'tool', tool_call_id: tc.id,
               content: `Инструмент '${toolName}' запрещён allow-list роли '${this.role.name}'`,
