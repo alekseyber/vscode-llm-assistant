@@ -495,6 +495,7 @@ export class HistoryViewProvider implements vscode.WebviewViewProvider {
           '<div><span class="label">Модель:</span> ' + entry.model + '</div>' +
           '<div><span class="label">Задача:</span> ' + escapeHtml(entry.task) + '</div>' +
           '<div><span class="label">Шагов:</span> ' + entry.steps + '</div>' +
+          (entry.tools ? '<div><span class="label">Инструменты:</span> ' + entry.tools + '</div>' : '') +
           '<div><span class="label">Токены (вход / выход):</span> ' + entry.tokensIn + ' / ' + entry.tokensOut + '</div>' +
           '<div><span class="label">Стоимость:</span> $' + entry.cost.toFixed(6) + '</div>' +
           '<div><span class="label">Длительность:</span> ' + durationSec + ' сек</div>' +

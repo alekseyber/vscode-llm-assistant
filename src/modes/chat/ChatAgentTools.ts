@@ -303,7 +303,34 @@ const webFetchTool: ChatTool = {
 
 const askUserTool = createAskUserTool();
 
-export const CHAT_AGENT_TOOLS: ChatTool[] = [askUserTool, readFileTool, writeFileTool, replaceInFileTool, listFilesTool, searchFilesTool, runTerminalTool, delegateToAgentTool, webFetchTool];
+/** Счётчики вызовов инструментов за текущий прогон: имя → сколько раз. */
+const toolCallStats = new Map<string, number>();
+
+/**
+ * Снять статистику вызовов инструментов и обнулить счётчики.
+ *
+ * Нужна для замера «сколько шагов уходит на поиск»: пишется в историю прогона,
+ * чтобы решение о локальном индексе принималось по цифрам, а не по гипотезе.
+ */
+export function takeToolCallStats(): Record<string, number> {
+  const stats: Record<string, number> = {};
+  for (const [name, count] of toolCallStats) stats[name] = count;
+  toolCallStats.clear();
+  return stats;
+}
+
+/** Обёртка инструмента: считает вызовы, поведение не меняет. */
+function counted(tool: ChatTool): ChatTool {
+  return {
+    ...tool,
+    execute: async (args: Record<string, unknown>) => {
+      toolCallStats.set(tool.name, (toolCallStats.get(tool.name) ?? 0) + 1);
+      return tool.execute(args);
+    },
+  };
+}
+
+export const CHAT_AGENT_TOOLS: ChatTool[] = [askUserTool, readFileTool, writeFileTool, replaceInFileTool, listFilesTool, searchFilesTool, runTerminalTool, delegateToAgentTool, webFetchTool].map(counted);
 
 /** Получить отфильтрованные по allow-list инструменты */
 function getAllowedChatTools(): ChatTool[] {

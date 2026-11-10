@@ -12,6 +12,7 @@ import { ChatMessage, TokenUsage, calculateCost } from '../../providers/types';
 import { loadAgentsMd } from '../../shared/AgentsMdLoader';
 import { loadRoleAgentsMd, loadOrchestratorRoles, loadAllAgentRoles, getSkillTemplate, loadSkillMd, getSkillCatalog } from '../../shared/RoleAgentsMdLoader';
 import { loadToolAllowListConfig, isConfirmationRequired } from '../apply/ToolAllowList';
+import { takeToolCallStats } from './ChatAgentTools';
 import { McpClient, loadMcpConfig } from '../apply/McpClient';
 import { AgentWorker, AgentRole } from '../apply/AgentWorker';
 import { AgentOrchestrator, MultiAgentTask, MultiAgentResult } from '../apply/AgentOrchestrator';
@@ -394,6 +395,9 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     let inTokens = 0;
     let outTokens = 0;
 
+    // Счётчики инструментов — на текущий прогон (замер для решения по индексу)
+    takeToolCallStats();
+
     try {
       const systemPrompt = await this.getSystemPrompt(mode, providerName);
       const historyMessages = await this.conversationManager.getMessagesForRequest(provider);
@@ -616,6 +620,15 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   ): void {
     const duration = Date.now() - startTime;
     const cost = calculateCost(model, tokensIn, tokensOut, this.providerManager.pricingMap);
+    // Замер: какие инструменты и сколько раз звал агент на этом прогоне
+    const stats = takeToolCallStats();
+    const tools = Object.entries(stats)
+      .sort((a, b) => b[1] - a[1])
+      .map(([name, count]) => `${name}×${count}`)
+      .join(', ');
+    if (tools) {
+      console.log(`[run] инструменты: ${tools} (шагов ${steps})`);
+    }
 
     this.runHistoryStore.updateRun(runId, {
       tokensIn,
@@ -625,6 +638,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       cost: Math.round(cost * 1e6) / 1e6,
       status,
       ...(error ? { error } : {}),
+      ...(tools ? { tools } : {}),
     });
     this.historyViewProvider?.refresh();
     this.broadcastRunState(this.runHistoryStore.getRun(runId)?.sessionId, false);

@@ -36,6 +36,8 @@ export interface RunEntry {
   error?: string;
   /** ID чат-сессии, к которой относится запуск (для перехода по двойному клику) */
   sessionId?: string;
+  /** Вызовы инструментов за прогон, например «search_files×2, read_file×3» (для замеров) */
+  tools?: string;
 }
 
 // --- Константы ---

@@ -128,6 +128,12 @@ suite('HistoryViewProvider', () => {
     assert.strictEqual(store.getRuns().length, 1);
   });
 
+  test('HV-13: в деталях прогона видно вызовы инструментов (замер поиска)', () => {
+    const html = (provider as any).getHtmlContent();
+    assert.match(html, /Инструменты:/, 'поле для замера рендерится в деталях');
+    assert.match(html, /entry\.tools/, 'значение берётся из записи истории');
+  });
+
   test('getHtmlContent: детали — оверлей-дровер, не зарезервированная панель', () => {
     const html = (provider as any).getHtmlContent();
     assert.ok(html.includes('detail-overlay'), 'оверлей деталей есть');
