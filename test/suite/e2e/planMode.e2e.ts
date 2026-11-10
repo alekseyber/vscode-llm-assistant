@@ -13,6 +13,7 @@ import * as vscode from 'vscode';
 import { PlanModeManager } from '../../../src/modes/chat/PlanModeManager';
 import { OllamaProvider } from '../../../src/providers/ollama';
 import { startStub, ndjson } from './helpers/net';
+import { applySettings, SettingsSnapshot } from './helpers/settings';
 
 const PLAN_MARKER = 'E2E-PLAN-MARKER';
 
@@ -27,11 +28,15 @@ suite('E2E-13: Plan Mode — план на диске и имплементац�
   let root: string;
   let plansDir: string;
   let plannerCalls = 0;
+  let snap: SettingsSnapshot | undefined;
 
   setup(async () => {
     root = workspaceRoot();
     plansDir = path.join(root, '.llma', 'plans');
     plannerCalls = 0;
+    // Локальный движок по умолчанию не крутит tool loop — без этой настройки
+    // планировщик не может вызвать write_file и план не появится на диске
+    snap = await applySettings({ 'local.toolLoop': true });
 
     // Стаб нативного /api/chat: планировщику — tool_call write_file, дальше — короткие ответы.
     // Берём non-loopback адрес, чтобы адрес не влиял на «локальность» провайдера.
@@ -88,7 +93,9 @@ suite('E2E-13: Plan Mode — план на диске и имплементац�
     );
   });
 
-  teardown(() => {
+  teardown(async () => {
+    await snap?.restore();
+    snap = undefined;
     try {
       if (fs.existsSync(plansDir)) fs.rmSync(plansDir, { recursive: true, force: true });
     } catch {
