@@ -1,7 +1,7 @@
 // AgentsMdLoader — правила проекта из стандартных файлов агентских инструментов.
 //
-// Читаем в порядке приоритета: AGENTS.md (стандарт Codex/Cursor/Cline) →
-// .llma/main.md (собственный формат плагина) → CLAUDE.md (Claude Code).
+// Читаем: AGENTS.md (стандарт Codex/Cursor/Cline), .llma/main.md (собственный формат
+// плагина), CLAUDE.md (Claude Code). Склеиваем в этом порядке с подписями источников.
 // Раньше читался только .llma/main.md, хотя в промпт правило попадало с подписью
 // «AGENTS.md»: человек с настоящим AGENTS.md видел, что его правила молча игнорируются.
 
@@ -9,7 +9,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
-/** Порядок важен: первый найденный — самый приоритетный. */
+/** Порядок важен: чем выше в списке, тем раньше файл попадает в склейку. */
 const SOURCES = ['AGENTS.md', '.llma/main.md', 'CLAUDE.md'];
 
 /** Лимит на всю склеенную инструкцию — иначе system prompt молча раздувается. */
@@ -27,11 +27,40 @@ export interface RulesSource {
 let cachedContent: string | null = null;
 let cachedKey: string | null = null;
 let lastSources: RulesSource[] = [];
-let watcherInitialized = false;
 
 /** Источники последнего успешного чтения — для команды «Показать источники правил». */
 export function getRulesSources(): RulesSource[] {
   return lastSources;
+}
+
+/**
+ * Корень, к которому относятся правила: папка активного редактора, если он внутри
+ * рабочего пространства, иначе первый корень. В multi-root правила берём у того
+ * проекта, в котором человек сейчас работает, а не у первого по списку.
+ */
+function resolveRoot(): string | undefined {
+  const folders = vscode.workspace.workspaceFolders ?? [];
+  if (folders.length === 0) return undefined;
+  const activeFile = vscode.window.activeTextEditor?.document.uri.fsPath;
+  if (activeFile) {
+    const byActive = folders.find((f) =>
+      activeFile === f.uri.fsPath || activeFile.startsWith(f.uri.fsPath + path.sep));
+    if (byActive) return byActive.uri.fsPath;
+  }
+  return folders[0].uri.fsPath;
+}
+
+/**
+ * Обрезать текст по границе строки, не разрывая слово и суррогатную пару.
+ * Резка посреди строки кода ломает правило, резка посреди emoji — даёт битый символ.
+ */
+export function truncateAtBoundary(text: string, limit: number): string {
+  if (text.length <= limit) return text;
+  const slice = text.slice(0, limit);
+  const lastNewline = slice.lastIndexOf('\n');
+  if (lastNewline > limit * 0.6) return slice.slice(0, lastNewline);
+  // Без переносов режем по кодовым точкам: суррогатная пара не разрубается
+  return Array.from(slice).slice(0, -1).join('');
 }
 
 export async function loadAgentsMd(): Promise<string | null> {
@@ -40,7 +69,7 @@ export async function loadAgentsMd(): Promise<string | null> {
     return null;
   }
 
-  const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+  const workspaceRoot = resolveRoot();
   if (!workspaceRoot) return null;
 
   // Невалидная настройка (false, 0, строка) не должна обнулять правила проекта
@@ -48,58 +77,48 @@ export async function loadAgentsMd(): Promise<string | null> {
   const maxChars = typeof rawMax === 'number' && Number.isFinite(rawMax) && rawMax > 0 ? rawMax : DEFAULT_MAX_CHARS;
   const paths = SOURCES.map((rel) => path.join(workspaceRoot, rel));
 
-  if (!watcherInitialized) {
-    setupWatcher(paths);
-    watcherInitialized = true;
-  }
-
-  // Ключ кеша — набор файлов и их mtime/size: правка в любом из них должна давать
-  // новую склейку, а не ждать перезапуска окна.
-  const stamps: string[] = [];
+  // Кеш сверяем по СОДЕРЖИМОМУ, а не по mtime/size: на быстрых правках (и на ФС
+  // с грубым mtime) одинаковый размер и та же миллисекунда давали ложное попадание
+  // в кеш — пользователь видел старые правила до перезапуска окна.
+  const raw: string[] = [];
   for (const abs of paths) {
     try {
-      const stat = await fs.stat(abs);
-      stamps.push(`${abs}:${stat.mtimeMs}:${stat.size}`);
+      raw.push((await fs.readFile(abs, 'utf-8')).trim());
     } catch {
-      stamps.push(`${abs}:none`);
+      raw.push('');
     }
   }
-  const key = stamps.join('|');
+  const key = `max=${maxChars}|` + raw.map((text) => `${text.length}:${text}`).join('|');
   if (cachedContent !== null && cachedKey === key) return cachedContent;
 
-  const parts: string[] = [];
-  const entries: Array<{ rel: string; body: string }> = [];
+  const chunks: string[] = [];
   const sources: RulesSource[] = [];
   let budget = Math.max(0, maxChars);
 
   for (let i = 0; i < paths.length; i += 1) {
     if (budget <= 0) break;
-    let content: string;
-    try {
-      content = (await fs.readFile(paths[i], 'utf-8')).trim();
-    } catch {
-      continue;
-    }
+    const content = raw[i];
     if (!content) continue;
 
     const rel = SOURCES[i];
     const header = `### Источник: ${rel}`;
-    const room = Math.max(0, budget - header.length - 4);
-    if (room === 0) {
+    const overhead = header.length + 1; // заголовок и перевод строки после него
+    if (budget <= overhead) {
       sources.push({ file: rel, chars: 0, truncated: true });
+      budget = 0;
       break;
     }
+    const room = budget - overhead;
     const truncated = content.length > room;
-    const body = truncated ? content.slice(0, room) : content;
-    // Заголовок источника добавляем только при склейке: единственный файл читается
-    // как есть, иначе в промпт уезжает техническая строка без пользы.
-    entries.push({ rel, body });
-    parts.push(`${header}\n${body}`);
+    const body = truncated ? truncateAtBoundary(content, room) : content;
+    const chunk = `${header}\n${body}`;
+    chunks.push(chunk);
     sources.push({ file: rel, chars: body.length, ...(truncated ? { truncated: true } : {}) });
-    budget -= header.length + 4 + body.length;
+    // Считаем ровно то, что уходит в промпт
+    budget -= chunk.length;
   }
 
-  if (parts.length === 0) {
+  if (chunks.length === 0) {
     cachedContent = null;
     cachedKey = key;
     lastSources = [];
@@ -107,7 +126,10 @@ export async function loadAgentsMd(): Promise<string | null> {
   }
 
   const dropped = sources.some((s) => s.truncated);
-  const joined = entries.length > 1 ? parts.join('\n\n') : entries[0].body;
+  // Заголовок источника нужен только при склейке: единственный файл читается как есть
+  const joined = chunks.length > 1
+    ? chunks.join('\n\n')
+    : chunks[0].slice(chunks[0].indexOf('\n') + 1);
   const merged =
     joined +
     (dropped
@@ -120,26 +142,7 @@ export async function loadAgentsMd(): Promise<string | null> {
   return merged;
 }
 
-function setupWatcher(paths: string[]): void {
-  const known = new Set(paths);
-  const invalidate = (): void => {
-    cachedContent = null;
-    cachedKey = null;
-  };
-  vscode.workspace.onDidChangeTextDocument((e) => {
-    if (known.has(e.document.uri.fsPath)) invalidate();
-  });
-  vscode.workspace.onDidSaveTextDocument((doc) => {
-    if (known.has(doc.uri.fsPath)) invalidate();
-  });
-  vscode.workspace.onDidCreateFiles((e) => {
-    if (e.files.some((f) => known.has(f.fsPath))) invalidate();
-  });
-  vscode.workspace.onDidDeleteFiles((e) => {
-    if (e.files.some((f) => known.has(f.fsPath))) invalidate();
-  });
-}
-
+/** Сброс кеша: тесты и команда «Обновить правила». */
 export function invalidateCache(): void {
   cachedContent = null;
   cachedKey = null;

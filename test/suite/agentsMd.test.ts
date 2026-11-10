@@ -182,6 +182,47 @@ suite('AgentsMdLoader', () => {
     assert.strictEqual(result, 'Правило A', 'битая настройка — берём дефолт, правила на месте');
   });
 
+  test('AGM-5: смена maxChars пересобирает склейку без перезапуска', async () => {
+    await fs.writeFile(path.join(tempDir, 'AGENTS.md'), 'А'.repeat(400), 'utf-8');
+    let limit = 200;
+    sandbox.stub(vscode.workspace, 'getConfiguration').returns({
+      get: (key: string, def?: unknown) => (key === 'agentsMd.maxChars' ? limit : key === 'agentsMd.enabled' ? true : def),
+      has: () => false,
+      inspect: () => undefined,
+      update: () => Promise.resolve(),
+    } as any);
+    sandbox.stub(vscode.workspace, 'workspaceFolders').value([{ uri: vscode.Uri.file(tempDir), name: 'test', index: 0 }]);
+    invalidateCache();
+
+    const first = await loadAgentsMd();
+    assert.match(first!, /обрезано лимитом/, 'при малом лимите видна обрезка');
+
+    limit = 5000; // настройка меняется, файлы — нет
+    const second = await loadAgentsMd();
+    assert.doesNotMatch(second!, /обрезано лимитом/, 'новый лимит применён без перезапуска окна');
+    assert.strictEqual(second!.length, 400, 'текст доехал целиком');
+  });
+
+  test('AGM-6: обрезка идёт по границе строки, а не посреди слова', async () => {
+    const text = 'первая строка правила\nвторая строка правила\nтретья строка правила';
+    await fs.writeFile(path.join(tempDir, 'AGENTS.md'), text, 'utf-8');
+    sandbox.stub(vscode.workspace, 'getConfiguration').returns({
+      get: (key: string, def?: unknown) => (key === 'agentsMd.maxChars' ? 40 : key === 'agentsMd.enabled' ? true : def),
+      has: () => false,
+      inspect: () => undefined,
+      update: () => Promise.resolve(),
+    } as any);
+    sandbox.stub(vscode.workspace, 'workspaceFolders').value([{ uri: vscode.Uri.file(tempDir), name: 'test', index: 0 }]);
+    invalidateCache();
+
+    const result = await loadAgentsMd();
+    const body = result!.split('\n\n[…')[0].trim();
+
+    assert.ok(body.length <= 40, `тело не превышает лимит (${body.length})`);
+    assert.ok(text.startsWith(body), `начало текста сохранено; получили: ${JSON.stringify(body)}`);
+    assert.ok(!body.endsWith('правил'), `слово не разрублено: «${body.slice(-20)}»`);
+  });
+
   // ── Нет workspace → null ──
   test('Если нет workspace — возвращает null', async () => {
     // Не мокаем workspaceFolders — оно undefined
