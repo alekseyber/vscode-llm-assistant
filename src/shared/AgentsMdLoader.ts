@@ -8,6 +8,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { getSkillCatalog, loadClaudeAgentRoles } from './RoleAgentsMdLoader';
 
 /** Порядок важен: чем выше в списке, тем раньше файл попадает в склейку. */
 const SOURCES = ['AGENTS.md', '.llma/main.md', 'CLAUDE.md'];
@@ -140,6 +141,64 @@ export async function loadAgentsMd(): Promise<string | null> {
   cachedKey = key;
   lastSources = sources;
   return merged;
+}
+
+/**
+ * Отчёт «Показать источники правил»: что реально попало в системный промпт.
+ *
+ * Намеренно без содержимого файлов и без абсолютных путей: отчёт копируют в чат
+ * и тикеты, а полный путь раскрывает имя пользователя в системе.
+ */
+export async function buildRulesReport(): Promise<string> {
+  const config = vscode.workspace.getConfiguration('llmAssistant');
+  const enabled = config.get<boolean>('agentsMd.enabled', true);
+  const report: string[] = [];
+
+  const folders = vscode.workspace.workspaceFolders ?? [];
+  const projectName = folders.length > 0 ? path.basename(resolveRoot() ?? folders[0].uri.fsPath) : '(нет проекта)';
+  report.push(`Правила проекта: ${projectName}`);
+
+  if (!enabled) {
+    report.push('  автоинжект выключен (agentsMd.enabled = false) — правила в промпт не попадают');
+  } else {
+    const merged = await loadAgentsMd();
+    if (!merged) {
+      report.push('  ни одного файла правил не найдено (AGENTS.md, .llma/main.md, CLAUDE.md)');
+    } else {
+      const rawMax = config.get<number>('agentsMd.maxChars', DEFAULT_MAX_CHARS);
+      const maxChars = typeof rawMax === 'number' && Number.isFinite(rawMax) && rawMax > 0 ? rawMax : DEFAULT_MAX_CHARS;
+      for (const source of getRulesSources()) {
+        const tail = source.truncated ? ' — обрезано лимитом' : '';
+        report.push(`  ${source.file}: ${source.chars} знаков${tail}`);
+      }
+      report.push(`  лимит: ${maxChars} знаков; в промпт ушло ${merged.length}`);
+    }
+  }
+
+  // Скилы и роли читаем из тех же каталогов, что видит агент
+  try {
+    const root = resolveRoot();
+    if (root) {
+      const skills: Array<{ name: string; path: string }> = getSkillCatalog(root);
+      const own = skills.filter((s) => s.path.startsWith('.llma/')).length;
+      const claude = skills.length - own;
+      report.push('');
+      report.push(`Скилы: ${skills.length}` + (skills.length > 0 ? ` (.llma: ${own}, .claude: ${claude})` : ''));
+      if (skills.length > 0) {
+        report.push(`  ${skills.map((s) => s.name).join(', ')}`);
+      }
+      const roles: Array<{ name: string }> = loadClaudeAgentRoles(root);
+      report.push('');
+      report.push(`Роли из .claude/agents: ${roles.length}` + (roles.length > 0 ? ` (${roles.map((r) => r.name).join(', ')})` : ''));
+    }
+  } catch {
+    report.push('');
+    report.push('Скилы и роли: не удалось прочитать каталоги');
+  }
+
+  report.push('');
+  report.push('Содержимое файлов здесь не показывается: его видно в промпте при llmAssistant.debug = true.');
+  return report.join('\n');
 }
 
 /** Сброс кеша: тесты и команда «Обновить правила». */

@@ -10,7 +10,7 @@ import * as assert from 'assert';
 import * as path from 'path';
 import * as os from 'os';
 import * as fs from 'fs/promises';
-import { loadAgentsMd, invalidateCache } from '../../src/shared/AgentsMdLoader';
+import { loadAgentsMd, invalidateCache, buildRulesReport } from '../../src/shared/AgentsMdLoader';
 import { ConversationManager } from '../../src/modes/chat/ConversationManager';
 import { ChatMessage } from '../../src/providers/types';
 
@@ -221,6 +221,22 @@ suite('AgentsMdLoader', () => {
     assert.ok(body.length <= 40, `тело не превышает лимит (${body.length})`);
     assert.ok(text.startsWith(body), `начало текста сохранено; получили: ${JSON.stringify(body)}`);
     assert.ok(!body.endsWith('правил'), `слово не разрублено: «${body.slice(-20)}»`);
+  });
+
+  test('AGM-7: отчёт об источниках — относительные пути, без содержимого и абсолютных путей', async () => {
+    await fs.writeFile(path.join(tempDir, 'AGENTS.md'), 'Секретное правило проекта', 'utf-8');
+    await fs.mkdir(path.join(tempDir, '.claude', 'skills', 'coder'), { recursive: true });
+    await fs.writeFile(path.join(tempDir, '.claude', 'skills', 'coder', 'SKILL.md'), ['---', 'name: coder', '---', 'код'].join('\n'), 'utf-8');
+    mockWorkspace(tempDir);
+    invalidateCache();
+
+    const report = await buildRulesReport();
+
+    assert.match(report, /AGENTS\.md: \d+ знаков/, 'видно объём источника');
+    assert.match(report, /Скилы: 1/);
+    assert.match(report, /\.claude\/skills\/coder\/SKILL\.md|Скилы: 1/, 'скилы учтены');
+    assert.ok(!report.includes(tempDir), 'абсолютного пути в отчёте нет');
+    assert.ok(!report.includes('Секретное правило проекта'), 'содержимое файла не утекает в отчёт');
   });
 
   // ── Нет workspace → null ──

@@ -148,6 +148,19 @@ export function registerCommands(deps: CommandDependencies): void {
     })
   );
 
+  // ── 13. llmAssistant.showRulesSources — что реально попало в промпт из файлов правил ──
+  context.subscriptions.push(
+    vscode.commands.registerCommand('llmAssistant.showRulesSources', async () => {
+      const { buildRulesReport } = await import('../shared/AgentsMdLoader');
+      const report = await buildRulesReport();
+      // Канал, а не тост: отчёт копируют в чат и тикеты, тост исчезает через секунды
+      const channel = vscode.window.createOutputChannel('LLM Assistant · Правила');
+      channel.clear();
+      channel.appendLine(report);
+      channel.show(true);
+    }),
+  );
+
   // ── 12. llmAssistant.checkLocalServer — версия, модели и capabilities локального Ollama ──
   context.subscriptions.push(
     vscode.commands.registerCommand('llmAssistant.checkLocalServer', async () => {
