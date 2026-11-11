@@ -1,0 +1,61 @@
+{
+  "note": "Мутации для проверки объективности юнит-тестов. Правило: если мутация компилируется, а тесты остаются зелёными — поведение не покрыто. Значение 'gap' помечает известный пробел (его падение в отчёте ожидаемо), 'must-fail' — поведение обязано ловиться.",
+  "mutations": [
+    {
+      "id": "SRCH-PATH-WEIGHT",
+      "file": "src/shared/SearchIndex.ts",
+      "from": "const PATH_WEIGHT = 4.0;",
+      "to": "const PATH_WEIGHT = 1.0;",
+      "label": "вес пути в bm25 4.0 → 1.0",
+      "expect": "must-fail"
+    },
+    {
+      "id": "SRCH-BODY-WEIGHT",
+      "file": "src/shared/SearchIndex.ts",
+      "from": "const BODY_WEIGHT = 1.0;",
+      "to": "const BODY_WEIGHT = 0.1;",
+      "label": "вес тела 1.0 → 0.1",
+      "expect": "must-fail"
+    },
+    {
+      "id": "SRCH-PATH-PENALTY",
+      "file": "src/shared/SearchIndex.ts",
+      "from": "return 2.2;",
+      "to": "return 0.5;",
+      "label": "перевес тестовых путей 2.2 → 0.5",
+      "expect": "must-fail"
+    },
+    {
+      "id": "SRCH-MIN-MATCHED",
+      "file": "src/modes/apply/ToolDefinitions.ts",
+      "from": "const MIN_MATCHED_TOKENS = 2;",
+      "to": "const MIN_MATCHED_TOKENS = 0;",
+      "label": "порог слабых попаданий 2 → 0",
+      "expect": "must-fail"
+    },
+    {
+      "id": "MCP-ISERROR",
+      "file": "src/modes/apply/McpClient.ts",
+      "from": "if ((result as { isError?: boolean }).isError) {",
+      "to": "if (false) {",
+      "label": "isError от MCP игнорируется",
+      "expect": "must-fail"
+    },
+    {
+      "id": "HIST-MAX-RUNS",
+      "file": "src/shared/RunHistoryStore.ts",
+      "from": "MAX_RUNS = 100",
+      "to": "MAX_RUNS = 3",
+      "label": "потолок истории 100 → 3",
+      "expect": "must-fail"
+    },
+    {
+      "id": "EDIT-STATUS-CODE",
+      "file": "src/modes/edit/EditController.ts",
+      "from": "401",
+      "to": "402",
+      "label": "код ошибки 401 → 402 в описании",
+      "expect": "must-fail"
+    }
+  ]
+}

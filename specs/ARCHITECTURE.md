@@ -1,6 +1,6 @@
 ---
 document: ARCHITECTURE
-version: 0.14.57
+version: 0.14.58
 status: living
 ---
 
@@ -279,6 +279,7 @@ strict@5 40%, MRR 0.60, P@1 50%; `keywordOr` — 78%, 33%, 0.33, 10%. То ес�
 | `.vscode/launch.json` | F5-dev запуск | `Run Extension` (preLaunch: compile), `Extension Tests` |
 | `AGENTS.md` | Инструкции для LLM | Ссылка на specs/, TEMPLATE, язык, SDD-процесс |
 | `.llma/` | Агенты для @orchestrate | `agents/*.md`: префиксы → цепочка, без → делегирование |
+| `scripts/mutation-check.js` + `test/mutations.json` | Мутационная проверка тестов | Правит одну строку в `src`, гоняет юниты; зелёные тесты = поведение не покрыто; мутация без компиляции — «неприменима» |
 | `scripts/acceptance/` | Приёмка поиска | `queries.json` (эталон), `run.js` (замер трёх бэкендов), `check.js` (гейт CI) |
 | `scripts/copy-sqlite-assets.js` | Упаковка WASM | Кладёт `node.mjs`, `index.mjs`, `sqlite3.wasm` в `dist/sqlite` после webpack (`clean: true`) |
 | `scripts/smoke-vsix-index.js` | Смоук артефакта | Активирует собранный бандл из распакованного VSIX и ждёт создания индекса |
@@ -287,6 +288,7 @@ strict@5 40%, MRR 0.60, P@1 50%; `keywordOr` — 78%, 33%, 0.33, 10%. То ес�
 
 | Версия | Дата | Изменения |
 |--------|------|-----------|
+| 0.14.58 | 2026-11-11 | Мутационная проверка тестов в инфраструктуре: `scripts/mutation-check.js`, `test/mutations.json`, еженедельный workflow |
 | 0.14.57 | 2026-11-11 | Раздел «Приёмка поиска»: эталон на 60 запросов, четыре бэкенда в одном прогоне, метрики с интервалами, гейт в CI, границы применимости (язык запроса); в инфраструктуру добавлены `scripts/acceptance/`, `copy-sqlite-assets.js`, `smoke-vsix-index.js` |
 | 0.14.56 | 2026-11-11 | `SearchIndexer`, `SearchRouter`, `IndexService` в карте; `search_files` получил роутинг без изменения контракта |
 | 0.14.55 | 2026-11-11 | `SearchIndex` в карте компонентов: локальный FTS5-индекс для `search_files` (S1: нормализация, схема, запрос, экспорт/импорт) |

@@ -1,0 +1,30 @@
+name: Mutation check
+
+# Проверка объективности юнит-тестов: правим одну строку в src, тесты обязаны упасть.
+# Раз в неделю и вручную. В пре-пуш не ставим: прогон ~1 минуту на мутацию.
+on:
+  schedule:
+    - cron: '0 3 * * 1' # понедельник, 03:00 UTC
+  workflow_dispatch:
+
+jobs:
+  mutation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: npm ci
+      - run: npx tsc -p tsconfig.test.json
+      - name: Мутации (тесты должны падать)
+        run: npm run check:mutation
+      - name: Отчёт в сводку
+        if: always()
+        run: |
+          {
+            echo '## Мутационная проверка'
+            echo 'Вердикт: `✅` мутация поймана, `❌` поведение не покрыто юнит-тестами.'
+            echo '```'
+            npm run check:mutation --silent || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
