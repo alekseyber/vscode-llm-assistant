@@ -20,6 +20,9 @@ import { shouldDisableThinking } from '../../shared/thinking';
  * 4. Ответ LLM показывается как ghost text (InlineCompletionItem)
  * 5. Tab — принять, Escape — отклонить
  */
+/** Потолок ответа автокомплита в символах: длинное продолжение бесполезно. */
+const MAX_RESPONSE_CHARS = 1024;
+
 export class AutocompleteController {
   private providerManager: ProviderManager;
   private ghostTextManager: GhostTextManager;
@@ -157,8 +160,10 @@ ${context.suffix}
       let fullResponse = '';
       for await (const chunk of stream) {
         fullResponse += chunk;
-        // Ограничение: не больше 1024 символов для автокомплита
-        if (fullResponse.length > 1024) {
+        // Ограничение автокомплита: длинный ответ бесполезен и дороже по вставке.
+        // Режем по кодовым точкам, чтобы не разорвать суррогатную пару (эмодзи).
+        if (fullResponse.length > MAX_RESPONSE_CHARS) {
+          fullResponse = Array.from(fullResponse).slice(0, MAX_RESPONSE_CHARS).join('');
           break;
         }
       }

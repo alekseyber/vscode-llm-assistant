@@ -43,9 +43,15 @@ class Uri {
 
 // --- Range ---
 class Range {
+  // Поддерживает обе формы реального API: `new Range(0, 0, 1, 5)` и `new Range(position, position)`
   constructor(startLine, startChar, endLine, endChar) {
+    if (startLine instanceof Position) {
+      this.start = startLine;
+      this.end = startChar instanceof Position ? startChar : startLine;
+      return;
+    }
     this.start = new Position(startLine, startChar);
-    this.end = new Position(endLine || startLine, endChar || startChar);
+    this.end = new Position(endLine ?? startLine, endChar ?? startChar);
   }
 }
 
@@ -54,6 +60,48 @@ class Position {
   constructor(line, character) {
     this.line = line;
     this.character = character;
+  }
+}
+
+// --- Inline completion (ghost text) ---
+class InlineCompletionItem {
+  constructor(insertText, range, command) {
+    this.insertText = insertText;
+    this.range = range;
+    this.command = command;
+  }
+}
+
+class InlineCompletionList {
+  constructor(items = []) {
+    this.items = items;
+  }
+}
+
+/** Провайдеры inline-завершений: тесты получают их через __inlineProviders */
+const inlineProviders = [];
+
+/** Источник токена отмены: тесты отменяют запрос так же, как это делает VS Code */
+class CancellationTokenSource {
+  constructor() {
+    this._cancelled = false;
+    this._listeners = new Set();
+  }
+  get token() {
+    const source = this;
+    return {
+      get isCancellationRequested() {
+        return source._cancelled;
+      },
+      onCancellationRequested: (listener) => {
+        source._listeners.add(listener);
+        return { dispose: () => source._listeners.delete(listener) };
+      },
+    };
+  }
+  cancel() {
+    this._cancelled = true;
+    for (const listener of [...this._listeners]) listener();
   }
 }
 
@@ -93,6 +141,9 @@ const didEmitters = {
 };
 
 // --- Workspace ---
+/** Хранилище настроек: тесты задают значения через workspace.__settings */
+const settings = {};
+
 const workspace = {
   workspaceFolders: [{ uri: Uri.file('/fake/workspace'), name: 'test', index: 0 }],
   registerTextDocumentContentProvider() { return { dispose() {} }; },
@@ -104,10 +155,30 @@ const workspace = {
   __fireDidChangeConfiguration(event = { affectsConfiguration: () => true }) {
     configEmitter.fire(event);
   },
+  /**
+   * Живая конфигурация: значения читаются из `__settings`, `update` пишет и дёргает событие.
+   * Раньше `get` всегда возвращал defaultValue, поэтому тесты не видели настроек вообще.
+   */
   getConfiguration(section) {
+    const prefix = section ? `${section}.` : '';
     return {
       get(key, defaultValue) {
-        return defaultValue;
+        const full = `${prefix}${key}`;
+        return full in settings ? settings[full] : defaultValue;
+      },
+      has(key) {
+        return `${prefix}${key}` in settings;
+      },
+      async update(key, value) {
+        const full = `${prefix}${key}`;
+        if (value === undefined) delete settings[full];
+        else settings[full] = value;
+        configEmitter.fire({
+          affectsConfiguration: (changed) => full === changed || full.startsWith(`${changed}.`),
+        });
+      },
+      inspect(key) {
+        return { globalValue: settings[`${prefix}${key}`] };
       },
     };
   },
@@ -137,6 +208,8 @@ const workspace = {
     return Promise.resolve({ getText: () => '', languageId: 'plaintext' });
   },
   textDocuments: [],
+  /** Настройки, которые видит расширение (сбрасываются тестами) */
+  __settings: settings,
 };
 
 // --- Window ---
@@ -147,7 +220,16 @@ class RelativePattern {
 const OverviewRulerLane = { Left: 1, Center: 2, Right: 4, Full: 7 };
 
 const languages = {
-  registerInlineCompletionItemProvider() { return { dispose() {} }; },
+  // Живая регистрация: провайдер сохраняется, и тест может вызвать его напрямую
+  registerInlineCompletionItemProvider(selector, provider) {
+    inlineProviders.push(provider);
+    return {
+      dispose: () => {
+        const index = inlineProviders.indexOf(provider);
+        if (index >= 0) inlineProviders.splice(index, 1);
+      },
+    };
+  },
   registerCompletionItemProvider() { return { dispose() {} }; },
   createDiagnosticCollection() { return { set() {}, clear() {}, dispose() {} }; },
 };
@@ -224,6 +306,11 @@ module.exports = {
   languages,
   OverviewRulerLane,
   RelativePattern,
+  InlineCompletionItem,
+  InlineCompletionList,
+  CancellationTokenSource,
+  /** Провайдеры inline-завершений, зарегистрированные расширением */
+  __inlineProviders: inlineProviders,
   ExtensionContext,
   EventEmitter,
   commands,

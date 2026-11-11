@@ -56,6 +56,30 @@
       "to": "402",
       "label": "код ошибки 401 → 402 в описании",
       "expect": "must-fail"
+    },
+    {
+      "id": "GHT-CACHE",
+      "file": "src/modes/autocomplete/GhostTextManager.ts",
+      "from": "if (this.lastSuggestion === suggestion && this.lastUri === uri) {",
+      "to": "if (false) {",
+      "label": "кэш повтора подсказки отключён",
+      "expect": "must-fail"
+    },
+    {
+      "id": "GHT-ENABLED",
+      "file": "src/modes/autocomplete/GhostTextManager.ts",
+      "from": "if (!this.isEnabled()) {",
+      "to": "if (false) {",
+      "label": "выключенный автокомплит всё равно спрашивает модель",
+      "expect": "must-fail"
+    },
+    {
+      "id": "ACL-CAP",
+      "file": "src/modes/autocomplete/AutocompleteController.ts",
+      "from": "const MAX_RESPONSE_CHARS = 1024;",
+      "to": "const MAX_RESPONSE_CHARS = 100000;",
+      "label": "потолок ответа автокомплита 1024 → 100000",
+      "expect": "must-fail"
     }
   ]
 }
