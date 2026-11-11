@@ -82,7 +82,8 @@ suite('E2E-14: вкладка «История»', () => {
     store.recordRun(entry('run_e2e_2', 'error', 'правка функции расчёта'));
     await waitFor(() => messagesOfType(view, 'refresh').length > 0, 3000);
 
-    view.send({ type: 'runDetails', id: 'run_e2e_2' });
+    // Протокол панели: запрос деталей — это `getDetails` с `runId`, ответ — `runDetails`
+    view.send({ type: 'getDetails', runId: 'run_e2e_2' });
     await waitFor(() => messagesOfType(view, 'runDetails').length > 0, 3000);
 
     const details = messagesOfType(view, 'runDetails').at(-1);
