@@ -1,6 +1,6 @@
 ---
 document: ARCHITECTURE
-version: 0.14.54
+version: 0.14.55
 status: living
 ---
 
@@ -31,6 +31,7 @@ extension.ts (вход)
 │   │   ├── ChatAgentTools        [spec ✅] — инструменты чат-агента (read/write/replace/list/search/terminal/delegate)
 │   │   ├── AskUserTool            [spec ✅] — уточняющие вопросы (QuickPick/InputBox)
 │   │   ├── ModelRouter            [spec ✅] — прогноз стоимости, лимит бюджета сессии, авто-выбор модели по сложности (routing.*)
+│   ├── SearchIndex               [spec ✅ beta] — локальный FTS5-индекс кодовой базы (BM25, вес пути), деградация к ripgrep; контракт search_files не меняет
 │   │   └── PlanModeManager        [spec ✅] — Plan Mode (план → имплементация → рефлексия)
 │   │
 │   ├── 🤖 Агент (ReAct через чат)
@@ -252,6 +253,7 @@ AgentController (Apply Mode)
 
 | Версия | Дата | Изменения |
 |--------|------|-----------|
+| 0.14.55 | 2026-11-11 | `SearchIndex` в карте компонентов: локальный FTS5-индекс для `search_files` (S1: нормализация, схема, запрос, экспорт/импорт) |
 | 0.14.54 | 2026-11-10 | `ModelRouter` в карте компонентов (прогноз стоимости, лимит сессии, авто-выбор модели); описание `OllamaProvider` приведено к факту: `/api/ps`, окно = `context_length/2`, первый байт по `local.requestTimeout`, 30 с — только discovery |
 | 0.14.53 | 2026-11-09 | Порог предупреждения об обрезке промпта исправлен на реальную границу `numCtx/2` (`effectivePromptWindow`); e2e-покрытие `E2E-3..E2E-9` в реальном Extension Host (42 e2e, 611 юнит) |
 | 0.14.51 | 2026-11-09 | E2E для локального пути в реальном Extension Host (`E2E-1`, `E2E-2`); хост-раннер собирает e2e из каталога вместо захардкоженного списка |

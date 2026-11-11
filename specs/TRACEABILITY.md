@@ -1,6 +1,6 @@
 ---
 document: TRACEABILITY
-version: 0.14.29
+version: 0.14.30
 ---
 
 # Матрица трассировки: spec → AC → тест → код
@@ -21,6 +21,7 @@ version: 0.14.29
 | ConversationManager | `src/modes/chat/ConversationManager.ts` | `test/suite/conversation.test.ts` | — |
 | SessionManager | `src/modes/chat/SessionManager.ts` | `test/suite/session.test.ts` | — |
 | ChatAgentTools | `src/modes/chat/ChatAgentTools.ts` | — | AC-4.1–AC-4.4 |
+| SearchIndex | `src/shared/SearchIndex.ts` | `test/suite/searchIndex.test.ts` | IDX-1..IDX-14 (S1: IDX-1,2,3,10,11,12) |
 | ContextSummarizer | `src/shared/ContextSummarizer.ts` | `test/suite/contextSummarizer.test.ts`, `test/suite/summaryIntegration.test.ts` | AC-2.1–AC-2.6 |
 | RetryHandler | `src/shared/RetryHandler.ts` | `test/suite/retryHandler.test.ts` | AC-3.1–AC-3.7 |
 | AgentsMdLoader | `src/shared/AgentsMdLoader.ts` | `test/suite/agentsMd.test.ts` | AC-1.1–AC-1.6 |
