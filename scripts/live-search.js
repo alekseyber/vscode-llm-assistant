@@ -96,7 +96,8 @@ const adapter = {
 (async () => {
   const { SqliteLoader } = require(path.join(ROOT, 'out/src/shared/IndexService.js'));
   const sqlite3 = await new SqliteLoader(undefined, undefined, sqliteModule).load();
-  const store = new SearchIndexStore(sqlite3, { indexPath: path.join(ROOT, 'tmp', 'live-index.sqlite'), onDebug: () => undefined });
+  // Индекс — во временный каталог: в репозитории он попадал в VSIX (6.5 МБ мусора)
+  const store = new SearchIndexStore(sqlite3, { indexPath: path.join(require('os').tmpdir(), `llma-live-${process.pid}.sqlite`), onDebug: () => undefined });
   if (!(await store.init())) {
     console.error('индекс не поднялся');
     process.exit(1);

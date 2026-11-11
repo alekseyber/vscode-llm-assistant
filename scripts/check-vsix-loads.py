@@ -104,6 +104,14 @@ def main() -> int:
             print('[VSIX] Проверьте .vscodeignore: out/, test/, specs/, scripts/, reports/ не должны уезжать.', file=sys.stderr)
             return 1
 
+        # Файлы индекса и прочий мусор стендов не должны уезжать в пакет
+        junk = [str(path.relative_to(extension_dir)) for path in extension_dir.rglob('*')
+                if path.is_file() and (path.suffix in {'.sqlite', '.db'} or path.name.endswith('.sqlite-journal'))]
+        if junk:
+            print(f'[VSIX] ❌ в пакет попали файлы индекса/базы: {junk[:3]}', file=sys.stderr)
+            print('[VSIX] Добавьте их в .vscodeignore и пересоберите пакет.', file=sys.stderr)
+            return 1
+
         # Лишние .js рядом с бандлом — это вывод tsc, попавший в пакет
         strays = [
             path.name for path in (extension_dir / 'dist').rglob('*.js')
