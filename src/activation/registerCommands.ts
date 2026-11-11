@@ -64,12 +64,25 @@ export interface CommandDependencies {
  *
  * @param deps - зависимости (контекст, менеджеры, контроллеры режимов)
  */
+/**
+ * Зарегистрированные команды — для лога активации. Захардкоженный список отставал от кода
+ * («12 команд», хотя команд больше), и расхождение видел пользователь в выходном канале.
+ */
+const registeredCommandIds: string[] = [];
+
+function registerCommand(id: string, handler: (...args: any[]) => any): vscode.Disposable {
+  registeredCommandIds.push(id);
+  return vscode.commands.registerCommand(id, handler);
+}
+
 export function registerCommands(deps: CommandDependencies): void {
+  // Список для лога — только текущий вызов
+  registeredCommandIds.length = 0;
   const { context, providerManager, conversationManager, editController, autocompleteController, runHistoryStore, historyViewProvider, reviewViewProvider, sessionLog, refreshSessions, revealChat, getIndexService } = deps;
 
   // ── 1. llmAssistant.chat.open (Ctrl+Alt+L) — открыть/сфокусировать чат ──
   context.subscriptions.push(
-    vscode.commands.registerCommand('llmAssistant.chat.open', async () => {
+    registerCommand('llmAssistant.chat.open', async () => {
       // Показываем контейнер сайдбара (резолвит WebView чата, если он ещё не создан)
       await vscode.commands.executeCommand('workbench.view.extension.llmAssistant');
       // Фокусируем вкладку чата (вместо легаси ChatPanel — один чат-поверхность)
@@ -79,14 +92,14 @@ export function registerCommands(deps: CommandDependencies): void {
 
   // ── 2. llmAssistant.chat.addSelection — добавить выделение в контекст чата ──
   context.subscriptions.push(
-    vscode.commands.registerCommand('llmAssistant.chat.addSelection', () => {
+    registerCommand('llmAssistant.chat.addSelection', () => {
       addSelectionToContext(conversationManager);
     })
   );
 
   // ── 3. llmAssistant.edit.selection (Ctrl+Alt+I) — редактировать выделенный код ──
   context.subscriptions.push(
-    vscode.commands.registerCommand('llmAssistant.edit.selection', () => {
+    registerCommand('llmAssistant.edit.selection', () => {
       // Запускаем Edit Mode: выделение → QuickPick → LLM → diff → accept/reject
       editController.handleEditSelection();
     })
@@ -94,28 +107,28 @@ export function registerCommands(deps: CommandDependencies): void {
 
   // ── 4. llmAssistant.autocomplete.toggle — вкл/выкл автокомплит ──
   context.subscriptions.push(
-    vscode.commands.registerCommand('llmAssistant.autocomplete.toggle', () => {
+    registerCommand('llmAssistant.autocomplete.toggle', () => {
       autocompleteController.toggleAutocomplete();
     })
   );
 
   // ── 5. llmAssistant.apply.start (Ctrl+Shift+A) — запустить агентный режим ──
   context.subscriptions.push(
-    vscode.commands.registerCommand('llmAssistant.apply.start', () => {
+    registerCommand('llmAssistant.apply.start', () => {
       startApplyMode(context, providerManager, runHistoryStore, historyViewProvider);
     })
   );
 
   // ── 6. llmAssistant.selectProvider — QuickPick со списком провайдеров/моделей ──
   context.subscriptions.push(
-    vscode.commands.registerCommand('llmAssistant.selectProvider', () => {
+    registerCommand('llmAssistant.selectProvider', () => {
       selectProvider(providerManager);
     })
   );
 
   // ── 7. llmAssistant.openHistory — открыть вкладку «История» ──
   context.subscriptions.push(
-    vscode.commands.registerCommand('llmAssistant.openHistory', () => {
+    registerCommand('llmAssistant.openHistory', () => {
       // Фокусируем вкладку «История» (id вида: <viewId>.focus), а не Чат
       vscode.commands.executeCommand('llmAssistant.history.focus');
       vscode.commands.executeCommand('workbench.view.extension.llmAssistant');
@@ -124,35 +137,35 @@ export function registerCommands(deps: CommandDependencies): void {
 
   // ── 8. llmAssistant.review.file — код-ревью активного файла/выделения ──
   context.subscriptions.push(
-    vscode.commands.registerCommand('llmAssistant.review.file', () => {
+    registerCommand('llmAssistant.review.file', () => {
       reviewActiveFile(providerManager, reviewViewProvider);
     })
   );
 
   // ── 9. llmAssistant.exportSession — экспорт транскрипции активной сессии в markdown ──
   context.subscriptions.push(
-    vscode.commands.registerCommand('llmAssistant.exportSession', () => {
+    registerCommand('llmAssistant.exportSession', () => {
       exportSession(conversationManager, sessionLog);
     })
   );
 
   // ── 10. llmAssistant.forkSession — копия активной сессии (fork/resume) ──
   context.subscriptions.push(
-    vscode.commands.registerCommand('llmAssistant.forkSession', () => {
+    registerCommand('llmAssistant.forkSession', () => {
       forkSession(conversationManager, sessionLog, refreshSessions);
     })
   );
 
   // ── 11. llmAssistant.clearAllSessions — удалить все сессии и логи ──
   context.subscriptions.push(
-    vscode.commands.registerCommand('llmAssistant.clearAllSessions', () => {
+    registerCommand('llmAssistant.clearAllSessions', () => {
       clearAllSessions(conversationManager, runHistoryStore, historyViewProvider, refreshSessions);
     })
   );
 
   // ── 15. llmAssistant.rebuildIndex — полная пересборка локального индекса (P8) ──
   context.subscriptions.push(
-    vscode.commands.registerCommand('llmAssistant.rebuildIndex', async () => {
+    registerCommand('llmAssistant.rebuildIndex', async () => {
       const service = getIndexService?.();
       if (!service) {
         vscode.window.showWarningMessage(
@@ -173,7 +186,7 @@ export function registerCommands(deps: CommandDependencies): void {
   // ── 14. llmAssistant.resetDailyBudget — сброс дневного расхода (P9.1) ──
   // Без этой команды сработавший дневной лимит нечем снять до смены суток
   context.subscriptions.push(
-    vscode.commands.registerCommand('llmAssistant.resetDailyBudget', async () => {
+    registerCommand('llmAssistant.resetDailyBudget', async () => {
       const { DAILY_SPEND_KEY, todayLocalDate } = await import('../modes/chat/ChatViewProvider');
       const date = todayLocalDate();
       const before = context.globalState.get<{ usd?: number }>(DAILY_SPEND_KEY)?.usd ?? 0;
@@ -189,7 +202,7 @@ export function registerCommands(deps: CommandDependencies): void {
   const rulesChannel = vscode.window.createOutputChannel('LLM Assistant · Правила');
   context.subscriptions.push(rulesChannel);
   context.subscriptions.push(
-    vscode.commands.registerCommand('llmAssistant.showRulesSources', async () => {
+    registerCommand('llmAssistant.showRulesSources', async () => {
       const { buildRulesReport } = await import('../shared/AgentsMdLoader');
       let report: string;
       try {
@@ -206,7 +219,7 @@ export function registerCommands(deps: CommandDependencies): void {
 
   // ── 12. llmAssistant.checkLocalServer — версия, модели и capabilities локального Ollama ──
   context.subscriptions.push(
-    vscode.commands.registerCommand('llmAssistant.checkLocalServer', async () => {
+    registerCommand('llmAssistant.checkLocalServer', async () => {
       const localProviders = [...providerManager.getAllProviders().entries()]
         .filter(([, provider]) => (provider as any).isLocal);
 
@@ -237,7 +250,9 @@ export function registerCommands(deps: CommandDependencies): void {
     })
   );
 
-  console.log('[registerCommands] Зарегистрировано 12 команд: chat.open, chat.addSelection, edit.selection, autocomplete.toggle, apply.start, selectProvider, openHistory, review.file, exportSession, forkSession, clearAllSessions, checkLocalServer');
+  console.log(
+    `[registerCommands] Зарегистрировано ${registeredCommandIds.length} команд: ${registeredCommandIds.join(', ')}`,
+  );
 }
 
 /**

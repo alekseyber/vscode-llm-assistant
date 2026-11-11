@@ -33,15 +33,34 @@ const MASSIVE_CHANGES = 2000;
  * (копируются `scripts/copy-sqlite-assets.js`): в VSIX нет `node_modules`.
  * В dev-режиме (без пакета) работает обычное имя пакета.
  */
-async function loadSqlite(): Promise<any> {
-  const dynamicImport = new Function('specifier', 'return import(specifier)') as (
-    specifier: string,
-  ) => Promise<any>;
+let sqlitePromise: Promise<any> | undefined;
 
-  const local = path.join(__dirname, 'sqlite', 'node.mjs');
-  const specifier = fs.existsSync(local) ? pathToFileURL(local).href : '@sqlite.org/sqlite-wasm';
-  const mod = await dynamicImport(specifier);
-  return typeof mod.default === 'function' ? await mod.default() : mod;
+async function loadSqlite(): Promise<any> {
+  // Кэш на модуль: при переактивации окна WASM не поднимается второй раз (это ~900 КБ
+  // и инициализация Emscripten-рантайма). Ошибку не кэшируем — следующий вызов попробует снова.
+  if (!sqlitePromise) {
+    sqlitePromise = (async () => {
+      const dynamicImport = new Function('specifier', 'return import(specifier)') as (
+        specifier: string,
+      ) => Promise<any>;
+
+      const local = path.join(__dirname, 'sqlite', 'node.mjs');
+      if (!fs.existsSync(local)) {
+        // В собранном расширении node_modules нет: без локальной копии модуль не найдётся,
+        // и без явного сообщения пользователь увидит ERR_MODULE_NOT_FOUND без причины
+        throw new Error(
+          `Файл индекса не найден: ${local}. Пересоберите расширение (npm run compile) — ` +
+            'он копируется из @sqlite.org/sqlite-wasm.',
+        );
+      }
+      const mod = await dynamicImport(pathToFileURL(local).href);
+      return typeof mod.default === 'function' ? await mod.default() : mod;
+    })().catch((error) => {
+      sqlitePromise = undefined;
+      throw error;
+    });
+  }
+  return sqlitePromise;
 }
 
 /** Адаптер ФС поверх VS Code для одного корня. */

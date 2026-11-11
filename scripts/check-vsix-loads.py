@@ -64,6 +64,9 @@ SQLITE_CHECK = r'''
 '''
 
 
+script_dir = pathlib.Path(__file__).resolve().parent
+
+
 def main() -> int:
     if len(sys.argv) == 2:
         vsix = pathlib.Path(sys.argv[1])
@@ -122,6 +125,7 @@ def main() -> int:
                   file=sys.stderr)
             return 1
 
+        # 1) модуль и wasm живы сами по себе (FTS5)
         sqlite_result = subprocess.run(
             ['node', '-e', SQLITE_CHECK],
             cwd=extension_dir,
@@ -132,6 +136,20 @@ def main() -> int:
             print('[VSIX] ❌ sqlite-wasm из пакета не инициализируется:',
                   file=sys.stderr)
             print(sqlite_result.stderr.strip() or sqlite_result.stdout.strip(), file=sys.stderr)
+            return 1
+
+        # 2) и главное — бандл реально поднимает индекс из этого пакета: проверяем не
+        # «файлы лежат», а фактическое создание индекса при активации (нет node_modules)
+        smoke = subprocess.run(
+            ['node', str(script_dir / 'smoke-vsix-index.js'), str(extension_dir)],
+            cwd=extension_dir,
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        if smoke.returncode != 0:
+            print('[VSIX] ❌ активация из пакета не создаёт индекс:', file=sys.stderr)
+            print((smoke.stderr or smoke.stdout).strip()[-1500:], file=sys.stderr)
             return 1
 
         manifest = json.loads((extension_dir / 'package.json').read_text(encoding='utf-8'))
@@ -154,7 +172,7 @@ def main() -> int:
             return 1
 
     print(f'[VSIX] ✅ {vsix.name}: версия {manifest.get("version")}, бандл загружается без node_modules, '
-          f'sqlite-wasm с FTS5 поднимается из пакета')
+          f'sqlite-wasm с FTS5 поднимается из пакета, бандл создаёт индекс при активации')
     return 0
 
 

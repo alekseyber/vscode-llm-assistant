@@ -218,6 +218,32 @@ suite('package.json ↔ registerCommands', () => {
     };
   }
 
+  test('CMD-5: лог активации перечисляет ровно зарегистрированные команды', () => {
+    // Дефект: строка была захардкожена («Зарегистрировано 12 команд: …») и отставала от кода.
+    const pkg = require('../../../package.json');
+    const logs: string[] = [];
+    const original = console.log;
+    console.log = (...args: unknown[]) => {
+      logs.push(args.map(String).join(' '));
+    };
+    try {
+      registerCommands(deps());
+    } finally {
+      console.log = original;
+    }
+
+    const line = logs.find((entry) => entry.includes('[registerCommands] Зарегистрировано'));
+    assert.ok(line, `строка о регистрации не найдена: ${JSON.stringify(logs)}`);
+
+    const declared: string[] = pkg.contributes.commands.map((c: any) => c.command);
+    const listed = line!.split(':').slice(1).join(':').split(',').map((id) => id.trim()).filter(Boolean);
+    assert.deepStrictEqual(
+      listed.sort(),
+      [...declared].sort(),
+      `лог не совпадает с объявленными командами: ${line}`,
+    );
+  });
+
   test('CMD-2: каждая объявленная команда регистрируется в коде', () => {
     const pkg = require('../../../package.json');
     const declared: string[] = pkg.contributes.commands.map((c: any) => c.command);
