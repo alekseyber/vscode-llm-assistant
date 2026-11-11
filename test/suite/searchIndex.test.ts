@@ -78,8 +78,8 @@ suite('SearchIndex / S1', () => {
     const query = buildFtsQuery('где считается стоимость (run) - OR "x"');
     assert.strictEqual(
       query,
-      '"считает" "стоимос" "run"',
-      `запрос собран по основам без операторов и стоп-слов: ${query}`,
+      '"считает" OR "стоимос" OR "run"',
+      `запрос собран по основам, OR и без стоп-слов: ${query}`,
     );
     assert.strictEqual(buildFtsQuery('   ((('), '', 'из одних спецсимволов — пустой запрос');
     assert.strictEqual(buildFtsQuery(''), '');

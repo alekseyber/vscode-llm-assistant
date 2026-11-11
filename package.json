@@ -3,7 +3,7 @@
   "displayName": "LLM Assistant — AI Agent for VS Code",
   "description": "AI-ассистент для VS Code: чат, inline-правки, автокомплит, ReAct-агент с инструментами и MCP. Любой провайдер по своему ключу; локальные модели (Ollama, llama.cpp) — как опция офлайн-работы.",
   "publisher": "alekseyber",
-  "version": "0.14.99",
+  "version": "0.15.0",
   "icon": "media/icon.png",
   "repository": {
     "type": "git",
@@ -402,7 +402,7 @@
     }
   },
   "scripts": {
-    "compile": "webpack --mode production",
+    "compile": "webpack --mode production && node scripts/copy-sqlite-assets.js",
     "vscode:prepublish": "npm run compile",
     "watch": "webpack --mode development --watch",
     "lint": "eslint src/ test/ --ext .ts",

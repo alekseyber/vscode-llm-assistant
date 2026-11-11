@@ -109,8 +109,11 @@ export function buildFtsQuery(text: string, maxTokens = MAX_QUERY_TOKENS): strin
   const limited = tokens.slice(0, maxTokens);
   if (limited.length === 0) return '';
   const tokensOut = limited;
+  // OR, а не AND: в русском запросе «где считается итоговая сумма корзины» пять слов,
+  // и требование всех сразу отсекает файл, где слово стоит в другой форме.
+  // Релевантность задаёт bm25, а не булева логика.
   if (tokensOut.length === 1) return `"${tokensOut[0]}"`;
-  return tokensOut.map((token) => `"${token}"`).join(' ');
+  return tokensOut.map((token) => `"${token}"`).join(' OR ');
 }
 
 export interface IndexEntry {

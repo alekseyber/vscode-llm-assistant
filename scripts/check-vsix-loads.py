@@ -42,6 +42,28 @@ try {
 '''
 
 
+# Проверка индекса: в VSIX нет node_modules, поэтому sqlite-wasm должен лежать в dist/sqlite
+# и реально инициализироваться с FTS5. Без этого карта поиска просто не поднимется.
+SQLITE_CHECK = r'''
+(async () => {
+  const { pathToFileURL } = require('url');
+  const path = require('path');
+  const file = path.join(process.cwd(), 'dist', 'sqlite', 'node.mjs');
+  const mod = await import(pathToFileURL(file).href);
+  const init = typeof mod.default === 'function' ? mod.default : mod;
+  const sqlite3 = await init();
+  const db = new sqlite3.oo1.DB(':memory:', 'c');
+  db.exec("CREATE VIRTUAL TABLE t USING fts5(x); INSERT INTO t VALUES('ok');");
+  const rows = db.exec({ sql: 'SELECT count(*) FROM t WHERE t MATCH ?', bind: ['ok'], rowMode: 'array', returnValue: 'resultRows' });
+  if (!rows || Number(rows[0][0]) !== 1) {
+    console.error('FTS5 не работает из распакованного пакета');
+    process.exit(4);
+  }
+  console.log('OK');
+})().catch((error) => { console.error(error && error.message ? error.message : String(error)); process.exit(5); });
+'''
+
+
 def main() -> int:
     if len(sys.argv) == 2:
         vsix = pathlib.Path(sys.argv[1])
@@ -90,6 +112,28 @@ def main() -> int:
             print('[VSIX] Соберите webpack-бандл: npm run compile (output.clean очищает dist).', file=sys.stderr)
             return 1
 
+        # Индекс (P8): модуль и wasm должны быть в пакете, иначе поиск молча деградирует
+        wasm = extension_dir / 'dist' / 'sqlite' / 'sqlite3.wasm'
+        sqlite_entry = extension_dir / 'dist' / 'sqlite' / 'node.mjs'
+        if not wasm.exists() or not sqlite_entry.exists():
+            print('[VSIX] ❌ в пакете нет dist/sqlite (node.mjs + sqlite3.wasm): локальный индекс не поднимется',
+                  file=sys.stderr)
+            print('[VSIX] Проверьте scripts/copy-sqlite-assets.js в npm run compile и .vscodeignore.',
+                  file=sys.stderr)
+            return 1
+
+        sqlite_result = subprocess.run(
+            ['node', '-e', SQLITE_CHECK],
+            cwd=extension_dir,
+            capture_output=True,
+            text=True,
+        )
+        if sqlite_result.returncode != 0:
+            print('[VSIX] ❌ sqlite-wasm из пакета не инициализируется:',
+                  file=sys.stderr)
+            print(sqlite_result.stderr.strip() or sqlite_result.stdout.strip(), file=sys.stderr)
+            return 1
+
         manifest = json.loads((extension_dir / 'package.json').read_text(encoding='utf-8'))
         main_entry = manifest.get('main', './dist/extension.js').lstrip('./')
         if main_entry != 'dist/extension.js':
@@ -109,7 +153,8 @@ def main() -> int:
                   file=sys.stderr)
             return 1
 
-    print(f'[VSIX] ✅ {vsix.name}: версия {manifest.get("version")}, бандл загружается без node_modules')
+    print(f'[VSIX] ✅ {vsix.name}: версия {manifest.get("version")}, бандл загружается без node_modules, '
+          f'sqlite-wasm с FTS5 поднимается из пакета')
     return 0
 
 

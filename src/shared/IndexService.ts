@@ -8,7 +8,9 @@
 //   - деградировать: любая проблема → инструмент работает как раньше (ripgrep).
 
 import * as crypto from 'crypto';
+import * as fs from 'fs';
 import * as path from 'path';
+import { pathToFileURL } from 'url';
 import * as vscode from 'vscode';
 import { SearchIndexStore } from './SearchIndex';
 import { SearchIndexer, IndexSourceFile, SKIP_DIRS } from './SearchIndexer';
@@ -24,14 +26,21 @@ const WATCHER_DEBOUNCE_MS = 500;
 const MASSIVE_CHANGES = 2000;
 
 /**
- * Загрузить sqlite-wasm. Пакет ESM-only, поэтому import настоящий динамический:
- * `new Function` не даёт TypeScript превратить его в `require`, который на ESM падает.
+ * Загрузить sqlite-wasm.
+ *
+ * Пакет ESM-only, поэтому import настоящий динамический (`new Function` не даёт TypeScript
+ * превратить его в `require`). В собранном расширении файлы лежат в `dist/sqlite`
+ * (копируются `scripts/copy-sqlite-assets.js`): в VSIX нет `node_modules`.
+ * В dev-режиме (без пакета) работает обычное имя пакета.
  */
 async function loadSqlite(): Promise<any> {
   const dynamicImport = new Function('specifier', 'return import(specifier)') as (
     specifier: string,
   ) => Promise<any>;
-  const mod = await dynamicImport('@sqlite.org/sqlite-wasm');
+
+  const local = path.join(__dirname, 'sqlite', 'node.mjs');
+  const specifier = fs.existsSync(local) ? pathToFileURL(local).href : '@sqlite.org/sqlite-wasm';
+  const mod = await dynamicImport(specifier);
   return typeof mod.default === 'function' ? await mod.default() : mod;
 }
 

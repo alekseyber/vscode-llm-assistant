@@ -4,6 +4,7 @@
 
 import * as vscode from 'vscode';
 import { classifyQuery, mergeHits, MIN_FUZZY_HITS } from '../../shared/SearchRouter';
+import { isIgnored, parseGitignore } from '../../shared/gitignore';
 import * as path from 'path';
 import { exec } from 'child_process';
 import { TextDecoder, TextEncoder } from 'util';
@@ -139,35 +140,9 @@ export function lineScore(line: string, fileName: string, regex: RegExp): number
   return score;
 }
 
-/** Разобрать .gitignore в список простых правил (без полноценного git-синтаксиса). */
-export function parseGitignore(text: string): string[] {
-  return text
-    .split('\n')
-    .map((l) => l.trim())
-    .filter((l) => l.length > 0 && !l.startsWith('#') && !l.startsWith('!'))
-    .map((l) => l.replace(/^\//, '').replace(/\/$/, ''));
-}
-
-/** Попадает ли путь под правила .gitignore (по префиксу каталога или шаблону с *). */
-export function isIgnored(relativePath: string, rules: readonly string[]): boolean {
-  const p = relativePath.replace(/\\/g, '/');
-  for (const rule of rules) {
-    if (rule.includes('*')) {
-      // Шаблон без слэша (‎*.log) действует на любом уровне вложенности, как в git:
-      // иначе правило из корневого .gitignore не ловило src/deep/file.log
-      const anchored = rule.includes('/');
-      const body = rule
-        .replace(/[.+^${}()|[\]\\]/g, '\\$&')
-        .replace(/\*\*/g, '.*')
-        .replace(/\*/g, '[^/]*');
-      const rx = new RegExp((anchored ? '^' : '(^|.*/)') + body + '($|/)');
-      if (rx.test(p)) return true;
-      continue;
-    }
-    if (p === rule || p.startsWith(rule + '/') || p.includes('/' + rule + '/')) return true;
-  }
-  return false;
-}
+// Правила .gitignore живут в shared/gitignore.ts: они нужны и индексатору (P8),
+// который обязан работать без зависимости от VS Code API. Здесь — реэкспорт для совместимости.
+export { parseGitignore, isIgnored } from '../../shared/gitignore';
 
 /** Прочитать .gitignore из корня workspace (если есть). */
 async function loadGitignoreRules(root: string): Promise<string[]> {

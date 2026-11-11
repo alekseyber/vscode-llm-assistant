@@ -1,6 +1,6 @@
 ---
 document: TRACEABILITY
-version: 0.14.32
+version: 0.14.33
 ---
 
 # Матрица трассировки: spec → AC → тест → код
@@ -25,6 +25,7 @@ version: 0.14.32
 | SearchIndexer | `src/shared/SearchIndexer.ts` | `test/suite/searchIndexer.test.ts` | IDX-4,5,6,13,14,15,19 |
 | SearchRouter | `src/shared/SearchRouter.ts` | `test/suite/searchRouter.test.ts` | IDX-7,8,20 |
 | IndexService | `src/shared/IndexService.ts` | — (проводка VS Code API; косвенно `IDX-9`, `IDX-21`) | — |
+| gitignore | `src/shared/gitignore.ts` | `searchIndexer.test.ts` (`IDX-4`, `IDX-16`), `searchFilesRanking.test.ts` (`SF-2`, `SF-3`) | SF-2, SF-3, IDX-4, IDX-16 |
 | ContextSummarizer | `src/shared/ContextSummarizer.ts` | `test/suite/contextSummarizer.test.ts`, `test/suite/summaryIntegration.test.ts` | AC-2.1–AC-2.6 |
 | RetryHandler | `src/shared/RetryHandler.ts` | `test/suite/retryHandler.test.ts` | AC-3.1–AC-3.7 |
 | AgentsMdLoader | `src/shared/AgentsMdLoader.ts` | `test/suite/agentsMd.test.ts` | AC-1.1–AC-1.6 |

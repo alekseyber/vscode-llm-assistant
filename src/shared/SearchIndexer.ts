@@ -9,7 +9,7 @@
 //   - после каждой пачки — flush, чтобы падение процесса не теряло весь индекс;
 //   - потолки (файлы/байты) не урезают молча: попадают в статистику и debug.
 
-import { isIgnored, parseGitignore } from '../modes/apply/ToolDefinitions';
+import { isIgnored, parseGitignore } from './gitignore';
 import { MAX_INDEXED_FILE_BYTES, SearchIndexStore } from './SearchIndex';
 
 /** Потолок числа файлов в индексе. */
