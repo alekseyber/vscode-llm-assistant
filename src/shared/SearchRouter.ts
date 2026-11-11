@@ -40,8 +40,9 @@ export function classifyQuery(query: string): SearchBackend {
   if (/_/.test(text)) return 'exact';
   if (/[/\\.]/.test(text) && !/\s/.test(text)) return 'exact';
 
-  // Одно слово без пробелов — скорее имя сущности, чем фраза
-  if (!/\s/.test(text)) return 'exact';
+  // Одно слово: латинское похоже на идентификатор/команду, кириллическое — на термин
+  // («налог», «прогноз»), который ищут по смыслу, а не подстрокой
+  if (!/\s/.test(text)) return /[a-z0-9]/i.test(text) ? 'exact' : 'fuzzy';
 
   return 'fuzzy';
 }

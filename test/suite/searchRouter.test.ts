@@ -36,6 +36,9 @@ suite('SearchRouter / S3', () => {
       assert.strictEqual(classifyQuery(query), 'fuzzy', `«${query}» должен идти в индекс`);
     }
     assert.strictEqual(classifyQuery(''), 'exact', 'пустой запрос — прежний путь');
+    // Одно русское слово — это термин, а не идентификатор: ищем по смыслу
+    assert.strictEqual(classifyQuery('налог'), 'fuzzy', 'кириллическое слово уходит в индекс');
+    assert.strictEqual(classifyQuery('calculateCost'), 'exact', 'латинский идентификатор — в точный поиск');
   });
 
   test('IDX-20: склейка ставит точные совпадения выше и убирает дубли', () => {
@@ -106,6 +109,22 @@ suite('SearchRouter / S3', () => {
       const exactOut = await tool.execute({ pattern: 'calculateCost' });
       assert.strictEqual(calls.length, 1, 'для идентификатора индекс не дёргается');
       assert.ok(!exactOut.includes('(лексический индекс)'), 'точный поиск работает как раньше');
+    });
+
+    test('IDX-23: дубль между абсолютным и относительным путём схлопывается', async () => {
+      const root = '/fake/workspace';
+      stubExactSearch(root);
+      // Индекс отдаёт относительный путь того же файла, что нашёлся точным поиском
+      setIndexSearchProvider({
+        search: () => [{ path: 'src/cost.ts', rank: -1.2, snippet: 'calculateCost' }],
+      });
+
+      const tool = createTools().find((t) => t.name === 'search_files')!;
+      const out = await tool.execute({ pattern: 'где считается стоимость' });
+
+      assert.ok(out.includes('(точные + индекс)'), `склейка: ${out}`);
+      const occurrences = out.split('cost.ts').length - 1;
+      assert.strictEqual(occurrences, 1, `один и тот же файл не дублируется разными формами пути: ${out}`);
     });
 
     test('IDX-21: слабая лексическая выдача склеивается с точной без дублей', async () => {

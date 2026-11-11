@@ -10,7 +10,7 @@ import * as crypto from 'crypto';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { SearchIndexStore } from './SearchIndex';
-import { SearchIndexer, IndexSourceFile } from './SearchIndexer';
+import { SearchIndexer, IndexSourceFile, SKIP_DIRS } from './SearchIndexer';
 import { setIndexSearchProvider } from '../modes/apply/ToolDefinitions';
 
 /** Исключения обхода: те же каталоги, что и в инструменте поиска. */
@@ -71,6 +71,9 @@ function vscodeAdapter(root: string): {
 }
 
 export class IndexService {
+  /** Активный сервис и его провайдер: dispose одного сервиса не должен гасить другой */
+  private static active?: { service: IndexService; provider: { search(query: string, limit?: number): any } };
+
   private readonly disposables: vscode.Disposable[] = [];
   private watcher?: vscode.FileSystemWatcher;
   private readonly pending = new Map<string, NodeJS.Timeout>();
@@ -108,13 +111,13 @@ export class IndexService {
       const indexer = new SearchIndexer(store, vscodeAdapter(root), { onDebug });
       const service = new IndexService(root, store, indexer, onDebug);
 
-      setIndexSearchProvider({
-        search: (query: string, limit = 5) => store.search(query, limit),
-      });
-      service.startWatcher();
+      const provider = { search: (query: string, limit = 5) => store.search(query, limit) };
+      setIndexSearchProvider(provider);
+      IndexService.active = { service, provider };
 
-      // Фоновая сборка: не блокируем активацию и не мешаем первому запросу пользователя
-      void service.warmUp();
+      // Сборка идёт ДО watcher: иначе файл, изменённый во время обхода, будет перезаписан
+      // устаревшими данными, когда fullBuild/reconcile закончится
+      void service.warmUp().finally(() => service.startWatcher());
       return service;
     } catch (error: any) {
       onDebug(`[index] не запустился: ${error?.message ?? String(error)}`);
@@ -145,6 +148,9 @@ export class IndexService {
     const schedule = (uri: vscode.Uri, kind: 'change' | 'delete' | 'create'): void => {
       const relPath = path.relative(this.root, uri.fsPath).replace(/\\/g, '/');
       if (!relPath || relPath.startsWith('..')) return;
+      // Обход исключает эти каталоги, но watcher видит всё: без проверки каждое изменение
+      // в node_modules дёргало бы индексатор
+      if (relPath.split('/').some((segment) => SKIP_DIRS.has(segment))) return;
 
       // Массовая операция (git checkout большой ветки): больше 2000 изменений в минуту
       // дешевле пересобрать целиком, чем обрабатывать по одному
@@ -154,6 +160,9 @@ export class IndexService {
       }
       changesInWindow += 1;
       if (changesInWindow > 2000) {
+        // Сбрасываем окно: иначе каждое следующее событие снова запускает пересборку
+        changesInWindow = 0;
+        windowStartedAt = Date.now();
         this.scheduleFullRebuild();
         return;
       }
@@ -212,7 +221,11 @@ export class IndexService {
     if (this.rebuildTimer) clearTimeout(this.rebuildTimer);
     for (const disposable of this.disposables) disposable.dispose();
     this.watcher?.dispose();
-    setIndexSearchProvider(undefined);
+    // Отключаем провайдер только если он наш: при переактивации окна сервисов может быть два
+    if (IndexService.active?.service === this) {
+      setIndexSearchProvider(undefined);
+      IndexService.active = undefined;
+    }
     void this.store.flush().catch(() => undefined);
     this.store.close();
   }

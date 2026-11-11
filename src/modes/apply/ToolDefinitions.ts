@@ -3,7 +3,7 @@
 // read_file, write_file, patch_file, search_files, run_terminal
 
 import * as vscode from 'vscode';
-import { classifyQuery, mergeHits, needsMerge } from '../../shared/SearchRouter';
+import { classifyQuery, mergeHits, MIN_FUZZY_HITS } from '../../shared/SearchRouter';
 import * as path from 'path';
 import { exec } from 'child_process';
 import { TextDecoder, TextEncoder } from 'util';
@@ -123,6 +123,8 @@ const SCAN_EXCLUDE_GLOB = '**/{node_modules,.git,dist,out,build,coverage,.next,v
 export interface RankedMatch {
   text: string;
   score: number;
+  /** Абсолютный путь файла: нужен для склейки с индексом без парсинга текста */
+  filePath?: string;
 }
 
 const DECLARATION_RE = /^\s*(export\s+)?(async\s+)?(function|class|interface|type|enum|const|let|var|def|struct|impl|trait|record)\b/;
@@ -316,6 +318,17 @@ const searchFilesTool: Tool = {
       return `Ошибка: невалидное регулярное выражение '${pattern}'`;
     }
 
+    // ── S3: сначала решаем, нужен ли вообще точный обход. Для фразы естественного языка
+    // он почти всегда даёт 0 попаданий (замер: 0/15), а стоит полного прохода по файлам
+    const backend = classifyQuery(pattern);
+    if (backend === 'fuzzy' && indexSearchProvider) {
+      const earlyHits = indexSearchProvider.search(pattern, 5);
+      if (earlyHits.length >= MIN_FUZZY_HITS) {
+        const lines = earlyHits.map((hit) => `${hit.path}: ${hit.snippet ?? ''}`.trim());
+        return `Найдено совпадений: ${earlyHits.length} (лексический индекс)\n${lines.join('\n')}`;
+      }
+    }
+
     // Ищем файлы по glob-фильтру. Потолок поднят: раньше 500 файлов обрезали поиск
     // на реальных репозиториях и агент получал «ничего не найдено» при существующем коде.
     const globPattern = new vscode.RelativePattern(searchDir, file_glob);
@@ -334,7 +347,7 @@ const searchFilesTool: Tool = {
 
       const fileName = path.basename(fileUri.fsPath);
       if (regex.test(fileName)) {
-        found.push({ text: `ФАЙЛ: ${fileUri.fsPath}`, score: 4 });
+        found.push({ text: `ФАЙЛ: ${fileUri.fsPath}`, score: 4, filePath: fileUri.fsPath });
       }
 
       try {
@@ -348,6 +361,7 @@ const searchFilesTool: Tool = {
             found.push({
               text: `${fileUri.fsPath}:${i + 1}: ${lines[i].trim().slice(0, 200)}`,
               score: lineScore(lines[i], fileName, regex),
+              filePath: fileUri.fsPath,
             });
             if (found.length >= MAX_COLLECT) break;
           }
@@ -359,14 +373,8 @@ const searchFilesTool: Tool = {
       if (found.length >= MAX_COLLECT) break;
     }
 
-    // ── S3: роутинг. Запрос естественным языком идёт в лексический индекс,
-    // точный (идентификатор, regex) — прежним путём. Контракт инструмента тот же.
-    const backend = classifyQuery(pattern);
+    // Слабый индекс доклеиваем к точной выдаче (сильный уже отдан выше, до обхода файлов)
     const fuzzyHits = backend === 'fuzzy' ? indexSearchProvider?.search(pattern, 5) ?? [] : [];
-    if (fuzzyHits.length > 0 && !needsMerge(fuzzyHits)) {
-      const lines = fuzzyHits.map((hit) => `${hit.path}: ${hit.snippet ?? ''}`.trim());
-      return `Найдено совпадений: ${fuzzyHits.length} (лексический индекс)\n${lines.join('\n')}`;
-    }
 
     if (found.length === 0 && fuzzyHits.length === 0) {
       return `По запросу '${pattern}' в '${searchDir}' (glob: ${file_glob}) ничего не найдено`;
@@ -375,10 +383,19 @@ const searchFilesTool: Tool = {
     // Ранжирование: объявления символов и совпадения в имени файла выше случайных вхождений
     found.sort((a, b) => b.score - a.score);
     if (fuzzyHits.length > 0) {
-      // FTS дал меньше MIN_FUZZY_HITS — доклеиваем после точных совпадений, без дублей
-      const exactHits = found.map((match) => ({ path: match.text.split(':')[0], snippet: match.text }));
-      const merged = mergeHits(exactHits, fuzzyHits);
-      const lines = merged.slice(0, MAX_MATCHES).map((hit) => (hit.source === 'exact' ? hit.snippet : `${hit.path}: ${hit.snippet}`));
+      // FTS дал меньше MIN_FUZZY_HITS — доклеиваем после точных совпадений, без дублей.
+      // Пути приводим к одной форме (абсолютной): индекс отдаёт относительные, точный поиск — абсолютные
+      const exactHits = found
+        .filter((match) => match.filePath)
+        .map((match) => ({ path: match.filePath as string, snippet: match.text }));
+      const fuzzyAbsolute = fuzzyHits.map((hit) => ({
+        ...hit,
+        path: path.isAbsolute(hit.path) ? hit.path : path.join(root, hit.path),
+      }));
+      const merged = mergeHits(exactHits, fuzzyAbsolute);
+      const lines = merged
+        .slice(0, MAX_MATCHES)
+        .map((hit) => (hit.source === 'exact' ? hit.snippet : `${hit.path}: ${hit.snippet}`));
       return `Найдено совпадений: ${merged.length} (точные + индекс)\n${lines.join('\n')}`;
     }
 
