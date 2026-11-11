@@ -113,14 +113,22 @@ const adapter = {
   const queries = JSON.parse(fs.readFileSync(queryFile, 'utf-8')).queries;
 
   let hits = 0;
+  let inTopFive = 0;
+  let inTopThree = 0;
   for (const query of queries) {
     const out = await searchFiles.execute({ pattern: query.pattern });
     const firstLines = out.split('\n').filter((line) => line.trim()).slice(0, 4);
     const hit = out.includes(query.expect);
+    // Позиция ожидаемого файла в выдаче: без неё «попадание» означает лишь «где-то в списке»
+    const rank = hit
+      ? out.split('\n').findIndex((line) => line.includes(query.expect)) + 1
+      : 0;
     if (hit) hits += 1;
-    console.log(`\n${hit ? '✓' : '✗'} «${query.pattern}» (ожидание: ${query.expect})`);
+    const position = rank > 0 ? `#${rank}` : '—';
+    console.log(`\n${hit ? '✓' : '✗'} ${position} «${query.pattern}» (ожидание: ${query.expect})`);
     for (const line of firstLines) console.log('   ' + line.slice(0, 140));
   }
+  const ranks = [];
   console.log(`\n[live] попаданий в выдаче: ${hits}/${queries.length}`);
   store.close();
   process.exit(hits === queries.length ? 0 : 1);
