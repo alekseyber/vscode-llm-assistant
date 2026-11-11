@@ -1,0 +1,284 @@
+// SearchIndexer — наполнение индекса из рабочего пространства (P8, этап S2).
+//
+// Логика отделена от VS Code API через адаптер файловой системы: так её можно проверить
+// тестами на настоящем диске, а не на моках, и переиспользовать для multi-root.
+//
+// Инварианты:
+//   - сбой одного файла не прерывает сборку (считаем в skipped и идём дальше);
+//   - работа идёт пачками с `await` между пачками: Extension Host однопоточный;
+//   - после каждой пачки — flush, чтобы падение процесса не теряло весь индекс;
+//   - потолки (файлы/байты) не урезают молча: попадают в статистику и debug.
+
+import { isIgnored, parseGitignore } from '../modes/apply/ToolDefinitions';
+import { MAX_INDEXED_FILE_BYTES, SearchIndexStore } from './SearchIndex';
+
+/** Потолок числа файлов в индексе. */
+export const MAX_INDEX_FILES = 20_000;
+
+/** Размер пачки: 200 файлов, между пачками отдаём управление хосту. */
+export const INDEX_BATCH_SIZE = 200;
+
+/** Каталоги, которые не индексируем никогда (не зависят от .gitignore). */
+export const SKIP_DIRS = new Set([
+  'node_modules', 'dist', 'out', '.git', '.vscode-test', '.next', 'build', 'coverage', 'vendor',
+]);
+
+/** Текстовые расширения, которые индексируем. */
+export const TEXT_EXTENSIONS = new Set([
+  '.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.json', '.md', '.mdx', '.txt', '.yml', '.yaml',
+  '.css', '.scss', '.less', '.html', '.xml', '.svg', '.sql', '.sh', '.bash', '.ps1', '.py', '.rb',
+  '.go', '.rs', '.java', '.kt', '.kts', '.c', '.h', '.cpp', '.hpp', '.cs', '.php', '.vue', '.svelte',
+  '.toml', '.ini', '.cfg', '.conf', '.gradle', '.properties', '.graphql', '.proto', '.env.example',
+]);
+
+/** Файлы, которые пропускаем по имени, даже если расширение текстовое. */
+const SKIP_FILE_PATTERNS = [
+  /(^|\/)package-lock\.json$/,
+  /(^|\/)yarn\.lock$/,
+  /(^|\/)pnpm-lock\.yaml$/,
+  /\.min\.(js|css)$/,
+  /\.map$/,
+];
+
+export interface IndexSourceFile {
+  /** Путь относительно корня рабочего пространства */
+  relPath: string;
+  size: number;
+  mtime: number;
+}
+
+export interface IndexFsAdapter {
+  /** Все файлы под корнем (без фильтрации — фильтры применяет индексатор). */
+  listFiles(): Promise<IndexSourceFile[]>;
+  /** Прочитать файл как байты. */
+  readFile(relPath: string): Promise<Uint8Array>;
+  /** Правила .gitignore (пустой массив, если файла нет). */
+  readGitignore?(): Promise<string[]>;
+}
+
+export interface IndexStats {
+  indexed: number;
+  skipped: number;
+  removed: number;
+  /** Причины пропуска: расширение, размер, бинарный, .gitignore, потолок */
+  reasons: Record<string, number>;
+  truncated: boolean;
+}
+
+/** Почему файл не индексируется (или `null`, если индексируется). */
+export function skipReason(
+  file: IndexSourceFile,
+  ignoreRules: readonly string[] = [],
+  maxFileBytes = MAX_INDEXED_FILE_BYTES,
+): string | null {
+  const rel = file.relPath.replace(/\\/g, '/');
+  const segments = rel.split('/');
+  if (segments.some((segment) => SKIP_DIRS.has(segment))) return 'каталог';
+  if (SKIP_FILE_PATTERNS.some((rx) => rx.test(rel))) return 'lock/минифицированный';
+  const ext = `.${rel.split('.').pop()?.toLowerCase() ?? ''}`;
+  if (!TEXT_EXTENSIONS.has(ext)) return 'расширение';
+  if (file.size > maxFileBytes) return 'размер';
+  if (isIgnored(rel, ignoreRules)) return '.gitignore';
+  return null;
+}
+
+/**
+ * Декодировать файл как текст. `null` — не текст (NUL-байт, битый UTF-8, UTF-16 без BOM).
+ *
+ * Белого списка расширений мало: UTF-16, бинарный `.txt` и минифицированный JSON проходят
+ * по расширению, а в индекс попадать не должны.
+ */
+export function decodeIndexableText(bytes: Uint8Array): string | null {
+  if (bytes.length === 0) return '';
+  // NUL в первых 4 КБ — почти всегда бинарник
+  const probeLength = Math.min(bytes.length, 4096);
+  for (let i = 0; i < probeLength; i += 1) {
+    if (bytes[i] === 0x00) {
+      // UTF-16LE/BE тоже содержит NUL-байты через один — их проверяем отдельно по BOM
+      const hasBom =
+        (bytes.length >= 2 && bytes[0] === 0xff && bytes[1] === 0xfe) ||
+        (bytes.length >= 2 && bytes[0] === 0xfe && bytes[1] === 0xff);
+      if (!hasBom) return null;
+      break;
+    }
+  }
+
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  } catch {
+    // UTF-16 с BOM: пробуем LE/BE по префиксу
+    if (bytes.length >= 2 && bytes[0] === 0xff && bytes[1] === 0xfe) {
+      return new TextDecoder('utf-16le').decode(bytes.subarray(2));
+    }
+    if (bytes.length >= 2 && bytes[0] === 0xfe && bytes[1] === 0xff) {
+      return new TextDecoder('utf-16be').decode(bytes.subarray(2));
+    }
+    return null;
+  }
+}
+
+/** Отдать управление хосту между пачками: Extension Host однопоточный. */
+function yieldToHost(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+/**
+ * Наполняет индекс из рабочего пространства. Адаптер ФС передаётся снаружи
+ * (в расширении — обёртка над `vscode.workspace.fs`, в тестах — настоящий диск).
+ */
+export class SearchIndexer {
+  private readonly store: SearchIndexStore;
+  private readonly fs: IndexFsAdapter;
+  private readonly maxFiles: number;
+  private readonly batchSize: number;
+  private readonly onDebug?: (message: string) => void;
+  private ignoreRules: string[] = [];
+
+  constructor(
+    store: SearchIndexStore,
+    adapter: IndexFsAdapter,
+    options: { maxFiles?: number; batchSize?: number; onDebug?: (message: string) => void } = {},
+  ) {
+    this.store = store;
+    this.fs = adapter;
+    this.maxFiles = options.maxFiles ?? MAX_INDEX_FILES;
+    this.batchSize = options.batchSize ?? INDEX_BATCH_SIZE;
+    this.onDebug = options.onDebug;
+  }
+
+  private debug(message: string): void {
+    this.onDebug?.(`[indexer] ${message}`);
+  }
+
+  /** Полная сборка: обход, фильтры, пачки, flush после каждой пачки. */
+  async fullBuild(): Promise<IndexStats> {
+    const stats: IndexStats = { indexed: 0, skipped: 0, removed: 0, reasons: {}, truncated: false };
+    this.ignoreRules = (await this.fs.readGitignore?.()) ?? [];
+
+    let files = await this.fs.listFiles();
+    const candidates: IndexSourceFile[] = [];
+    for (const file of files) {
+      const reason = skipReason(file, this.ignoreRules);
+      if (reason) {
+        stats.skipped += 1;
+        stats.reasons[reason] = (stats.reasons[reason] ?? 0) + 1;
+        continue;
+      }
+      candidates.push(file);
+    }
+
+    if (candidates.length > this.maxFiles) {
+      // Молча урезать нельзя: оставляем самые свежие и говорим об этом
+      candidates.sort((a, b) => b.mtime - a.mtime);
+      stats.truncated = true;
+      stats.reasons['потолок файлов'] = candidates.length - this.maxFiles;
+      this.debug(`файлов ${candidates.length} больше потолка ${this.maxFiles}: индексируем свежие`);
+      candidates.length = this.maxFiles;
+    }
+
+    for (let i = 0; i < candidates.length; i += this.batchSize) {
+      const batch = candidates.slice(i, i + this.batchSize);
+      for (const file of batch) {
+        const outcome = await this.indexOne(file, stats);
+        if (outcome) stats.indexed += 1;
+        else stats.skipped += 1;
+      }
+      await this.store.flush();
+      await yieldToHost();
+    }
+
+    // Удаляем из индекса то, чего больше нет на диске
+    const present = new Set(candidates.map((file) => file.relPath));
+    for (const entry of this.store.listIndexed()) {
+      if (!present.has(entry.path)) {
+        this.store.removeFile(entry.path);
+        stats.removed += 1;
+      }
+    }
+    await this.store.flush();
+    return stats;
+  }
+
+  private async indexOne(file: IndexSourceFile, stats: IndexStats): Promise<boolean> {
+    try {
+      const bytes = await this.fs.readFile(file.relPath);
+      const text = decodeIndexableText(bytes);
+      if (text === null) {
+        stats.reasons['не текст'] = (stats.reasons['не текст'] ?? 0) + 1;
+        this.debug(`пропущен не-текст: ${file.relPath}`);
+        return false;
+      }
+      return this.store.upsertFile({
+        path: file.relPath,
+        body: text,
+        size: file.size,
+        mtime: file.mtime,
+      });
+    } catch (error: any) {
+      this.debug(`не прочитан ${file.relPath}: ${error?.message ?? String(error)}`);
+      stats.reasons['ошибка чтения'] = (stats.reasons['ошибка чтения'] ?? 0) + 1;
+      return false;
+    }
+  }
+
+  /** Инкремент: один файл изменился или появился. */
+  async updateFile(file: IndexSourceFile): Promise<boolean> {
+    const reason = skipReason(file, this.ignoreRules);
+    if (reason) {
+      this.store.removeFile(file.relPath);
+      this.debug(`файл больше не индексируется (${reason}): ${file.relPath}`);
+      return false;
+    }
+    const stats: IndexStats = { indexed: 0, skipped: 0, removed: 0, reasons: {}, truncated: false };
+    return this.indexOne(file, stats);
+  }
+
+  /** Инкремент: файл удалён (или переименован — тогда пара delete+insert). */
+  removeFile(relPath: string): void {
+    this.store.removeFile(relPath);
+  }
+
+  /**
+   * Сверка при старте: индексируем новое и изменившееся (размер/mtime),
+   * удаляем исчезнувшее. Полная перестройка не нужна, если изменилось немного.
+   */
+  async reconcile(): Promise<IndexStats> {
+    const stats: IndexStats = { indexed: 0, skipped: 0, removed: 0, reasons: {}, truncated: false };
+    this.ignoreRules = (await this.fs.readGitignore?.()) ?? [];
+    const indexed = new Map(this.store.listIndexed().map((entry) => [entry.path, entry]));
+    const files = await this.fs.listFiles();
+    const present = new Set<string>();
+
+    for (const file of files) {
+      const reason = skipReason(file, this.ignoreRules);
+      if (reason) {
+        if (indexed.has(file.relPath)) {
+          this.store.removeFile(file.relPath);
+          stats.removed += 1;
+        }
+        continue;
+      }
+      present.add(file.relPath);
+      const known = indexed.get(file.relPath);
+      const changed = !known || known.size !== file.size || known.mtime !== file.mtime;
+      if (changed) {
+        const ok = await this.indexOne(file, stats);
+        if (ok) stats.indexed += 1;
+      }
+    }
+
+    for (const path of indexed.keys()) {
+      if (!present.has(path)) {
+        this.store.removeFile(path);
+        stats.removed += 1;
+      }
+    }
+
+    if (stats.indexed > 0 || stats.removed > 0) await this.store.flush();
+    this.debug(`сверка: обновлено ${stats.indexed}, удалено ${stats.removed}`);
+    return stats;
+  }
+}
+
+/** Разобрать .gitignore в правила — реэкспорт, чтобы адаптерам не тянуть ToolDefinitions. */
+export { parseGitignore };

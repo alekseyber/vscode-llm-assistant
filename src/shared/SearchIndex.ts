@@ -371,6 +371,21 @@ export class SearchIndexStore {
     }
   }
 
+  /** Список проиндексированных файлов — для сверки при старте (S2). */
+  listIndexed(): Array<{ path: string; size: number; mtime: number }> {
+    if (!this.ready) return [];
+    const rows = this.db.exec({
+      sql: 'SELECT path, size, mtime FROM files',
+      rowMode: 'array',
+      returnValue: 'resultRows',
+    });
+    return (rows ?? []).map((row: any[]) => ({
+      path: String(row[0]),
+      size: Number(row[1] ?? 0),
+      mtime: Number(row[2] ?? 0),
+    }));
+  }
+
   stats(): { files: number; ready: boolean } {
     if (!this.ready) return { files: 0, ready: false };
     const rows = this.db.exec({
