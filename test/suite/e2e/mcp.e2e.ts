@@ -12,6 +12,7 @@
 import 'mocha';
 import * as assert from 'assert';
 import * as path from 'path';
+import { execFileSync } from 'child_process';
 import { McpClient, loadMcpConfig } from '../../../src/modes/apply/McpClient';
 import { applySettings, SettingsSnapshot } from './helpers/settings';
 
@@ -24,6 +25,20 @@ suite('E2E-17: MCP по stdio', function () {
   let snap: SettingsSnapshot | undefined;
   let client: McpClient | undefined;
 
+  /** Конфиг сервера: `node` из PATH (в Extension Host `process.execPath` — это Electron). */
+  function serverConfig(name = 'fake', extraArgs: string[] = [], enabled = true) {
+    return { name, command: 'node', args: [FAKE_SERVER, ...extraArgs], enabled };
+  }
+
+  suiteSetup(function () {
+    // Без node в PATH тест упал бы невнятно («Connection closed»)
+    try {
+      execFileSync('node', ['--version']);
+    } catch {
+      throw new Error('для E2E-17 нужен node в PATH: тест поднимает MCP-сервер дочерним процессом');
+    }
+  });
+
   teardown(async () => {
     client?.disconnect();
     client = undefined;
@@ -32,11 +47,7 @@ suite('E2E-17: MCP по stdio', function () {
 
   test('E2E-17a: сервер из настроек поднимается, инструменты появляются в списке', async () => {
     snap = await applySettings({
-      'mcp.servers': [
-        // Команда — `node` из PATH, а не process.execPath: в Extension Host это Electron,
-        // и запуск .cjs им закрывал соединение («MCP error -32000: Connection closed», поймал CI)
-        { name: 'fake', command: 'node', args: [FAKE_SERVER], enabled: true },
-      ],
+      'mcp.servers': [serverConfig()],
     });
 
     const configs = loadMcpConfig();
@@ -55,11 +66,7 @@ suite('E2E-17: MCP по stdio', function () {
 
   test('E2E-17b: вызов инструмента возвращает ответ сервера', async () => {
     snap = await applySettings({
-      'mcp.servers': [
-        // Команда — `node` из PATH, а не process.execPath: в Extension Host это Electron,
-        // и запуск .cjs им закрывал соединение («MCP error -32000: Connection closed», поймал CI)
-        { name: 'fake', command: 'node', args: [FAKE_SERVER], enabled: true },
-      ],
+      'mcp.servers': [serverConfig()],
     });
 
     client = new McpClient(loadMcpConfig()[0]);
@@ -75,13 +82,39 @@ suite('E2E-17: MCP по stdio', function () {
     );
   });
 
-  test('E2E-17c: выключенный сервер не поднимается', async () => {
+  test('E2E-17c: выключенный сервер отфильтровывается из конфига', async () => {
     snap = await applySettings({
-      'mcp.servers': [
-        { name: 'off', command: 'node', args: [FAKE_SERVER], enabled: false },
-      ],
+      'mcp.servers': [serverConfig('off', [], false)],
     });
 
     assert.deepStrictEqual(loadMcpConfig(), [], 'сервер с enabled: false отфильтрован');
+  });
+
+  test('E2E-17d: isError от сервера не выглядит как успешный ответ', async () => {
+    snap = await applySettings({ 'mcp.servers': [serverConfig()] });
+    client = new McpClient(loadMcpConfig()[0]);
+    const { tools } = await client.connect();
+
+    const failing = tools.find((tool) => String(tool.name).includes('fake_error'));
+    assert.ok(failing, `инструмент fake_error в списке: ${JSON.stringify(tools.map((t) => t.name))}`);
+
+    const answer = String(await failing!.execute({}));
+    assert.ok(answer.includes('ошибка инструмента'), `агент видит ошибку, а не результат: ${answer.slice(0, 200)}`);
+    assert.ok(answer.includes('сервер сломался'), 'текст ошибки сервера сохранён');
+  });
+
+  test('E2E-17e: падение сервера после рукопожатия даёт ошибку, а не зависание', async () => {
+    snap = await applySettings({ 'mcp.servers': [serverConfig('crashing', ['--crash'])] });
+    client = new McpClient(loadMcpConfig()[0]);
+    const { tools } = await client.connect();
+    const echo = tools.find((tool) => String(tool.name).includes('fake_echo'));
+    assert.ok(echo, 'инструменты получены до падения');
+
+    // Сервер завершится через ~20 мс: вызов обязан завершиться ошибкой, а не висеть до таймаута теста
+    await assert.rejects(
+      async () => echo!.execute({ text: 'после падения' }),
+      (error: Error) => /Connection closed|closed|ECONNRESET|MCP error/i.test(String(error.message)),
+      'падение сервера превращается в понятную ошибку',
+    );
   });
 });

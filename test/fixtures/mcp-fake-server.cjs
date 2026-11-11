@@ -9,6 +9,10 @@
 'use strict';
 
 const PROTOCOL_VERSION = '2024-11-05';
+// Флаги стенда: --crash — упасть сразу после рукопожатия (проверка, что клиент не зависает)
+const CRASH_AFTER_INIT = process.argv.includes('--crash');
+let initializedSeen = false;
+process.stderr.write('фейковый MCP: запущен\n');
 
 function send(message) {
   process.stdout.write(JSON.stringify(message) + '\n');
@@ -18,6 +22,7 @@ function handle(message) {
   const { id, method, params } = message;
 
   if (method === 'initialize') {
+    process.stderr.write('фейковый MCP: initialize\n');
     send({
       jsonrpc: '2.0',
       id,
@@ -31,7 +36,20 @@ function handle(message) {
   }
 
   // Уведомление: ответа не требуется
-  if (method === 'notifications/initialized') return;
+  if (method === 'notifications/initialized') {
+    initializedSeen = true;
+    process.stderr.write('фейковый MCP: initialized\n');
+    if (CRASH_AFTER_INIT) {
+      // Падение сразу после рукопожатия: клиент должен выдать понятную ошибку, а не зависнуть
+      setTimeout(() => process.exit(1), 20);
+    }
+    return;
+  }
+
+  // Порядок протокола: tools/list до initialized — нарушение, о котором надо знать
+  if (method === 'tools/list' && !initializedSeen) {
+    process.stderr.write('фейковый MCP: tools/list до initialized\n');
+  }
 
   if (method === 'tools/list') {
     send({
@@ -48,6 +66,11 @@ function handle(message) {
               required: ['text'],
             },
           },
+          {
+            name: 'fake_error',
+            description: 'Всегда возвращает ошибку (isError: true)',
+            inputSchema: { type: 'object', properties: {} },
+          },
         ],
       },
     });
@@ -55,12 +78,24 @@ function handle(message) {
   }
 
   if (method === 'tools/call') {
+    const name = String(params?.name ?? '');
     const text = String(params?.arguments?.text ?? '');
-    send({
-      jsonrpc: '2.0',
-      id,
-      result: { content: [{ type: 'text', text: `эхо: ${text}` }] },
-    });
+    // Задержка как у настоящего сервера: клиент не должен рассчитывать на мгновенный ответ
+    setTimeout(() => {
+      if (name === 'fake_error') {
+        send({
+          jsonrpc: '2.0',
+          id,
+          result: { content: [{ type: 'text', text: 'сервер сломался' }], isError: true },
+        });
+        return;
+      }
+      send({
+        jsonrpc: '2.0',
+        id,
+        result: { content: [{ type: 'text', text: `эхо: ${text}` }] },
+      });
+    }, 60);
     return;
   }
 

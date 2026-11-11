@@ -152,8 +152,15 @@ export class McpClient {
       return '(инструмент не вернул текстового результата)';
     }
 
+    // `isError` — ошибка на стороне сервера. Раньше он игнорировался, и агент получал текст
+    // ошибки как нормальный результат инструмента (нашёл e2e `E2E-17d`)
+    const body = textParts.join('\n');
+    if ((result as { isError?: boolean }).isError) {
+      return wrapExternalContent(`mcp: ${this.config.name}/${name}`, `⚠️ ошибка инструмента: ${body}`);
+    }
+
     // Результат MCP — внешние данные: размечаем как данные и показываем попытки инъекций
-    return wrapExternalContent(`mcp: ${this.config.name}/${name}`, textParts.join('\n'));
+    return wrapExternalContent(`mcp: ${this.config.name}/${name}`, body);
   }
 
   /**
