@@ -36,11 +36,12 @@ jobs:
 
       # Страховка перед публикацией: собранный пакет должен загружаться без node_modules.
       # 09.11 в Marketplace чуть не уехал пакет, где dist был собран tsc и падал на require("openai").
-      - name: Проверка собранного VSIX
+      # Пакет собираем ОДИН раз: проверяем ровно тот файл, который публикуем.
+      - name: Собрать и проверить VSIX
         run: |
-          npx @vscode/vsce package --out /tmp/smoke.vsix
-          python3 scripts/check-vsix-loads.py /tmp/smoke.vsix
+          npx @vscode/vsce package --out /tmp/publish.vsix
+          python3 scripts/check-vsix-loads.py /tmp/publish.vsix
 
-      # Публикация с Entra-аутентификацией
+      # Публикация с Entra-аутентификацией: тот же артефакт, что проверен выше
       - name: Publish to Marketplace
-        run: npx @vscode/vsce publish --azure-credential
+        run: npx @vscode/vsce publish --azure-credential --packagePath /tmp/publish.vsix

@@ -104,12 +104,40 @@ def main() -> int:
             print('[VSIX] Проверьте .vscodeignore: out/, test/, specs/, scripts/, reports/ не должны уезжать.', file=sys.stderr)
             return 1
 
-        # Файлы индекса и прочий мусор стендов не должны уезжать в пакет
-        junk = [str(path.relative_to(extension_dir)) for path in extension_dir.rglob('*')
-                if path.is_file() and (path.suffix in {'.sqlite', '.db'} or path.name.endswith('.sqlite-journal'))]
+        # Мусор стендов не должен уезжать в пакет. Ловим по типам, а не по одному случаю:
+        # первым в пакет попал индекс (6.5 МБ), за ним могли уехать логи и вложенные пакеты.
+        # dist/ и media/ — легальные места для любых наших файлов, их не проверяем по расширению.
+        JUNK_SUFFIXES = {'.sqlite', '.db', '.log', '.vsix', '.nyc_output', '.env'}
+        allowed_dirs = ('dist', 'media')
+        junk = []
+        for item in extension_dir.rglob('*'):
+            if not item.is_file():
+                continue
+            rel = item.relative_to(extension_dir)
+            if rel.parts and rel.parts[0] in allowed_dirs:
+                continue
+            name = item.name.lower()
+            if item.suffix.lower() in JUNK_SUFFIXES or name.endswith('.sqlite-journal') or name == '.env':
+                junk.append(str(rel))
         if junk:
-            print(f'[VSIX] ❌ в пакет попали файлы индекса/базы: {junk[:3]}', file=sys.stderr)
+            print(f'[VSIX] ❌ в пакет попали служебные файлы: {junk[:3]}', file=sys.stderr)
             print('[VSIX] Добавьте их в .vscodeignore и пересоберите пакет.', file=sys.stderr)
+            return 1
+
+        # Обязательные части пакета: если .vscodeignore перестарается, расширение уедет нерабочим
+        REQUIRED = ['package.json', 'README.md', 'dist/extension.js', 'dist/sqlite/node.mjs', 'dist/sqlite/sqlite3.wasm']
+        missing = [rel for rel in REQUIRED if not (extension_dir / rel).exists()]
+        if missing:
+            print(f'[VSIX] ❌ в пакете нет обязательных файлов: {missing}', file=sys.stderr)
+            print('[VSIX] Проверьте .vscodeignore: dist/ и dist/sqlite/ не должны исключаться.', file=sys.stderr)
+            return 1
+
+        # Подозрительно большой файл вне dist/ и media/ — обычно это чужой артефакт
+        heavy = [str(path.relative_to(extension_dir)) for path in extension_dir.rglob('*')
+                 if path.is_file() and path.stat().st_size > 1024 * 1024
+                 and path.relative_to(extension_dir).parts[0] not in allowed_dirs]
+        if heavy:
+            print(f'[VSIX] ❌ в пакете большой файл вне dist/media: {heavy[:3]}', file=sys.stderr)
             return 1
 
         # Лишние .js рядом с бандлом — это вывод tsc, попавший в пакет
