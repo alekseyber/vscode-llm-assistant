@@ -56,9 +56,20 @@ export class OrchestratorViewProvider implements vscode.WebviewViewProvider {
   }
 
   /** Показать новую задачу */
+  /**
+   * Снимок задачи для отправки.
+   *
+   * Без копии в сообщение уходит ссылка на `currentTask`, и последующие `updateWorker`
+   * меняют уже отправленное сообщение: в настоящем webview оно сериализуется и проблемы нет,
+   * но любой потребитель в процессе видит не то, что было отправлено (нашёл e2e `E2E-15`).
+   */
+  private snapshot<T>(value: T): T {
+    return JSON.parse(JSON.stringify(value)) as T;
+  }
+
   showTask(task: OrchestratorTaskInfo): void {
     this.currentTask = task;
-    this.postMessage({ type: 'taskUpdate', task });
+    this.postMessage({ type: 'taskUpdate', task: this.snapshot(task) });
   }
 
   /** Обновить статус конкретного воркера */
@@ -68,7 +79,7 @@ export class OrchestratorViewProvider implements vscode.WebviewViewProvider {
     if (!worker) return;
     Object.assign(worker, updates);
     this.recalcProgress();
-    this.postMessage({ type: 'workerUpdate', roleName, updates });
+    this.postMessage({ type: 'workerUpdate', roleName, updates: this.snapshot(updates) });
   }
 
   /** Обновить прогресс-бар */

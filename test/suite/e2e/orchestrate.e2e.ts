@@ -50,6 +50,28 @@ function writeRoles(root: string): void {
   }
 }
 
+/**
+ * Снимок каталога ролей: в фикстуре уже лежат `architect/coder/reviewer.md` для `E2E-6`,
+ * и первая версия этого теста сносила каталог в teardown — падал чужой тест.
+ */
+function snapshotRoles(root: string): Map<string, string> {
+  const dir = path.join(root, '.llma', 'agents');
+  const snapshot = new Map<string, string>();
+  if (!fs.existsSync(dir)) return snapshot;
+  for (const name of fs.readdirSync(dir)) {
+    snapshot.set(name, fs.readFileSync(path.join(dir, name), 'utf-8'));
+  }
+  return snapshot;
+}
+
+function restoreRoles(root: string, snapshot: Map<string, string>): void {
+  const dir = path.join(root, '.llma', 'agents');
+  fs.rmSync(dir, { recursive: true, force: true });
+  if (snapshot.size === 0) return;
+  fs.mkdirSync(dir, { recursive: true });
+  for (const [name, body] of snapshot) fs.writeFileSync(path.join(dir, name), body, 'utf-8');
+}
+
 suite('E2E-15: @orchestrate', function () {
   this.timeout(120_000);
 
@@ -60,13 +82,16 @@ suite('E2E-15: @orchestrate', function () {
   let history: RunHistoryStore;
   let rolesDir: string;
   let workspace: string;
+  let restoreRolesAfter: (() => void) | undefined;
 
   setup(async () => {
     const folder = (vscode.workspace.workspaceFolders ?? [])[0];
     assert.ok(folder, 'рабочее пространство открыто');
     workspace = folder!.uri.fsPath;
     rolesDir = path.join(workspace, '.llma', 'agents');
+    const previous = snapshotRoles(workspace);
     writeRoles(workspace);
+    restoreRolesAfter = () => restoreRoles(workspace, previous);
 
     let request = 0;
     stub = await startStub((_req, res) => {
@@ -126,7 +151,8 @@ suite('E2E-15: @orchestrate', function () {
   teardown(async () => {
     await snap?.restore();
     await stub?.close();
-    fs.rmSync(rolesDir, { recursive: true, force: true });
+    restoreRolesAfter?.();
+    void rolesDir;
   });
 
   test('E2E-15: роли идут по цепочке, статусы меняются, итог приходит в чат', async () => {
