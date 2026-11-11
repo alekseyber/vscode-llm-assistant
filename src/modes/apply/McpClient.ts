@@ -63,6 +63,10 @@ export interface McpToolResult {
  * «ошибка сервера не выглядит успешным ответом» проверяется без поднятия процесса
  * и без обращения к приватным полям клиента.
  */
+/** Пометка ошибки инструмента. Константы — чтобы тесты проверяли контракт, а не текст. */
+export const MCP_ERROR_MARKER = '⚠️ ошибка инструмента';
+export const MCP_EMPTY_RESULT = '(инструмент не вернул текстового результата)';
+
 export function formatToolResult(
   serverName: string,
   toolName: string,
@@ -74,16 +78,16 @@ export function formatToolResult(
       textParts.push(block.text);
     }
   }
+  const body = textParts.join('\n');
 
-  if (textParts.length === 0) {
-    return '(инструмент не вернул текстового результата)';
+  // `isError` проверяется ДО пустоты: сервер может сообщить об ошибке без текста,
+  // и тогда ответ не должен выглядеть как «инструмент ничего не вернул» (замечание ревью)
+  if (result.isError) {
+    return wrapExternalContent(`mcp: ${serverName}/${toolName}`, `${MCP_ERROR_MARKER}: ${body || '(пустой ответ)'}`);
   }
 
-  // `isError` — ошибка на стороне сервера. Раньше он игнорировался, и агент получал текст
-  // ошибки как нормальный результат инструмента (нашёл e2e `E2E-17d`)
-  const body = textParts.join('\n');
-  if (result.isError) {
-    return wrapExternalContent(`mcp: ${serverName}/${toolName}`, `⚠️ ошибка инструмента: ${body}`);
+  if (body.length === 0) {
+    return MCP_EMPTY_RESULT;
   }
 
   // Результат MCP — внешние данные: размечаем как данные и показываем попытки инъекций

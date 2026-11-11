@@ -8,7 +8,13 @@
 
 import 'mocha';
 import * as assert from 'assert';
-import { McpClient, McpServerConfig, formatToolResult } from '../../src/modes/apply/McpClient';
+import {
+  McpClient,
+  McpServerConfig,
+  formatToolResult,
+  MCP_ERROR_MARKER,
+  MCP_EMPTY_RESULT,
+} from '../../src/modes/apply/McpClient';
 import { ToolSystem, Tool } from '../../src/modes/apply/ToolSystem';
 import { getAllowedTools, ToolAllowListConfig } from '../../src/modes/apply/ToolAllowList';
 
@@ -284,7 +290,7 @@ suite('McpClient', () => {
       content: [{ type: 'text', text: 'ENOENT: no such file' }],
       isError: true,
     });
-    assert.ok(text.includes('⚠️ ошибка инструмента'), `ошибка не помечена: ${text}`);
+    assert.ok(text.includes(MCP_ERROR_MARKER), `ошибка не помечена: ${text}`);
     assert.ok(text.includes('ENOENT'), `текст ошибки потерян: ${text}`);
   });
 
@@ -293,12 +299,18 @@ suite('McpClient', () => {
       content: [{ type: 'text', text: 'содержимое файла' }],
       isError: false,
     });
-    assert.ok(!text.includes('⚠️ ошибка инструмента'), `успех помечен как ошибка: ${text}`);
+    assert.ok(!text.includes(MCP_ERROR_MARKER), `успех помечен как ошибка: ${text}`);
     assert.ok(text.includes('содержимое файла'), `текст результата потерян: ${text}`);
+  });
+
+  test('MCP-ERR-4: ошибка без текста всё равно помечена как ошибка', () => {
+    const text = formatToolResult('files', 'read', { content: [], isError: true });
+    assert.ok(text.includes(MCP_ERROR_MARKER), `ошибка без текста потеряна: ${text}`);
+    assert.ok(!text.includes(MCP_EMPTY_RESULT), `ошибка выдана за пустой результат: ${text}`);
   });
 
   test('MCP-ERR-3: пустой ответ инструмента не выдаётся за данные', () => {
     const text = formatToolResult('files', 'read', { content: [] });
-    assert.ok(text.includes('не вернул текстового результата'), `пустой ответ не отличён: ${text}`);
+    assert.strictEqual(text, MCP_EMPTY_RESULT);
   });
 });

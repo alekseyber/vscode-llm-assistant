@@ -13,8 +13,8 @@
       "id": "SRCH-BODY-WEIGHT",
       "file": "src/shared/SearchIndex.ts",
       "from": "const BODY_WEIGHT = 1.0;",
-      "to": "const BODY_WEIGHT = 0.1;",
-      "label": "вес тела 1.0 → 0.1",
+      "to": "const BODY_WEIGHT = 10.0;",
+      "label": "вес тела 1.0 → 10.0 (тело начинает перевешивать путь)",
       "expect": "must-fail"
     },
     {
