@@ -179,9 +179,22 @@ suite('E2E-15: @orchestrate', function () {
     );
     const updates = messagesOfType(orchView, 'workerUpdate');
     const started = updates.filter((m) => m.updates?.status === 'running').map((m) => m.roleName);
-    const finished = updates.filter((m) => m.updates?.status === 'done').map((m) => m.roleName);
+    // Статус «готово» приходит дважды на роль: сначала от воркера, затем с деталями
+    // (шаги, ответ, токены) — так обновляет сама панель после цепочки. Порядок проверяем
+    // по первому появлению роли, наличие деталей — отдельно.
+    const finishedAll = updates.filter((m) => m.updates?.status === 'done').map((m) => m.roleName);
+    const finishedUnique = Array.from(new Set(finishedAll));
     assert.deepStrictEqual(started, ['01-architect', '02-coder', '03-reviewer'], `порядок старта: ${started}`);
-    assert.deepStrictEqual(finished, ['01-architect', '02-coder', '03-reviewer'], `порядок завершения: ${finished}`);
+    assert.deepStrictEqual(finishedUnique, ['01-architect', '02-coder', '03-reviewer'], `порядок завершения: ${finishedAll}`);
+
+    // Детали приходят вторым обновлением: шаги, ответ и токены, а не только статус
+    for (const role of ['01-architect', '02-coder', '03-reviewer']) {
+      const detailed = updates.filter((m) => m.roleName === role && m.updates?.status === 'done').at(-1);
+      assert.ok(detailed, `есть обновление роли ${role}`);
+      assert.ok(Number(detailed.updates.steps) >= 1, `у ${role} посчитаны шаги: ${JSON.stringify(detailed.updates)}`);
+      assert.ok(String(detailed.updates.answer ?? '').length > 0, `у ${role} есть ответ в деталях`);
+      assert.ok(Number(detailed.updates.inputTokens) > 0, `у ${role} есть токены: ${JSON.stringify(detailed.updates)}`);
+    }
 
     // 3. Итог дошёл до чата
     const text = messagesOfType(chatView, 'streamChunk').map((m) => m.text).join('');
