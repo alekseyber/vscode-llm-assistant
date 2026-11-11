@@ -88,6 +88,30 @@
       "to": "    void this.lastSuggestion;",
       "label": "сброс кэша подсказки отключён",
       "expect": "must-fail"
+    },
+    {
+      "id": "CAT-NUMBERING",
+      "file": "src/modes/chat/ChatAgentTools.ts",
+      "from": "const numbered = selected.map((l, i) => `${String(start + i).padStart(4)}| ${l}`).join('\\n');",
+      "to": "const numbered = selected.map((l) => `| ${l}`).join('\\n');",
+      "label": "нумерация строк в read_file убрана",
+      "expect": "must-fail"
+    },
+    {
+      "id": "CAT-IDEMPOTENT",
+      "file": "src/modes/chat/ChatAgentTools.ts",
+      "from": "if (current === content) {",
+      "to": "if (false) {",
+      "label": "идемпотентность write_file отключена",
+      "expect": "must-fail"
+    },
+    {
+      "id": "CAT-FIRST-ONLY",
+      "file": "src/modes/chat/ChatAgentTools.ts",
+      "from": "const updated = content.replace(oldStr, args.new_str as string);",
+      "to": "const updated = content.split(oldStr).join(args.new_str as string);",
+      "label": "replace_in_file меняет все вхождения",
+      "expect": "must-fail"
     }
   ]
 }

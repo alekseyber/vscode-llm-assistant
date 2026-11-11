@@ -79,6 +79,7 @@ class InlineCompletionList {
 }
 
 /** Провайдеры inline-завершений: тесты получают их через __inlineProviders */
+const path = require('path');
 const inlineProviders = [];
 
 /** Источник токена отмены: тесты отменяют запрос так же, как это делает VS Code */
@@ -144,6 +145,9 @@ const didEmitters = {
 /** Хранилище настроек: тесты задают значения через workspace.__settings */
 const settings = {};
 
+/** Файлы и каталоги в памяти — настоящая ФС для тестов инструментов агента */
+const memoryFs = { files: new Map(), dirs: new Set() };
+
 const workspace = {
   workspaceFolders: [{ uri: Uri.file('/fake/workspace'), name: 'test', index: 0 }],
   registerTextDocumentContentProvider() { return { dispose() {} }; },
@@ -182,11 +186,33 @@ const workspace = {
       },
     };
   },
+  /**
+   * Файловая система в памяти: readFile/writeFile/stat работают по-настоящему.
+   * Раньше readFile всегда отдавал пустой массив, и тесты инструментов агента
+   * проверяли не чтение файла, а собственную заглушку.
+   */
   fs: {
-    readFile(uri) { return Promise.resolve(new Uint8Array()); },
-    writeFile(uri, data) { return Promise.resolve(); },
-    createDirectory(uri) { return Promise.resolve(); },
-    stat(uri) { return Promise.resolve({ size: 0, type: 1 }); },
+    async readFile(uri) {
+      const data = memoryFs.files.get(uri.fsPath);
+      if (!data) throw Object.assign(new Error(`FileNotFound: ${uri.fsPath}`), { code: 'FileNotFound' });
+      return data;
+    },
+    async writeFile(uri, data) {
+      memoryFs.files.set(uri.fsPath, data instanceof Uint8Array ? data : new Uint8Array(data));
+      memoryFs.dirs.add(path.dirname(uri.fsPath));
+    },
+    async createDirectory(uri) {
+      memoryFs.dirs.add(uri.fsPath);
+    },
+    async stat(uri) {
+      const data = memoryFs.files.get(uri.fsPath);
+      if (data) return { size: data.length, type: 1 };
+      if (memoryFs.dirs.has(uri.fsPath)) return { size: 0, type: 2 };
+      throw Object.assign(new Error(`FileNotFound: ${uri.fsPath}`), { code: 'FileNotFound' });
+    },
+    async delete(uri) {
+      memoryFs.files.delete(uri.fsPath);
+    },
   },
   // Живые события документов/файлов: тест может их дёрнуть через __fireDid
   onDidChangeTextDocument(listener) { return didEmitters.onDidChangeTextDocument.event(listener); },
@@ -210,6 +236,8 @@ const workspace = {
   textDocuments: [],
   /** Настройки, которые видит расширение (сбрасываются тестами) */
   __settings: settings,
+  /** Файловая система в памяти: тесты кладут файлы и читают результат */
+  __fs: memoryFs,
 };
 
 // --- Window ---
