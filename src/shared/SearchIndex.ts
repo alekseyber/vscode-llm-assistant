@@ -31,6 +31,8 @@ const STOP_WORDS = new Set([
   'где', 'что', 'как', 'для', 'это', 'или', 'при', 'над', 'под', 'без', 'все', 'его', 'она', 'они',
   'есть', 'был', 'была', 'были', 'надо', 'нужно', 'можно', 'пожалуйста', 'найди', 'покажи', 'поиск',
   'the', 'and', 'for', 'with', 'from', 'this', 'that', 'are', 'was', 'were', 'you', 'find', 'search',
+  // Операторы FTS5 и английские служебные слова: в MATCH они либо меняют логику, либо шумят
+  'or', 'not', 'near', 'in', 'of', 'to', 'is', 'it', 'on', 'by',
 ]);
 
 /** Частые русские окончания: цель — свести словоформы, а не лингвистическая точность. */
@@ -52,14 +54,12 @@ const RU_SUFFIXES = [
 /** Разбить текст на слова: нижний регистр, `ё`→`е`, camelCase/snake_case → части. */
 export function tokenize(text: string): string[] {
   if (!text) return [];
-  const lowered = text.toLowerCase().replace(/ё/g, 'е');
-  const withParts = lowered
-    .replace(/([a-zа-я0-9])([a-zа-я])/g, (all, before: string, after: string, offset: number, whole: string) => {
-      // Границу camelCase ставим только на заглавной букве исходного текста
-      const original = whole[offset + 1];
-      return original && original !== original.toLowerCase() ? `${before} ${after}` : all;
-    })
+  // Регистр важен: границу camelCase видно только ДО приведения к нижнему регистру
+  const withParts = text
+    .replace(/([a-zа-я0-9])([A-ZА-Я])/g, '$1 $2')
     .replace(/_/g, ' ')
+    .toLowerCase()
+    .replace(/ё/g, 'е')
     .replace(/[^\p{L}\p{N}]+/gu, ' ');
   return withParts.split(/\s+/).filter(Boolean);
 }
@@ -101,9 +101,10 @@ export function buildFtsQuery(text: string, maxTokens = MAX_QUERY_TOKENS): strin
   // а AND по словоформам («считается») не находил «считает» в файле
   const tokens: string[] = [];
   for (const word of tokenize(text)) {
-    if (STOP_WORDS.has(word)) continue;
+    if (STOP_WORDS.has(word) || word.length < 2) continue;
     const canonical = stemRussian(word);
-    if (canonical && !STOP_WORDS.has(canonical) && !tokens.includes(canonical)) tokens.push(canonical);
+    if (canonical.length < 2) continue;
+    if (!STOP_WORDS.has(canonical) && !tokens.includes(canonical)) tokens.push(canonical);
   }
   const limited = tokens.slice(0, maxTokens);
   if (limited.length === 0) return '';
@@ -163,6 +164,16 @@ export class SearchIndexStore {
    * совместимости (см. контракт в спеке).
    */
   async init(): Promise<boolean> {
+    // Повторный init на том же инстансе: сначала закрываем прежнюю БД,
+    // иначе буфер, освобождаемый FREEONCLOSE, может быть освобождён дважды
+    if (this.db) {
+      try {
+        this.db.close();
+      } catch {
+        /* уже закрыта */
+      }
+      this.db = undefined;
+    }
     try {
       this.db = new this.sqlite3.oo1.DB(':memory:', 'c');
     } catch (error: any) {
@@ -274,6 +285,8 @@ export class SearchIndexStore {
     const bodyNorm = normalizeText(body);
     const pathNorm = normalizeText(entry.path);
     try {
+      // Транзакция: иначе ошибка на второй вставке оставляет файл в `files` без строки в `fts`
+      this.db.exec('BEGIN');
       this.db.exec({ sql: 'DELETE FROM files WHERE path = ?', bind: [entry.path] });
       this.db.exec({ sql: 'DELETE FROM fts WHERE path = ?', bind: [entry.path] });
       this.db.exec({
@@ -284,8 +297,14 @@ export class SearchIndexStore {
         sql: 'INSERT INTO fts(path, path_tokens, body_norm) VALUES(?,?,?)',
         bind: [entry.path, pathNorm, bodyNorm],
       });
+      this.db.exec('COMMIT');
       return true;
     } catch (error: any) {
+      try {
+        this.db.exec('ROLLBACK');
+      } catch {
+        /* транзакция могла не начаться */
+      }
       this.debug(`не удалось проиндексировать ${entry.path}: ${error?.message ?? String(error)}`);
       return false;
     }
@@ -336,6 +355,10 @@ export class SearchIndexStore {
     await fs.promises.mkdir(dir, { recursive: true });
     const tmp = `${this.indexPath}.tmp`;
     const bytes = this.export();
+    if (!bytes || bytes.length === 0) {
+      this.debug('экспорт индекса вернул пустые данные — файл не перезаписываем');
+      return;
+    }
     await fs.promises.writeFile(tmp, bytes);
     await fs.promises.rename(tmp, this.indexPath);
   }

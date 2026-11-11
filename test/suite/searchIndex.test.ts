@@ -10,6 +10,7 @@ import {
   buildFtsQuery,
   normalizeText,
   stemRussian,
+  tokenize,
   SearchIndexStore,
   INDEX_SCHEMA_VERSION,
 } from '../../src/shared/SearchIndex';
@@ -51,11 +52,22 @@ suite('SearchIndex / S1', () => {
 
   test('IDX-1: нормализация — регистр, ё, camelCase/snake_case, русские окончания', () => {
     const normalized = normalizeText('Ёлка calculateCost PROMPT_EVAL_COUNT стоимости файла');
-    assert.ok(!normalized.includes('ё'), 'буква ё заменена на е');
-    assert.ok(normalized.includes('calculate'), 'camelCase разбит на части');
-    assert.ok(normalized.includes('calculatecost'), 'исходный идентификатор сохранён целиком');
-    assert.ok(normalized.includes('prompt eval count') || normalized.includes('prompt_eval_count'), 'snake_case разобран');
-    assert.ok(normalized.split(' ').includes('стоимост'), `русская словоформа сведена: ${normalized}`);
+    // Точное значение: слабые проверки на includes проходили и при сломанном разборе camelCase
+    assert.deepStrictEqual(
+      tokenize('calculateCost'),
+      ['calculate', 'cost'],
+      'camelCase разбит на части (границу видно только до нижнего регистра)',
+    );
+    assert.deepStrictEqual(
+      tokenize('PROMPT_EVAL_COUNT'),
+      ['prompt', 'eval', 'count'],
+      'snake_case разобран',
+    );
+    assert.strictEqual(
+      normalizeText('Ёлка файла'),
+      'елка файла файл',
+      'ё заменена, словоформа и основа — обе в индексе',
+    );
 
     assert.strictEqual(stemRussian('файл'), 'файл', 'короткую основу не трогаем');
     assert.strictEqual(stemRussian('code'), 'code', 'английские слова не стеммим');
@@ -64,9 +76,11 @@ suite('SearchIndex / S1', () => {
 
   test('IDX-10: спецсимволы FTS5 не ломают запрос', () => {
     const query = buildFtsQuery('где считается стоимость (run) - OR "x"');
-    assert.ok(!/[()\-]/.test(query), `в запросе нет операторов FTS5: ${query}`);
-    assert.ok(!/\bOR\b/.test(query), 'OR выброшен как отдельный оператор');
-    assert.ok(query.includes('"стоимост"') || query.includes('"считаетс"') || query.includes('"run"'), `токены сохранены: ${query}`);
+    assert.strictEqual(
+      query,
+      '"считает" "стоимос" "run"',
+      `запрос собран по основам без операторов и стоп-слов: ${query}`,
+    );
     assert.strictEqual(buildFtsQuery('   ((('), '', 'из одних спецсимволов — пустой запрос');
     assert.strictEqual(buildFtsQuery(''), '');
   });
@@ -86,6 +100,8 @@ suite('SearchIndex / S1', () => {
     const hits = store.search('где считается стоимость');
     assert.strictEqual(hits.length, 1, `нашёлся один файл: ${JSON.stringify(hits)}`);
     assert.strictEqual(hits[0].path, 'src/shared/costCalc.ts');
+    assert.ok(hits[0].snippet.length > 0, 'сниппет не пустой');
+    assert.ok(hits[0].snippet.includes('стоимост'), `сниппет из body_norm: ${hits[0].snippet}`);
 
     // Повторная запись того же пути не плодит дубли
     store.upsertFile({ path: 'src/shared/costCalc.ts', body: 'function calculateCost() { return 0; }', size: 36, mtime: Date.now() });
