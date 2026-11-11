@@ -1,7 +1,7 @@
 ---
 component: ProposalContentProvider
 layer: 04 Integration
-version: 0.14.38
+version: 0.14.39
 status: implemented
 source: src/modes/edit/ProposalContentProvider.ts
 ---
@@ -43,4 +43,5 @@ source: src/modes/edit/ProposalContentProvider.ts
 
 | Версия | Дата | Изменение |
 |---|---|---|
+| 0.14.39 | 2026-11-11 | Покрыт тестами `PC-1..3`: выдача текста по URI, изоляция двух URI, событие `onDidChange` при `set`, пустой текст после `delete` |
 | 0.14.38 | 2026-11-08 | Компонент создан: виртуальные документы для diff-предпросмотра правки |

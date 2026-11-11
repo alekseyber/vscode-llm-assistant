@@ -95,6 +95,10 @@ function main() {
   compile();
 
   const missed = results.filter((row) => row.verdict === 'missed');
+  const inapplicable = results.filter(
+    (row) => row.verdict !== 'missed' && row.verdict !== 'caught',
+  );
+  const caught = results.filter((row) => row.verdict === 'caught').length;
   if (asJson) {
     console.log(JSON.stringify({ baseline: { passing: baseline.passing }, results }, null, 2));
   } else {
@@ -104,7 +108,12 @@ function main() {
       const mark = row.verdict === 'caught' ? '✅ поймана' : row.verdict === 'missed' ? '❌ не поймана' : `⚠️ ${row.verdict}`;
       console.log(`${row.id.padEnd(21)} ${mark.padEnd(14)} ${row.label}${row.detail ? ` — ${row.detail}` : ''}`);
     }
-    console.log(`\n[mutation] поймано ${results.length - missed.length} из ${results.length}`);
+    console.log(
+      `\n[mutation] поймано ${caught} из ${results.length}` +
+        (inapplicable.length > 0
+          ? `, неприменимых ${inapplicable.length} (${inapplicable.map((r) => r.id).join(', ')})`
+          : ''),
+    );
     if (missed.length > 0) {
       console.log('[mutation] поведение не покрыто юнит-тестами:');
       for (const row of missed) console.log(`  - ${row.id}: ${row.label}`);

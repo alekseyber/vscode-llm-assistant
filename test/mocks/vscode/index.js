@@ -141,6 +141,9 @@ const didEmitters = {
   onDidCloseTextDocument: new EventEmitter(),
 };
 
+/** Панели WebView, созданные расширением: тесты читают html и сообщения */
+const webviewPanels = [];
+
 // --- Workspace ---
 /** Хранилище настроек: тесты задают значения через workspace.__settings */
 const settings = {};
@@ -238,6 +241,8 @@ const workspace = {
   __settings: settings,
   /** Файловая система в памяти: тесты кладут файлы и читают результат */
   __fs: memoryFs,
+  /** Созданные панели WebView (для проверки html и сообщений) */
+  __webviewPanels: webviewPanels,
 };
 
 // --- Window ---
@@ -263,6 +268,7 @@ const languages = {
 };
 
 const ViewColumn = { Active: -1, Beside: -2, One: 1, Two: 2 };
+
 
 const window = {
   activeTextEditor: undefined,
@@ -293,6 +299,45 @@ const window = {
     return { key: 'decoration', dispose() {} };
   },
   registerWebviewViewProvider() { return { dispose() {} }; },
+  createWebviewPanel(viewType, title, column, options) {
+    const panel = {
+      viewType,
+      title,
+      messages: [],
+      disposed: false,
+      revealed: 0,
+      _disposeListeners: new Set(),
+      _messageListeners: new Set(),
+      webview: {
+        html: '',
+        options,
+        onDidReceiveMessage(listener) {
+          panel._messageListeners.add(listener);
+          return { dispose: () => panel._messageListeners.delete(listener) };
+        },
+        postMessage(message) {
+          panel.messages.push(message);
+          return Promise.resolve(true);
+        },
+        asWebviewUri(uri) { return uri; },
+      },
+      reveal() { panel.revealed += 1; },
+      onDidDispose(listener) {
+        panel._disposeListeners.add(listener);
+        return { dispose: () => panel._disposeListeners.delete(listener) };
+      },
+      dispose() {
+        panel.disposed = true;
+        for (const listener of [...panel._disposeListeners]) listener();
+      },
+      /** Тест изображает готовность WebView */
+      __sendMessage(message) {
+        for (const listener of [...panel._messageListeners]) listener(message);
+      },
+    };
+    webviewPanels.push(panel);
+    return panel;
+  },
   withProgress(options, task) {
     const progress = { report: () => {} };
     const token = { isCancellationRequested: false, onCancellationRequested: () => {} };

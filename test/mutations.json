@@ -112,6 +112,22 @@
       "to": "const updated = content.split(oldStr).join(args.new_str as string);",
       "label": "replace_in_file меняет все вхождения",
       "expect": "must-fail"
+    },
+    {
+      "id": "PC-DELETE",
+      "file": "src/modes/edit/ProposalContentProvider.ts",
+      "from": "    this.store.delete(uri.toString());",
+      "to": "    void uri;",
+      "label": "delete не очищает виртуальный документ",
+      "expect": "must-fail"
+    },
+    {
+      "id": "RP-SINGLETON",
+      "file": "src/modes/review/ReviewPanel.ts",
+      "from": "    ReviewPanel.currentPanel = reviewPanel;",
+      "to": "    void reviewPanel;",
+      "label": "панель ревью не запоминается (singleton отключён)",
+      "expect": "must-fail"
     }
   ]
 }
