@@ -94,20 +94,15 @@ suite('E2E-15: @orchestrate', function () {
     restoreRolesAfter = () => restoreRoles(workspace, previous);
 
     let request = 0;
+    // Нативный формат Ollama: createWithTools ходит не стримингом, ответ — один JSON-объект.
+    // Без tool_calls цикл закрывается сразу после первого шага.
     stub = await startStub((_req, res) => {
       request += 1;
-      // Каждый воркер делает один запрос: ответ без tool_calls, чтобы цикл закрылся сразу
       json(res, {
-        choices: [
-          {
-            message: {
-              role: 'assistant',
-              content: `этап ${request}: сделано`,
-              tool_calls: [],
-            },
-          },
-        ],
-        usage: { prompt_tokens: 100, completion_tokens: 20 },
+        message: { role: 'assistant', content: `этап ${request}: сделано` },
+        done: true,
+        prompt_eval_count: 100,
+        eval_count: 20,
       });
     });
 
@@ -116,6 +111,8 @@ suite('E2E-15: @orchestrate', function () {
       defaultProvider: 'local',
       defaultModel: 'qwen3:8b',
       'agent.maxIterations': 3,
+      // Без этого флага агентский цикл локальной модели выключен и воркеры не работают
+      'local.toolLoop': true,
       'chat.summaryEnabled': false,
       'chat.includeOpenFile': false,
       'retry.enabled': false,
