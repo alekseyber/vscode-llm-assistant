@@ -101,8 +101,8 @@ suite('SearchIndexer / S2', () => {
     const indexer = new SearchIndexer(store, diskAdapter(tmpRoot), { batchSize: 25 });
     const stats = await indexer.fullBuild();
 
-    // 120 + README = 121; мусор не попал
-    assert.strictEqual(stats.indexed, 121, `проиндексировано файлов: ${stats.indexed}`);
+    // 120 + README + сам .gitignore (он текстовый и не исключён) = 122; мусор не попал
+    assert.strictEqual(stats.indexed, 122, `проиндексировано файлов: ${stats.indexed}`);
     assert.ok(stats.skipped >= 4, `пропуски посчитаны: ${JSON.stringify(stats.reasons)}`);
     assert.ok(stats.reasons['.gitignore'] >= 1, '.gitignore учтён');
     assert.ok(stats.reasons['каталог'] >= 1, 'node_modules отброшен по каталогу');
@@ -194,6 +194,55 @@ suite('SearchIndexer / S2', () => {
     } finally {
       fs.rmSync(secondRoot, { recursive: true, force: true });
     }
+  });
+
+  test('IDX-16: правило *.log из корневого .gitignore ловит вложенные пути', async function () {
+    this.timeout(60000);
+    // Расширение .ts в белом списке, поэтому отсекает именно .gitignore, а не фильтр расширений
+    write('.gitignore', '*.gen.ts\n');
+    write('deep/nested/data.gen.ts', 'сгенерированный код в глубине');
+    write('ok.ts', 'нормальный файл');
+
+    const indexer = new SearchIndexer(store, diskAdapter(tmpRoot), {});
+    const stats = await indexer.fullBuild();
+
+    assert.strictEqual(stats.indexed, 2, `индексируются .gitignore и ok.ts: ${stats.indexed}`);
+    assert.ok((stats.reasons['.gitignore'] ?? 0) >= 1, `вложенный лог исключён: ${JSON.stringify(stats.reasons)}`);
+    assert.deepStrictEqual(store.search('сгенерированный'), [], 'файл из вложенного правила не попал в индекс');
+  });
+
+  test('IDX-17: потолок файлов не удаляет из индекса то, что за потолком', async function () {
+    this.timeout(60000);
+    for (let i = 0; i < 5; i += 1) write(`f${i}.ts`, `файл номер ${i}`);
+    const indexer = new SearchIndexer(store, diskAdapter(tmpRoot), { maxFiles: 2 });
+
+    const first = await indexer.fullBuild();
+    assert.strictEqual(first.indexed, 2, 'в индекс попало ровно два файла');
+    assert.strictEqual(first.truncated, true, 'урезание отмечено');
+    assert.ok((first.reasons['потолок файлов'] ?? 0) >= 3, `остаток посчитан: ${JSON.stringify(first.reasons)}`);
+
+    // Вторая сборка не должна «удалить всё, чего нет в выдаче»
+    await indexer.fullBuild();
+    assert.strictEqual(store.stats().files, 2, 'файлы за потолком не удалены из индекса');
+  });
+
+  test('IDX-18: пустой обход не стирает индекс (сбой ФС, а не удаление файлов)', async function () {
+    this.timeout(60000);
+    write('a.ts', 'данные проекта');
+    const indexer = new SearchIndexer(store, diskAdapter(tmpRoot), {});
+    await indexer.fullBuild();
+    assert.strictEqual(store.stats().files, 1);
+
+    const emptyAdapter = {
+      listFiles: async () => [],
+      readFile: async () => new Uint8Array(),
+    };
+    const messages: string[] = [];
+    const brokenFs = new SearchIndexer(store, emptyAdapter, { onDebug: (m) => messages.push(m) });
+    await brokenFs.fullBuild();
+
+    assert.strictEqual(store.stats().files, 1, 'индекс не очищен при пустом обходе');
+    assert.ok(messages.some((m) => /обход вернул 0 файлов/.test(m)), `причина в debug: ${messages.join(' | ')}`);
   });
 
   test('IDX-15: сверка при старте обновляет изменённое и убирает исчезнувшее', async function () {

@@ -312,8 +312,20 @@ export class SearchIndexStore {
 
   removeFile(filePath: string): void {
     if (!this.ready) return;
-    this.db.exec({ sql: 'DELETE FROM files WHERE path = ?', bind: [filePath] });
-    this.db.exec({ sql: 'DELETE FROM fts WHERE path = ?', bind: [filePath] });
+    // Транзакция: сбой между удалениями оставил бы строку в одной таблице и убрал из другой
+    try {
+      this.db.exec('BEGIN');
+      this.db.exec({ sql: 'DELETE FROM files WHERE path = ?', bind: [filePath] });
+      this.db.exec({ sql: 'DELETE FROM fts WHERE path = ?', bind: [filePath] });
+      this.db.exec('COMMIT');
+    } catch (error: any) {
+      try {
+        this.db.exec('ROLLBACK');
+      } catch {
+        /* транзакция не начиналась */
+      }
+      this.debug(`не удалось удалить ${filePath}: ${error?.message ?? String(error)}`);
+    }
   }
 
   /** Поиск по естественному языку. Пустая выдача или пустой запрос — сигнал вызывающему коду. */

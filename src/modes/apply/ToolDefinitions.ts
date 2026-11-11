@@ -150,7 +150,14 @@ export function isIgnored(relativePath: string, rules: readonly string[]): boole
   const p = relativePath.replace(/\\/g, '/');
   for (const rule of rules) {
     if (rule.includes('*')) {
-      const rx = new RegExp('^' + rule.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*\*/g, '.*').replace(/\*/g, '[^/]*') + '($|/)');
+      // Шаблон без слэша (‎*.log) действует на любом уровне вложенности, как в git:
+      // иначе правило из корневого .gitignore не ловило src/deep/file.log
+      const anchored = rule.includes('/');
+      const body = rule
+        .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+        .replace(/\*\*/g, '.*')
+        .replace(/\*/g, '[^/]*');
+      const rx = new RegExp((anchored ? '^' : '(^|.*/)') + body + '($|/)');
       if (rx.test(p)) return true;
       continue;
     }

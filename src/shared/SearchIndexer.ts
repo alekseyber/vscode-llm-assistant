@@ -18,6 +18,9 @@ export const MAX_INDEX_FILES = 20_000;
 /** Размер пачки: 200 файлов, между пачками отдаём управление хосту. */
 export const INDEX_BATCH_SIZE = 200;
 
+/** Как часто писать индекс на диск: каждые 5 пачек (≈1000 файлов). */
+export const FLUSH_EVERY_BATCHES = 5;
+
 /** Каталоги, которые не индексируем никогда (не зависят от .gitignore). */
 export const SKIP_DIRS = new Set([
   'node_modules', 'dist', 'out', '.git', '.vscode-test', '.next', 'build', 'coverage', 'vendor',
@@ -66,6 +69,21 @@ export interface IndexStats {
 }
 
 /** Почему файл не индексируется (или `null`, если индексируется). */
+/** Файлы без расширения, которые всё равно текст (иначе `Makefile` и `.env` выпадают). */
+export const TEXT_FILENAMES = new Set([
+  'Makefile', 'Dockerfile', 'Procfile', 'Jenkinsfile', 'Rakefile', 'Gemfile', 'LICENSE', 'NOTICE',
+  '.env', '.env.example', '.gitignore', '.dockerignore', '.editorconfig', '.npmrc', '.nvmrc',
+]);
+
+/** Расширение файла по имени, а не по всему пути: точка в имени каталога не должна мешать. */
+export function fileExtension(relPath: string): string {
+  const base = relPath.replace(/\\/g, '/').split('/').pop() ?? '';
+  const dot = base.lastIndexOf('.');
+  // Скрытый файл без расширения (`.env`) считаем именем, а не расширением
+  if (dot <= 0) return '';
+  return base.slice(dot).toLowerCase();
+}
+
 export function skipReason(
   file: IndexSourceFile,
   ignoreRules: readonly string[] = [],
@@ -75,8 +93,9 @@ export function skipReason(
   const segments = rel.split('/');
   if (segments.some((segment) => SKIP_DIRS.has(segment))) return 'каталог';
   if (SKIP_FILE_PATTERNS.some((rx) => rx.test(rel))) return 'lock/минифицированный';
-  const ext = `.${rel.split('.').pop()?.toLowerCase() ?? ''}`;
-  if (!TEXT_EXTENSIONS.has(ext)) return 'расширение';
+  const base = segments[segments.length - 1];
+  const ext = fileExtension(rel);
+  if (!TEXT_EXTENSIONS.has(ext) && !TEXT_FILENAMES.has(base)) return 'расширение';
   if (file.size > maxFileBytes) return 'размер';
   if (isIgnored(rel, ignoreRules)) return '.gitignore';
   return null;
@@ -150,10 +169,23 @@ export class SearchIndexer {
     this.onDebug?.(`[indexer] ${message}`);
   }
 
+  /**
+   * Перечитать `.gitignore`. Ошибка чтения НЕ обнуляет правила: иначе временный сбой ФС
+   * индексировал бы всё, что пользователь явно исключил.
+   */
+  private async readGitignoreRules(): Promise<void> {
+    try {
+      const rules = await this.fs.readGitignore?.();
+      if (rules) this.ignoreRules = rules;
+    } catch (error: any) {
+      this.debug(`.gitignore не прочитан, работаем на прежних правилах: ${error?.message ?? String(error)}`);
+    }
+  }
+
   /** Полная сборка: обход, фильтры, пачки, flush после каждой пачки. */
   async fullBuild(): Promise<IndexStats> {
     const stats: IndexStats = { indexed: 0, skipped: 0, removed: 0, reasons: {}, truncated: false };
-    this.ignoreRules = (await this.fs.readGitignore?.()) ?? [];
+    await this.readGitignoreRules();
 
     let files = await this.fs.listFiles();
     const candidates: IndexSourceFile[] = [];
@@ -167,6 +199,9 @@ export class SearchIndexer {
       candidates.push(file);
     }
 
+    // Список «что есть на диске» запоминаем ДО потолка: иначе файлы, не влезшие в лимит,
+    // удалялись бы из индекса при следующей сборке, хотя они никуда не делись
+    const present = new Set(candidates.map((file) => file.relPath));
     if (candidates.length > this.maxFiles) {
       // Молча урезать нельзя: оставляем самые свежие и говорим об этом
       candidates.sort((a, b) => b.mtime - a.mtime);
@@ -176,6 +211,7 @@ export class SearchIndexer {
       candidates.length = this.maxFiles;
     }
 
+    let batchNo = 0;
     for (let i = 0; i < candidates.length; i += this.batchSize) {
       const batch = candidates.slice(i, i + this.batchSize);
       for (const file of batch) {
@@ -183,12 +219,22 @@ export class SearchIndexer {
         if (outcome) stats.indexed += 1;
         else stats.skipped += 1;
       }
-      await this.store.flush();
+      batchNo += 1;
       await yieldToHost();
+      // Писать весь файл индекса после каждой пачки дорого (100 записей на 20 000 файлов):
+      // фиксируем каждые 5 пачек, а последнюю — сразу после цикла
+      if (batchNo % FLUSH_EVERY_BATCHES === 0) await this.store.flush();
+    }
+
+    // Пустой обход при непустом индексе — почти наверняка сбой ФС (сетевой диск, права),
+    // а не «все файлы удалили». Молча стирать индекс в этом случае нельзя
+    if (candidates.length === 0 && this.store.stats().files > 0) {
+      this.debug('обход вернул 0 файлов — индекс не очищаем, работаем на старых данных');
+      await this.store.flush();
+      return stats;
     }
 
     // Удаляем из индекса то, чего больше нет на диске
-    const present = new Set(candidates.map((file) => file.relPath));
     for (const entry of this.store.listIndexed()) {
       if (!present.has(entry.path)) {
         this.store.removeFile(entry.path);
@@ -225,8 +271,15 @@ export class SearchIndexer {
   async updateFile(file: IndexSourceFile): Promise<boolean> {
     const reason = skipReason(file, this.ignoreRules);
     if (reason) {
-      this.store.removeFile(file.relPath);
-      this.debug(`файл больше не индексируется (${reason}): ${file.relPath}`);
+      // «Размер» — состояние, которое может быть временным (недописанный файл, распаковка):
+      // такой файл не удаляем из индекса сразу, иначе он исчезнет из выдачи навсегда
+      const persistent = reason !== 'размер';
+      if (persistent) {
+        this.store.removeFile(file.relPath);
+        this.debug(`файл больше не индексируется (${reason}): ${file.relPath}`);
+      } else {
+        this.debug(`файл пропущен (${reason}), из индекса не удаляем: ${file.relPath}`);
+      }
       return false;
     }
     const stats: IndexStats = { indexed: 0, skipped: 0, removed: 0, reasons: {}, truncated: false };
@@ -244,7 +297,7 @@ export class SearchIndexer {
    */
   async reconcile(): Promise<IndexStats> {
     const stats: IndexStats = { indexed: 0, skipped: 0, removed: 0, reasons: {}, truncated: false };
-    this.ignoreRules = (await this.fs.readGitignore?.()) ?? [];
+    await this.readGitignoreRules();
     const indexed = new Map(this.store.listIndexed().map((entry) => [entry.path, entry]));
     const files = await this.fs.listFiles();
     const present = new Set<string>();
