@@ -49,7 +49,9 @@ function entry(id: string, status: RunEntry['status'], task: string): RunEntry {
 }
 
 suite('E2E-14: вкладка «История»', () => {
-  test('14a: новый прогон появляется в открытой вкладке без перезагрузки', async () => {
+  // Честное имя: тест проверяет ДОСТАВКУ сообщения в панель, а не перерисовку таблицы —
+  // рендер живёт в скрипте webview, который в Extension Host не исполняется.
+  test('14a: при записи прогона провайдер отправляет обновление в открытую панель', async () => {
     const store = new RunHistoryStore(memoryMemento());
     const provider = new HistoryViewProvider(store);
     const view = createFakeWebviewView();
@@ -87,11 +89,22 @@ suite('E2E-14: вкладка «История»', () => {
     await waitFor(() => messagesOfType(view, 'runDetails').length > 0, 3000);
 
     const details = messagesOfType(view, 'runDetails').at(-1);
-    assert.strictEqual(details.entry.id, 'run_e2e_2', 'детали по тому же прогону');
-    assert.strictEqual(details.entry.status, 'error', 'статус из записи');
+    // Контракт «запись → детали»: панель рисует все эти поля, значит они обязаны доехать
+    const got = details.entry;
+    assert.strictEqual(got.id, 'run_e2e_2', 'детали по тому же прогону');
+    assert.strictEqual(got.status, 'error', 'статус из записи');
+    assert.strictEqual(got.task, 'правка функции расчёта', 'задача');
+    assert.strictEqual(got.mode, 'chat', 'режим');
+    assert.strictEqual(got.provider, 'stub', 'провайдер');
+    assert.strictEqual(got.model, 'stub-model', 'модель');
+    assert.strictEqual(got.steps, 1, 'шаги');
+    assert.strictEqual(got.tokensIn, 120, 'входные токены');
+    assert.strictEqual(got.tokensOut, 40, 'выходные токены');
+    assert.strictEqual(got.cost, 0.0001, 'стоимость');
+    assert.strictEqual(got.duration, 900, 'длительность');
     assert.ok(
-      String(details.entry.error ?? '').includes('500'),
-      `панель получает причину ошибки, а не только статус: ${JSON.stringify(details.entry)}`,
+      String(got.error ?? '').includes('500'),
+      `панель получает причину ошибки, а не только статус: ${JSON.stringify(got)}`,
     );
 
   });
@@ -105,6 +118,18 @@ suite('E2E-14: вкладка «История»', () => {
     // Провайдер вправе не отправлять refresh до первого изменения — важно, что отрисовка есть
     assert.ok(view.webview.html.includes('История'), 'вкладка отрисована на пустой истории');
     assert.strictEqual(store.getRuns().length, 0, 'история пуста');
+
+    // Запрос деталей по несуществующему id не должен ронять панель (молча игнорируется)
+    view.send({ type: 'getDetails', runId: 'нет-такого' });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    assert.strictEqual(messagesOfType(view, 'runDetails').length, 0, 'по неизвестному id ответа нет');
+
+    // Очистка истории: панель получает refresh с пустым списком, без падения
+    store.recordRun(entry('run_e2e_3', 'success', 'раз'));
+    await waitFor(() => messagesOfType(view, 'refresh').at(-1)?.runs?.length === 1, 3000);
+    store.clearHistory();
+    await waitFor(() => messagesOfType(view, 'refresh').at(-1)?.runs?.length === 0, 3000, 50, 'пустой список после очистки');
+    assert.deepStrictEqual(messagesOfType(view, 'refresh').at(-1).runs, [], 'список пуст');
 
   });
 });
