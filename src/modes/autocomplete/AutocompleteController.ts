@@ -205,10 +205,16 @@ ${context.suffix}
    * Вызывается командой llmAssistant.autocomplete.toggle
    * (регистрируется централизованно в registerCommands.ts).
    */
-  public toggleAutocomplete(): void {
+  public async toggleAutocomplete(): Promise<void> {
     const config = vscode.workspace.getConfiguration('llmAssistant');
-    const current = config.get<boolean>('autocomplete.enabled', true);
-    config.update('autocomplete.enabled', !current, vscode.ConfigurationTarget.Global);
+    const current = this.enabled;
+    // Запись настройки асинхронная: два быстрых нажатия иначе завершатся в произвольном
+    // порядке, и в хранилище останется устаревшее значение (замечание ревью)
+    try {
+      await config.update('autocomplete.enabled', !current, vscode.ConfigurationTarget.Global);
+    } catch (error) {
+      console.error('[AutocompleteController] Не удалось сохранить настройку:', error);
+    }
     this.enabled = !current;
 
     // Если отключили — очищаем кэш

@@ -170,7 +170,7 @@ suite('AutocompleteController', () => {
     const controller = makeController(provider);
     assert.ok(await ask(lastInlineProvider()), 'до переключения подсказка есть');
 
-    controller.toggleAutocomplete();
+    await controller.toggleAutocomplete();
     const settings = (vscode.workspace as any).__settings as Record<string, unknown>;
     assert.strictEqual(settings['llmAssistant.autocomplete.enabled'], false, 'настройка записана');
 
@@ -178,7 +178,7 @@ suite('AutocompleteController', () => {
     assert.strictEqual(await ask(lastInlineProvider()), null, 'после выключения подсказок нет');
     assert.strictEqual(calls.length, before, 'модель не вызывается');
 
-    controller.toggleAutocomplete();
+    await controller.toggleAutocomplete();
     assert.strictEqual(settings['llmAssistant.autocomplete.enabled'], true, 'второе нажатие включает обратно');
     controller.dispose();
   });
@@ -199,12 +199,46 @@ suite('AutocompleteController', () => {
     const result = await ask(lastInlineProvider());
     assert.ok(result, 'подсказка показана');
     const text = String(result!.items[0].insertText);
-    assert.ok(Array.from(text).length <= 1024, `длина в кодовых точках в пределах потолка: ${Array.from(text).length}`);
+    assert.strictEqual(Array.from(text).length, 600, 'все 600 эмодзи сохранены: 600 < потолка, терять нечего');
     // Разрезанная пара выглядит как одиночный суррогат: проверяем, что таких нет
     assert.ok(
       !/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/.test(text),
       'в тексте не должно быть одиночных старших суррогатов',
     );
+    controller.dispose();
+  });
+
+  test('ACL-11: на потолке режется ровно 1024 кодовых точки, пары целы', async () => {
+    const { provider } = makeProvider('😀'.repeat(1200)); // 2400 UTF-16 единиц, 1200 точек
+    const controller = makeController(provider);
+    const result = await ask(lastInlineProvider());
+    const text = String(result!.items[0].insertText);
+    assert.strictEqual(Array.from(text).length, 1024, 'потолок — 1024 кодовых точки, не 512 пар');
+    assert.ok(!/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/.test(text), 'одиночных суррогатов нет');
+    controller.dispose();
+  });
+
+  test('ACL-12: после ошибки провайдера следующий запрос снова спрашивает модель', async () => {
+    let attempt = 0;
+    const calls: any[] = [];
+    const provider = {
+      name: 'flaky',
+      models: async () => ['gpt-4o'],
+      chat: (messages: any[], options: any) => {
+        calls.push(options);
+        attempt += 1;
+        if (attempt === 1) throw new Error('сеть недоступна');
+        return (async function* () {
+          yield 'recovered();';
+        })();
+      },
+    };
+    const controller = makeController(provider);
+    assert.strictEqual(await ask(lastInlineProvider()), null, 'первый запрос падает — подсказки нет');
+    const second = await ask(lastInlineProvider());
+    assert.strictEqual(calls.length, 2, 'второй запрос дошёл до модели');
+    assert.ok(second, 'после ошибки подсказка снова показывается');
+    assert.strictEqual(String(second!.items[0].insertText), 'recovered();');
     controller.dispose();
   });
 });

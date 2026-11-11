@@ -242,4 +242,47 @@ suite('GhostTextManager', () => {
     );
     manager.dispose();
   });
+
+  test('GHT-13: отмена одного параллельного запроса не отменяет второй', async () => {
+    const resolvers: Array<(value: string | null) => void> = [];
+    const signals: AbortSignal[] = [];
+    const manager = new GhostTextManager(
+      async (_ctx, signal) => {
+        signals.push(signal!);
+        return new Promise<string | null>((resolve) => resolvers.push(resolve)).then((value) =>
+          signal?.aborted ? null : value,
+        );
+      },
+      () => true,
+    );
+    const docA = makeDocument('a\n', { uri: 'file:///w/cancel-a.ts' });
+    const docB = makeDocument('b\n', { uri: 'file:///w/cancel-b.ts' });
+    const tokenA = new vscode.CancellationTokenSource();
+    const tokenB = new vscode.CancellationTokenSource();
+    const promiseA = manager.provideInlineCompletionItems(
+      docA,
+      new vscode.Position(0, 1),
+      {} as vscode.InlineCompletionContext,
+      tokenA.token as vscode.CancellationToken,
+    );
+    const promiseB = manager.provideInlineCompletionItems(
+      docB,
+      new vscode.Position(0, 1),
+      {} as vscode.InlineCompletionContext,
+      tokenB.token as vscode.CancellationToken,
+    );
+    while (resolvers.length < 2) await Promise.resolve();
+
+    tokenA.cancel(); // отменяем только первый
+    assert.ok(signals[0].aborted, 'отменённый запрос получил сигнал');
+    assert.ok(!signals[1].aborted, 'второй запрос не затронут отменой первого');
+
+    resolvers[1]('b-result();');
+    resolvers[0]('a-result();');
+    const [a, b] = await Promise.all([promiseA, promiseB]);
+    assert.strictEqual(a, null, 'отменённый запрос ничего не показал');
+    assert.ok(b, 'второй запрос показал свой ответ');
+    assert.strictEqual(String(b!.items[0].insertText), 'b-result();', 'ответы не перепутаны');
+    manager.dispose();
+  });
 });
