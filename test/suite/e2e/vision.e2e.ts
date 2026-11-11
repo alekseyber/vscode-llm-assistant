@@ -9,7 +9,7 @@ import 'mocha';
 import * as assert from 'assert';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { ChatViewProvider } from '../../../src/modes/chat/ChatViewProvider';
+import { ChatViewProvider, visionUnsupportedWarning } from '../../../src/modes/chat/ChatViewProvider';
 import { ConversationManager } from '../../../src/modes/chat/ConversationManager';
 import { ProviderManager } from '../../../src/providers/manager';
 import { RunHistoryStore } from '../../../src/shared/RunHistoryStore';
@@ -100,16 +100,38 @@ suite('E2E-16: Vision', function () {
 
     const chatCall = stub!.bodies.find((b) => Array.isArray(b?.messages));
     assert.ok(chatCall, 'запрос к модели был');
-    const userMessage = chatCall.messages.find((m: any) => m.role === 'user');
-    assert.ok(userMessage, 'в запросе есть сообщение пользователя');
+    const userMessages = chatCall.messages.filter((m: any) => m.role === 'user');
+    assert.strictEqual(userMessages.length, 1, `одно сообщение пользователя: ${JSON.stringify(userMessages).slice(0, 200)}`);
+    const userMessage = userMessages[0];
     // Нативный формат Ollama: картинка в `images`, текст — в `content`
     assert.ok(Array.isArray(userMessage.images) && userMessage.images.length === 1, `картинка в запросе: ${JSON.stringify(userMessage).slice(0, 300)}`);
     assert.strictEqual(userMessage.images[0], IMAGE_BASE64, 'это та самая картинка, без искажений');
     assert.ok(String(userMessage.content).includes('что на картинке'), 'текст вопроса рядом с картинкой');
+    // Картинка не должна утечь в системное сообщение или в историю чата
+    const withImages = chatCall.messages.filter((m: any) => Array.isArray(m.images) && m.images.length > 0);
+    assert.strictEqual(withImages.length, 1, 'картинка ровно в одном сообщении — пользовательском');
+    assert.strictEqual(withImages[0].role, 'user', `картинка не в системном сообщении: ${withImages[0].role}`);
 
-    // История: прогон записан, а не потерян
+    // История: прогон записан, а не потерян; base64 в текст задачи не просочился
     await waitFor(() => history.getRuns().length > 0, 5000);
-    assert.strictEqual(history.getRuns()[0].status, 'success', 'прогон с картинкой записан как успешный');
+    const run = history.getRuns()[0];
+    assert.strictEqual(run.status, 'success', 'прогон с картинкой записан как успешный');
+    assert.ok(!run.task.includes(IMAGE_BASE64.slice(0, 40)), `в задаче нет base64-мусора: ${run.task.slice(0, 120)}`);
+  });
+
+  test('E2E-16c: картинка без текста тоже доходит до модели', async () => {
+    await start(['completion', 'vision']);
+
+    view.send({ type: 'attachFile', isImage: true, fileName: 'pixel.png', mimeType: 'image/png', base64: IMAGE_BASE64 });
+    view.send({ type: 'sendMessage', text: '', mode: 'chat' });
+
+    await waitFor(() => messagesOfType(view, 'done').length > 0, 20_000, 100, 'ответ модели');
+    const chatCall = stub!.bodies.find((b) => Array.isArray(b?.messages));
+    const userMessage = chatCall?.messages.find((m: any) => m.role === 'user');
+    assert.ok(
+      Array.isArray(userMessage?.images) && userMessage.images.length === 1,
+      `картинка ушла без текста: ${JSON.stringify(userMessage ?? {}).slice(0, 250)}`,
+    );
   });
 
   test('E2E-16b: без capability vision картинка не отправляется, и это сказано словами', async () => {
@@ -119,9 +141,14 @@ suite('E2E-16: Vision', function () {
     view.send({ type: 'sendMessage', text: 'что на картинке?', mode: 'chat' });
 
     await waitFor(() => messagesOfType(view, 'done').length > 0, 20_000, 100, 'ответ модели');
+    // Запрос к модели обязан уйти: иначе «картинки нет» пройдёт и на молчащем клиенте
+    assert.ok(
+      stub!.bodies.some((b) => Array.isArray(b?.messages)),
+      'запрос к модели был отправлен',
+    );
     const text = messagesOfType(view, 'streamChunk').map((m) => m.text).join('');
     assert.ok(
-      text.includes('не поддерживает изображения'),
+      text.includes(visionUnsupportedWarning('gemma3:4b').slice(0, 40)),
       `пользователь предупреждён, что картинка не ушла: ${text.slice(0, 300)}`,
     );
 
