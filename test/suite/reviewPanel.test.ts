@@ -67,11 +67,17 @@ suite('ReviewPanel', () => {
 
   test('RP-1: createOrShow открывает панель с HTML и заголовком', () => {
     const before = panels().length;
-    ReviewPanel.createOrShow(makeContext(), 'src/a.ts', '# Отчёт', 0.01);
+    ReviewPanel.createOrShow(makeContext(), 'src/a.ts', '# Отчёт <script>alert(1)</script>', 0.01);
     assert.strictEqual(panels().length, before + 1, 'панель создана');
     const panel = lastPanel() as any;
     assert.ok(panel.webview.html.includes('Ревью'), 'в HTML есть заголовок окна');
+    // Отчёт приходит сообщением, а не вставляется в HTML — значит HTML не зависит от данных
     assert.ok(panel.webview.html.includes('showReview'), 'в HTML есть обработчик сообщения showReview');
+    assert.ok(panel.webview.html.includes('postMessage'), 'HTML ждёт сообщение от расширения');
+    assert.ok(
+      !panel.webview.html.includes('# Отчёт'),
+      'отчёт не вставлен в HTML: данные приходят сообщением, XSS через отчёт невозможен',
+    );
     assert.strictEqual(panel.disposed, false);
   });
 

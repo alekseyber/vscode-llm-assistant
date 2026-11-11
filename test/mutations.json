@@ -128,6 +128,30 @@
       "to": "    void reviewPanel;",
       "label": "панель ревью не запоминается (singleton отключён)",
       "expect": "must-fail"
+    },
+    {
+      "id": "PC-SET-EVENT",
+      "file": "src/modes/edit/ProposalContentProvider.ts",
+      "from": "    this.emitter.fire(uri);",
+      "to": "    void uri;",
+      "label": "set не сообщает об изменении виртуального документа",
+      "expect": "must-fail"
+    },
+    {
+      "id": "CAT-DELEGATE-SWAP",
+      "file": "src/modes/chat/ChatAgentTools.ts",
+      "from": "      return await _onDelegate(role, task);",
+      "to": "      return await _onDelegate(task, role);",
+      "label": "роль и задача перепутаны при делегировании",
+      "expect": "must-fail"
+    },
+    {
+      "id": "CAT-SKIP-NODE-MODULES",
+      "file": "src/modes/chat/ChatAgentTools.ts",
+      "from": "      if (name.startsWith('.') || name === 'node_modules') continue;",
+      "to": "      if (false) continue;",
+      "label": "list_files лезет в node_modules и скрытые каталоги",
+      "expect": "must-fail"
     }
   ]
 }

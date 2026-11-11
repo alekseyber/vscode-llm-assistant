@@ -7,6 +7,9 @@
 import 'mocha';
 import * as assert from 'assert';
 import * as vscode from 'vscode';
+import * as fsNode from 'fs';
+import * as osNode from 'os';
+import * as pathNode from 'path';
 import {
   getTool,
   getToolSchemas,
@@ -33,6 +36,10 @@ const readFile = () => getToolUnfiltered('read_file')!;
 const writeFile = () => getToolUnfiltered('write_file')!;
 const replaceInFile = () => getToolUnfiltered('replace_in_file')!;
 const delegate = () => getToolUnfiltered('delegate_to_agent')!;
+const listFiles = () => getToolUnfiltered('list_files')!;
+const searchFiles = () => getToolUnfiltered('search_files')!;
+const runTerminal = () => getToolUnfiltered('run_terminal')!;
+const webFetch = () => getToolUnfiltered('web_fetch')!;
 
 suite('ChatAgentTools', () => {
   setup(() => {
@@ -138,6 +145,97 @@ suite('ChatAgentTools', () => {
       assert.ok(schema.function.name, 'у инструмента есть имя');
       assert.strictEqual(schema.function.parameters.type, 'object', `${schema.function.name}: параметры — объект`);
       assert.ok(Array.isArray(schema.function.parameters.required), `${schema.function.name}: required — массив`);
+    }
+  });
+
+  test('CAT-13: list_files помечает папки и файлы и не лезет в скрытое и node_modules', async () => {
+    putFile('src/a.ts', 'export const a = 1;');
+    putFile('src/deep/b.ts', 'export const b = 2;');
+    putFile('node_modules/pkg/index.js', 'module.exports = {};');
+    putFile('.hidden/secret.txt', 'секрет');
+    fsMock().dirs.add('/fake/workspace/src/deep');
+    fsMock().dirs.add('/fake/workspace/node_modules');
+    fsMock().dirs.add('/fake/workspace/.hidden');
+
+    // Смотрим с корня: именно там лежат node_modules и скрытый каталог
+    const result = await listFiles().execute({ path: '.', depth: 3 });
+    assert.ok(result.includes('📁 src'), `каталог виден: ${result}`);
+    assert.ok(result.includes('📄 a.ts'), `файл виден: ${result}`);
+    assert.ok(result.includes('b.ts'), `вложенность показана: ${result}`);
+    assert.ok(!result.includes('node_modules'), 'служебные каталоги пропущены');
+    assert.ok(!result.includes('.hidden') && !result.includes('secret.txt'), 'скрытые каталоги пропущены');
+  });
+
+  test('CAT-14: search_files находит по содержимому и по имени, невалидный regex не роняет агента', async () => {
+    const a = putFile('src/one.ts', 'const target = 1;\nconst other = 2;');
+    const b = putFile('src/target-helper.ts', 'export const nothing = 0;');
+    (vscode.workspace as any).__findFilesResult = [a, b];
+
+    const byContent = await searchFiles().execute({ pattern: 'target' });
+    assert.ok(byContent.includes('one.ts:1'), `строка с совпадением: ${byContent}`);
+
+    (vscode.workspace as any).__findFilesResult = [a, b];
+    const byName = await searchFiles().execute({ pattern: 'helper' });
+    assert.ok(byName.includes('target-helper.ts'), `совпадение по имени файла: ${byName}`);
+
+    const invalid = await searchFiles().execute({ pattern: '([' });
+    assert.ok(invalid.includes('Ошибка'), `невалидный regex объяснён: ${invalid}`);
+    (vscode.workspace as any).__findFilesResult = [];
+  });
+
+  test('CAT-15: run_terminal возвращает текст команды, а не исключение', async () => {
+    // Корень workspace в тестах виртуальный; команда запускается в настоящем каталоге
+    const realRoot = fsNode.mkdtempSync(pathNode.join(osNode.tmpdir(), 'tools-'));
+    (vscode.workspace as any).workspaceFolders[0].uri.fsPath = realRoot;
+    try {
+      const result = await runTerminal().execute({
+        command: `${process.execPath} -e "console.log('hello from tool')"`,
+        timeout: 10,
+      });
+      assert.ok(typeof result === 'string' && result.length > 0, 'результат — непустая строка');
+      assert.ok(result.includes('hello from tool'), `вывод команды попал в результат: ${result}`);
+    } finally {
+      (vscode.workspace as any).workspaceFolders[0].uri.fsPath = '/fake/workspace';
+      fsNode.rmSync(realRoot, { recursive: true, force: true });
+    }
+  });
+
+  test('CAT-16: web_fetch извлекает текст страницы и выбрасывает разметку', async () => {
+    const originalFetch = global.fetch;
+    global.fetch = (async () => ({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      headers: { get: () => 'text/html; charset=utf-8' },
+      text: async () =>
+        '<html><body><nav>меню</nav><script>alert(1)</script><p>Полезный текст страницы</p></body></html>',
+    })) as any;
+    try {
+      const result = await webFetch().execute({ url: 'https://example.com/page' });
+      assert.ok(result.includes('Полезный текст страницы'), `текст извлечён: ${result}`);
+      assert.ok(!result.includes('<p>'), 'разметка выброшена');
+      assert.ok(!result.includes('alert(1)'), 'скрипты выброшены');
+      assert.ok(!result.includes('меню'), 'навигация выброшена');
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+
+  test('CAT-17: HTTP-ошибка web_fetch возвращается как текст, а не как страница', async () => {
+    const originalFetch = global.fetch;
+    global.fetch = (async () => ({
+      ok: false,
+      status: 403,
+      statusText: 'Forbidden',
+      headers: { get: () => 'text/html' },
+      text: async () => '<html><body>доступ закрыт</body></html>',
+    })) as any;
+    try {
+      const result = await webFetch().execute({ url: 'https://example.com/private' });
+      assert.ok(result.includes('403'), `код ошибки виден: ${result}`);
+      assert.ok(!result.includes('доступ закрыт'), 'тело ошибки не выдаётся за содержимое');
+    } finally {
+      global.fetch = originalFetch;
     }
   });
 });

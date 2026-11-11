@@ -216,6 +216,22 @@ const workspace = {
     async delete(uri) {
       memoryFs.files.delete(uri.fsPath);
     },
+    async readDirectory(uri) {
+      const prefix = uri.fsPath.endsWith('/') ? uri.fsPath : `${uri.fsPath}/`;
+      const entries = [];
+      for (const filePath of memoryFs.files.keys()) {
+        if (!filePath.startsWith(prefix)) continue;
+        const rest = filePath.slice(prefix.length);
+        const name = rest.split('/')[0];
+        entries.push([name, rest.includes('/') ? 2 : 1]); // 2 = Directory, 1 = File
+      }
+      for (const dir of memoryFs.dirs) {
+        if (dir === uri.fsPath || !dir.startsWith(prefix)) continue;
+        entries.push([dir.slice(prefix.length).split('/')[0], 2]);
+      }
+      const unique = new Map(entries);
+      return [...unique.entries()];
+    },
   },
   // Живые события документов/файлов: тест может их дёрнуть через __fireDid
   onDidChangeTextDocument(listener) { return didEmitters.onDidChangeTextDocument.event(listener); },
@@ -231,8 +247,14 @@ const workspace = {
     emitter.fire(payload);
   },
   findFiles(include, exclude, maxResults) {
-    return Promise.resolve([]);
+    // Тест задаёт список файлов через workspace.__findFilesResult
+    const files = (workspace.__findFilesResult || []).map((p) => Uri.file(p));
+    return Promise.resolve(maxResults ? files.slice(0, maxResults) : files);
   },
+  /** Файлы, которые «нашёл» поиск (тесты задают список) */
+  __findFilesResult: [],
+  /** Значение, которое вернёт showInputBox (тесты задают перед вызовом) */
+  __inputBoxValue: undefined,
   openTextDocument(path) {
     return Promise.resolve({ getText: () => '', languageId: 'plaintext' });
   },
@@ -285,7 +307,7 @@ const window = {
   showErrorMessage(msg) { return Promise.resolve(); },
   showWarningMessage(msg) { return Promise.resolve(); },
   showQuickPick(items, options) { return Promise.resolve(); },
-  showInputBox(options) { return Promise.resolve(); },
+  showInputBox(options) { return Promise.resolve((window.__inputBoxValue)); },
   showSaveDialog(options) { return Promise.resolve(); },
   createOutputChannel(name) {
     return {
@@ -390,4 +412,5 @@ module.exports = {
   // Часто используемые enum'ы
   ConfigurationTarget: { Global: 1, Workspace: 2, WorkspaceFolder: 3 },
   ProgressLocation: { Notification: 15, Window: 15 },
+  FileType: { Unknown: 0, File: 1, Directory: 2, SymbolicLink: 64 },
 };
