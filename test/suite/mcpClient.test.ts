@@ -8,7 +8,7 @@
 
 import 'mocha';
 import * as assert from 'assert';
-import { McpClient, McpServerConfig } from '../../src/modes/apply/McpClient';
+import { McpClient, McpServerConfig, formatToolResult } from '../../src/modes/apply/McpClient';
 import { ToolSystem, Tool } from '../../src/modes/apply/ToolSystem';
 import { getAllowedTools, ToolAllowListConfig } from '../../src/modes/apply/ToolAllowList';
 
@@ -275,5 +275,30 @@ suite('McpClient', () => {
     assert.ok(desc.includes('mcp_server_weather'), 'Описание содержит имя инструмента');
     assert.ok(desc.includes('Получение погоды через MCP-сервер'), 'Описание содержит описание');
     assert.ok(desc.includes('city'), 'Описание содержит параметры');
+  });
+  // MCP-ERR-1..3: контракт «ошибка инструмента не выглядит успешным ответом».
+  // Проверяется чистая функция форматирования: раньше `isError` игнорировался, и агент
+  // получал текст ошибки как нормальный результат (дефект нашёл e2e E2E-17d).
+  test('MCP-ERR-1: isError от сервера помечается как ошибка инструмента', () => {
+    const text = formatToolResult('files', 'read', {
+      content: [{ type: 'text', text: 'ENOENT: no such file' }],
+      isError: true,
+    });
+    assert.ok(text.includes('⚠️ ошибка инструмента'), `ошибка не помечена: ${text}`);
+    assert.ok(text.includes('ENOENT'), `текст ошибки потерян: ${text}`);
+  });
+
+  test('MCP-ERR-2: успешный результат не получает пометку об ошибке', () => {
+    const text = formatToolResult('files', 'read', {
+      content: [{ type: 'text', text: 'содержимое файла' }],
+      isError: false,
+    });
+    assert.ok(!text.includes('⚠️ ошибка инструмента'), `успех помечен как ошибка: ${text}`);
+    assert.ok(text.includes('содержимое файла'), `текст результата потерян: ${text}`);
+  });
+
+  test('MCP-ERR-3: пустой ответ инструмента не выдаётся за данные', () => {
+    const text = formatToolResult('files', 'read', { content: [] });
+    assert.ok(text.includes('не вернул текстового результата'), `пустой ответ не отличён: ${text}`);
   });
 });

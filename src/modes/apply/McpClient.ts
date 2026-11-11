@@ -49,6 +49,47 @@ export interface McpConnectResult {
  * 3. executeTool() — вызывает инструмент сервера
  * 4. disconnect() — завершает процесс сервера
  */
+
+/** Результат `tools/call` в объёме, который важен для форматирования. */
+export interface McpToolResult {
+  content: Array<{ type: string; text?: string }>;
+  isError?: boolean;
+}
+
+/**
+ * Превратить результат MCP-инструмента в строку для агента.
+ *
+ * Чистая функция: вызывается и из `executeTool`, и из тестов, поэтому контракт
+ * «ошибка сервера не выглядит успешным ответом» проверяется без поднятия процесса
+ * и без обращения к приватным полям клиента.
+ */
+export function formatToolResult(
+  serverName: string,
+  toolName: string,
+  result: McpToolResult,
+): string {
+  const textParts: string[] = [];
+  for (const block of result.content ?? []) {
+    if (block.type === 'text' && block.text) {
+      textParts.push(block.text);
+    }
+  }
+
+  if (textParts.length === 0) {
+    return '(инструмент не вернул текстового результата)';
+  }
+
+  // `isError` — ошибка на стороне сервера. Раньше он игнорировался, и агент получал текст
+  // ошибки как нормальный результат инструмента (нашёл e2e `E2E-17d`)
+  const body = textParts.join('\n');
+  if (result.isError) {
+    return wrapExternalContent(`mcp: ${serverName}/${toolName}`, `⚠️ ошибка инструмента: ${body}`);
+  }
+
+  // Результат MCP — внешние данные: размечаем как данные и показываем попытки инъекций
+  return wrapExternalContent(`mcp: ${serverName}/${toolName}`, body);
+}
+
 export class McpClient {
   /** Конфигурация сервера */
   private readonly config: McpServerConfig;
@@ -138,29 +179,7 @@ export class McpClient {
     }
 
     const result = await this.client.callTool({ name, arguments: args });
-
-    // Извлекаем текстовое содержимое из блоков результата
-    const content = result.content as Array<{ type: string; text?: string }>;
-    const textParts: string[] = [];
-    for (const block of content) {
-      if (block.type === 'text' && block.text) {
-        textParts.push(block.text);
-      }
-    }
-
-    if (textParts.length === 0) {
-      return '(инструмент не вернул текстового результата)';
-    }
-
-    // `isError` — ошибка на стороне сервера. Раньше он игнорировался, и агент получал текст
-    // ошибки как нормальный результат инструмента (нашёл e2e `E2E-17d`)
-    const body = textParts.join('\n');
-    if ((result as { isError?: boolean }).isError) {
-      return wrapExternalContent(`mcp: ${this.config.name}/${name}`, `⚠️ ошибка инструмента: ${body}`);
-    }
-
-    // Результат MCP — внешние данные: размечаем как данные и показываем попытки инъекций
-    return wrapExternalContent(`mcp: ${this.config.name}/${name}`, body);
+    return formatToolResult(this.config.name, name, result as McpToolResult);
   }
 
   /**

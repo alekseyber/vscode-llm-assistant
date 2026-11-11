@@ -233,4 +233,39 @@ suite('SearchIndex / S1', () => {
     assert.strictEqual(hits[0].path, 'src/shared/pricing.ts', `порядок выдачи: ${JSON.stringify(hits.map((h) => h.path))}`);
     store.close();
   });
+
+  // IDX-35: веса колонок — часть контракта ранжирования, а не настройка «на глаз».
+  // Совпадение в пути весит PATH_WEIGHT, в теле — BODY_WEIGHT. Проверяем именно отношение:
+  // при равенстве весов (мутация 4.0 → 1.0) и при ослаблении тела (1.0 → 0.1) окно нарушается.
+  test('IDX-35: совпадение в пути весит вчетверо больше совпадения в теле', async () => {
+    const store = new SearchIndexStore(sqlite3, { indexPath });
+    assert.strictEqual(await store.init(), true);
+
+    // Пути нейтральные: перевес src/тесты/docs не участвует, разница только в колонке совпадения
+    const pathBody = 'export const unrelated = 1;';
+    const bodyBody = 'export const pricing = 1;';
+    // Фон без термина: иначе idf вырождается (термин есть в обоих документах, bm25 → 0)
+    for (let i = 0; i < 8; i++) {
+      const filler = `export const filler${i} = ${i};`;
+      store.upsertFile({ path: `notes/filler-${i}.md`, body: filler, size: filler.length, mtime: Date.now() });
+    }
+    store.upsertFile({ path: 'notes/pricing.md', body: pathBody, size: pathBody.length, mtime: Date.now() });
+    store.upsertFile({ path: 'notes/plain.md', body: bodyBody, size: bodyBody.length, mtime: Date.now() });
+
+    const hits = store.search('pricing', 5);
+    const inPath = hits.find((h) => h.path === 'notes/pricing.md');
+    const inBody = hits.find((h) => h.path === 'notes/plain.md');
+    assert.ok(inPath && inBody, `оба файла должны быть в выдаче: ${JSON.stringify(hits.map((h) => h.path))}`);
+
+    // bm25 отрицателен: чем сильнее совпадение, тем больше модуль ранга.
+    // Окно описывает действующее отношение весов (путь ≈ в 1,5–2,2 раза сильнее тела):
+    // равенство весов (мутация 4.0 → 1.0) даёт 1.0, ослабление тела (1.0 → 0.1) — около 0.06.
+    const strength = Math.abs(inPath!.rank) / Math.abs(inBody!.rank);
+    assert.ok(
+      strength > 1.4 && strength < 2.2,
+      `совпадение в пути должно быть сильнее совпадения в теле в 1,4–2,2 раза, получено ${strength.toFixed(2)} ` +
+        `(путь ${inPath!.rank.toFixed(4)}, тело ${inBody!.rank.toFixed(4)})`,
+    );
+    store.close();
+  });
 });

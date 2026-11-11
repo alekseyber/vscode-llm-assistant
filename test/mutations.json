@@ -36,7 +36,7 @@
     {
       "id": "MCP-ISERROR",
       "file": "src/modes/apply/McpClient.ts",
-      "from": "if ((result as { isError?: boolean }).isError) {",
+      "from": "if (result.isError) {",
       "to": "if (false) {",
       "label": "isError от MCP игнорируется",
       "expect": "must-fail"

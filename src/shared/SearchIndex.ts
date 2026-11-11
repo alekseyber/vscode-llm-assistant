@@ -415,9 +415,13 @@ export class SearchIndexStore {
     try {
       // Берём с запасом: после перевеса исходников над тестами порядок меняется
       const rows = this.db.exec({
-        // bm25() принимает только литералы: параметры (?) в весах дают ошибку SQLite
+        // bm25() принимает только литералы: параметры (?) в весах дают ошибку SQLite.
+        // Веса идут ПО КОЛОНКАМ fts5(path UNINDEXED, path_tokens, body_norm): первая колонка
+        // не индексируется, поэтому её вес — заглушка 1.0. Пока весов было два, они ложились
+        // на path и path_tokens, а body_norm получал вес по умолчанию: совпадение в пути
+        // весило столько же, сколько в теле (нашёл IDX-35).
         sql:
-          `SELECT f.path, bm25(fts, ${PATH_WEIGHT}, ${BODY_WEIGHT}) AS rank, ` +
+          `SELECT f.path, bm25(fts, 1.0, ${PATH_WEIGHT}, ${BODY_WEIGHT}) AS rank, ` +
           'COALESCE(files.text, \'\') AS text, COALESCE(f.body_norm, \'\') AS body_norm ' +
           'FROM fts AS f JOIN files ON files.path = f.path ' +
           'WHERE fts MATCH ? ORDER BY rank LIMIT ?',
