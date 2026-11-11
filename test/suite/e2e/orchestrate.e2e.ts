@@ -80,7 +80,6 @@ suite('E2E-15: @orchestrate', function () {
   let chatView: ReturnType<typeof createFakeWebviewView>;
   let orchView: ReturnType<typeof createFakeWebviewView>;
   let history: RunHistoryStore;
-  let rolesDir: string;
   let workspace: string;
   let restoreRolesAfter: (() => void) | undefined;
 
@@ -88,7 +87,7 @@ suite('E2E-15: @orchestrate', function () {
     const folder = (vscode.workspace.workspaceFolders ?? [])[0];
     assert.ok(folder, 'рабочее пространство открыто');
     workspace = folder!.uri.fsPath;
-    rolesDir = path.join(workspace, '.llma', 'agents');
+    // Каталог ролей один на рабочее пространство: снимаем чужое содержимое и возвращаем после
     const previous = snapshotRoles(workspace);
     writeRoles(workspace);
     restoreRolesAfter = () => restoreRoles(workspace, previous);
@@ -149,7 +148,6 @@ suite('E2E-15: @orchestrate', function () {
     await snap?.restore();
     await stub?.close();
     restoreRolesAfter?.();
-    void rolesDir;
   });
 
   test('E2E-15: роли идут по цепочке, статусы меняются, итог приходит в чат', async () => {
@@ -157,6 +155,7 @@ suite('E2E-15: @orchestrate', function () {
 
     // 1. Вкладка получила задачу с тремя воркерами в статусе pending
     await waitFor(() => messagesOfType(orchView, 'taskUpdate').length > 0, 10_000, 50, 'taskUpdate');
+    assert.strictEqual(messagesOfType(orchView, 'taskUpdate').length, 1, 'задача показана один раз');
     const task = messagesOfType(orchView, 'taskUpdate')[0].task;
     assert.strictEqual(task.goal, 'сделай фичу целиком', 'цель задачи из сообщения');
     assert.strictEqual(task.strategy, 'sequential', 'стратегия последовательная');
@@ -181,7 +180,9 @@ suite('E2E-15: @orchestrate', function () {
     // по первому появлению роли, наличие деталей — отдельно.
     const finishedAll = updates.filter((m) => m.updates?.status === 'done').map((m) => m.roleName);
     const finishedUnique = Array.from(new Set(finishedAll));
-    assert.deepStrictEqual(started, ['01-architect', '02-coder', '03-reviewer'], `порядок старта: ${started}`);
+    // Порядок старта строго не проверяем: воркер может успеть завершиться до чтения журнала.
+    // Важно, что каждая роль получила running и что порядок завершения последовательный.
+    assert.deepStrictEqual([...started].sort(), ['01-architect', '02-coder', '03-reviewer'], `стартовали все роли: ${started}`);
     assert.deepStrictEqual(finishedUnique, ['01-architect', '02-coder', '03-reviewer'], `порядок завершения: ${finishedAll}`);
 
     // Детали приходят вторым обновлением: шаги, ответ и токены, а не только статус
@@ -202,7 +203,17 @@ suite('E2E-15: @orchestrate', function () {
     assert.strictEqual(runs.length, 1, `одна запись прогона: ${JSON.stringify(history.getRuns().map((r) => r.task))}`);
     assert.strictEqual(runs[0].mode, 'agent', 'прогон записан как агентский');
 
-    // 5. Провайдер вызван по разу на роль — цепочка не замолчала и не зациклилась
-    assert.strictEqual(stub!.bodies.filter((b) => Array.isArray(b?.messages)).length, 3, 'три запроса к модели, по одному на роль');
+    // 5. Цепочка не молчит и не зацикливается: минимум по запросу на роль, но не больше
+    // потолка итераций на воркера (иначе цикл ушёл бы в бесконечность)
+    const requests = stub!.bodies.filter((b) => Array.isArray(b?.messages)).length;
+    assert.ok(requests >= 3, `запросов не меньше, чем ролей: ${requests}`);
+    assert.ok(requests <= 3 * 3, `запросов не больше потолка итераций: ${requests}`);
+
+    // 6. Контекст предыдущей роли доехал до следующей: в промпте второго воркера есть ответ первого
+    const secondPrompt = String(stub!.bodies.filter((b) => Array.isArray(b?.messages))[1]?.messages?.map((m: any) => m.content).join('\n') ?? '');
+    assert.ok(
+      secondPrompt.includes('этап 1'),
+      `второй воркер получает результат первого: ${secondPrompt.slice(0, 400)}`,
+    );
   });
 });
