@@ -16,6 +16,7 @@ import {
   pathPenalty,
   applyPathPenalty,
   firstMeaningfulLine,
+  countMatchedTokens,
 } from '../../src/shared/SearchIndex';
 
 /**
@@ -181,6 +182,17 @@ suite('SearchIndex / S1', () => {
     const snippet = firstMeaningfulLine(long, 20);
     assert.ok(!snippet.includes('\uFFFD'), `фрагмент не содержит битых символов: ${snippet}`);
     assert.strictEqual(Array.from(snippet).length, 20, 'длина по кодовым точкам');
+  });
+
+  test('IDX-33: число совпавших слов запроса считается по основам, без повторов', () => {
+    const body = 'Лимит бюджета сессии и дневной лимит бюджета: лимит проверяется до отправки';
+    // «лимит», «бюджет», «сессии» — три основы; повтор «лимит» не увеличивает счёт
+    assert.strictEqual(countMatchedTokens('где лимит бюджета сессии', body), 3);
+    // Слово, которого нет в тексте, не считается
+    assert.strictEqual(countMatchedTokens('где лимит бюджета телеграм', body), 2);
+    // Пустой запрос и пустой текст — ноль, не падение
+    assert.strictEqual(countMatchedTokens('где', body), 0);
+    assert.strictEqual(countMatchedTokens('где лимит', ''), 0);
   });
 
   test('IDX-29: фрагмент — первая содержательная строка файла, а не склейка основ', async () => {

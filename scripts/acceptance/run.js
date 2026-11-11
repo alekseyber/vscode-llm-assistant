@@ -19,11 +19,18 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const ROOT = path.resolve(process.argv[2] && !process.argv[2].startsWith('--') ? process.argv[2] : path.join(__dirname, '..', '..'));
+// MODULE_ROOT — репозиторий расширения (из него берём out/ и dist/sqlite),
+// CORPUS — то, что индексируем (может быть чужим репозиторием без сборки).
+const MODULE_ROOT = path.resolve(path.join(__dirname, '..', '..'));
+const corpusArg = process.argv.find((arg) => arg.startsWith('--corpus='));
+const ROOT = corpusArg ? path.resolve(corpusArg.slice('--corpus='.length)) : MODULE_ROOT;
+const queriesArg = process.argv.find((arg) => arg.startsWith('--queries='));
+const QUERY_FILE = queriesArg ? path.resolve(queriesArg.slice('--queries='.length)) : path.join(__dirname, 'queries.json');
 const AS_JSON = process.argv.includes('--json');
 const SKIP = new Set(['node_modules', '.git', 'dist', 'out', 'coverage', '.vscode-test']);
 const MAX_BYTES = 512 * 1024;
-const QUERY_FILE = path.join(__dirname, 'queries.json');
+/** Дублирует порог инструмента (ToolDefinitions.MIN_MATCHED_TOKENS): приёмка меряет то, что видит агент. */
+const MIN_MATCHED = 2;
 const RAW = fs.readFileSync(QUERY_FILE);
 const QUERIES = JSON.parse(RAW.toString('utf-8'));
 
@@ -112,12 +119,12 @@ function backendKeywordOr(query, limit = 5) {
 }
 
 async function buildIndexBackend() {
-  const { SearchIndexStore } = require(path.join(ROOT, 'out/src/shared/SearchIndex.js'));
-  const { SearchIndexer } = require(path.join(ROOT, 'out/src/shared/SearchIndexer.js'));
+  const { SearchIndexStore } = require(path.join(MODULE_ROOT, 'out/src/shared/SearchIndex.js'));
+  const { SearchIndexer } = require(path.join(MODULE_ROOT, 'out/src/shared/SearchIndexer.js'));
   // sqlite-wasm грузим напрямую: IndexService тянет `vscode`, а приёмка идёт в обычном Node
   const dynamicImport = new Function('specifier', 'return import(specifier)');
   const { pathToFileURL } = require('url');
-  const mod = await dynamicImport(pathToFileURL(path.join(ROOT, 'dist', 'sqlite', 'node.mjs')).href);
+  const mod = await dynamicImport(pathToFileURL(path.join(MODULE_ROOT, 'dist', 'sqlite', 'node.mjs')).href);
   const sqlite3 = typeof mod.default === 'function' ? await mod.default() : mod;
 
   const store = new SearchIndexStore(sqlite3, { indexPath: path.join(os.tmpdir(), `llma-acc-${process.pid}.sqlite`) });
@@ -142,6 +149,12 @@ async function buildIndexBackend() {
   return {
     build: { files: stats.indexed, ms: Date.now() - started },
     search: (query, limit = 5) => store.search(query, limit).map((hit) => ({ path: hit.path, score: hit.rank })),
+    // То же, что делает инструмент: слабые попадания (меньше двух совпавших слов) не считаются ответом
+    searchFiltered: (query, limit = 5) =>
+      store
+        .search(query, limit)
+        .filter((hit) => hit.matched >= MIN_MATCHED)
+        .map((hit) => ({ path: hit.path, score: hit.rank })),
     close: () => store.close(),
   };
 }
@@ -173,6 +186,7 @@ function evaluate(hits, item) {
     grepAnd: (q) => backendGrepAnd(q),
     keywordOr: (q) => backendKeywordOr(q),
     index: (q) => index.search(q, 5),
+    indexFiltered: (q) => index.searchFiltered(q, 5),
   };
 
   const positives = QUERIES.queries.filter((q) => !q.negative);
@@ -180,7 +194,11 @@ function evaluate(hits, item) {
   const metrics = {};
 
   for (const [name, run] of Object.entries(backends)) {
-    const rows = positives.map((item) => ({ id: item.id, item, ...evaluate(run(item.query), item) }));
+    // --lang=en переключает на английскую формулировку (поле queryEn), если она есть:
+    // так видно, дело в индексе или в языке запроса относительно языка кода
+    const useEn = process.argv.includes('--lang=en');
+    const ask = (item) => run(useEn && item.queryEn ? item.queryEn : item.query);
+    const rows = positives.map((item) => ({ id: item.id, item, ...evaluate(ask(item), item) }));
     const n = rows.length;
     const anyHits = rows.filter((r) => r.anyRank > 0 && r.anyRank <= 5).length;
     const strictHits = rows.filter((r) => r.strictRank > 0 && r.strictRank <= 5).length;
@@ -188,7 +206,7 @@ function evaluate(hits, item) {
     const p1 = rows.filter((r) => r.anyRank === 1).length / n;
 
     const negRows = negatives.map((item) => {
-      const hits = run(item.query);
+      const hits = ask(item);
       const top = hits[0];
       const allWords = top ? words(item.query).every((token) => !text(top.path) || text(top.path).includes(token)) : false;
       return { id: item.id, query: item.query, top: hits.slice(0, 3).map((h) => h.path), answered: Boolean(top), strongMatch: Boolean(top) && allWords };
@@ -206,6 +224,26 @@ function evaluate(hits, item) {
       negRows,
     };
   }
+  if (process.argv.includes('--calibrate')) {
+    // Калибровка порога «нет ответа»: смотрим, чем отличается топ-1 у вопросов с ответом
+    // и у вопросов, ответа на которые в коде нет. Нужны две величины: ранг bm25 и число
+    // различных слов запроса, реально найденных в файле.
+    const rows = [];
+    for (const item of QUERIES.queries) {
+      const hits = index.search(item.query, 1);
+      const top = hits[0];
+      const body = top ? text(top.path) ?? '' : '';
+      const matched = top ? words(item.query).filter((token) => body.includes(token)).length : 0;
+      rows.push({ id: item.id, negative: Boolean(item.negative), rank: top ? top.score : 0, matched, top: top ? top.path : null });
+    }
+    console.log('id   neg  bm25-ранг   совпало слов  файл');
+    for (const row of rows) {
+      console.log(`${row.id.padEnd(4)} ${row.negative ? 'да ' : 'нет'}  ${row.rank.toFixed(2).padStart(9)}   ${String(row.matched).padStart(2)}           ${row.top ?? '—'}`);
+    }
+    index.close();
+    return;
+  }
+
   index.close();
 
   if (AS_JSON) {
@@ -220,7 +258,7 @@ function evaluate(hits, item) {
   console.log(`\nКорпус: ${files.length} файлов; запросов с эталоном: ${positives.length}, негативных: ${negatives.length}`);
   console.log(`queries.json sha256: ${crypto.createHash('sha256').update(RAW).digest('hex').slice(0, 16)}…  сборка индекса: ${index.build.files} файлов за ${index.build.ms} мс\n`);
   console.log('бэкенд      recall@5 (95% ДИ)        strict@5   MRR    P@1   негативных с ответом');
-  for (const name of ['grepAnd', 'keywordOr', 'index']) {
+  for (const name of ['grepAnd', 'keywordOr', 'index', 'indexFiltered']) {
     const m = metrics[name];
     console.log(
       `${name.padEnd(11)} ${pct(m.recall5).padStart(4)} ${ci(m.recall5CI).padEnd(12)} ${pct(m.recall5Strict).padStart(7)}   ` +

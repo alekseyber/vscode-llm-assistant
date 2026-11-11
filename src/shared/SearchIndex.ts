@@ -132,6 +132,15 @@ export interface SearchHit {
   /** BM25: меньше — лучше */
   rank: number;
   snippet: string;
+  /**
+   * Сколько различных слов запроса реально найдено в файле.
+   *
+   * Нужно, чтобы не выдавать шум за ответ: BM25 всегда возвращает что-то, и на вопрос
+   * «где экспорт в PDF», которого в коде нет, индекс отдаёт посторонний файл. Замер
+   * (60 запросов, 5 негативных): у негативных совпадает 0–2 слова из 3–4, у нужных
+   * файлов — 2–4; порог «меньше двух» отсекает часть ложных попаданий без потери верных.
+   */
+  matched: number;
 }
 
 export interface SearchIndexOptions {
@@ -172,6 +181,26 @@ export function pathPenalty(filePath: string): number {
 export function applyPathPenalty(rank: number, filePath: string): number {
   const penalty = pathPenalty(filePath);
   return rank < 0 ? rank / penalty : rank * penalty;
+}
+
+/** Сколько различных основ запроса встречается в тексте файла (для порога «нет ответа»). */
+export function countMatchedTokens(query: string, body: string): number {
+  return countMatchedTokensNormalized(query, normalizeText(body));
+}
+
+/**
+ * То же по уже нормализованному тексту. Сравнение по множеству токенов, а не подстрокой:
+ * иначе «export» совпадает с «exported» и matched завышается.
+ */
+export function countMatchedTokensNormalized(query: string, normalizedBody: string): number {
+  const words = new Set(tokenize(query));
+  if (words.size === 0 || normalizedBody.length === 0) return 0;
+  const present = new Set(normalizedBody.split(' '));
+  let matched = 0;
+  for (const word of words) {
+    if (present.has(word)) matched += 1;
+  }
+  return matched;
 }
 
 /** Фрагмент для агента: первая содержательная строка файла, а не склейка основ слов. */
@@ -389,7 +418,7 @@ export class SearchIndexStore {
         // bm25() принимает только литералы: параметры (?) в весах дают ошибку SQLite
         sql:
           `SELECT f.path, bm25(fts, ${PATH_WEIGHT}, ${BODY_WEIGHT}) AS rank, ` +
-          'COALESCE(files.text, \'\') ' +
+          'COALESCE(files.text, \'\') AS text, COALESCE(f.body_norm, \'\') AS body_norm ' +
           'FROM fts AS f JOIN files ON files.path = f.path ' +
           'WHERE fts MATCH ? ORDER BY rank LIMIT ?',
         bind: [match, Math.max(1, limit) * 10],
@@ -404,6 +433,9 @@ export class SearchIndexStore {
           // у src 0.7 отдаляет (лучше)
           rank: applyPathPenalty(Number(row[1]), String(row[0])),
           snippet: firstMeaningfulLine(String(row[2] ?? '')),
+          // Считаем по полному нормализованному тексту: files.text обрезан до 4000 знаков,
+          // и по нему matched занижался бы у больших файлов (замечание ревью)
+          matched: countMatchedTokensNormalized(query, String(row[3] ?? '')),
         }))
         .sort((a: SearchHit, b: SearchHit) => a.rank - b.rank)
         .slice(0, Math.max(1, limit));

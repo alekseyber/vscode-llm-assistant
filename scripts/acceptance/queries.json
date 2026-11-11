@@ -1,7 +1,7 @@
 {
   "measuredAt": "2026-11-11",
-  "repo": "vscode-llm-assistant@bb988fa",
-  "note": "Эталон зафиксирован до правок алгоритма. expect — все файлы, где символ объявлен (grep). Правки по ревью Pro: baseline AND по словам, без буста путей, интервалы Уилсона, negative-метрика, sha256.",
+  "repo": "vscode-llm-assistant@2820b33",
+  "note": "Эталон зафиксирован до правок алгоритма. expect — все файлы, где символ/фраза объявлены (grep). Источники: session — вопросы из реальной переписки, backlog — формулировки пунктов, code — свойства кода. Негативные: 5 вопросов, ответа на которые в коде нет.",
   "queries": [
     {
       "id": "A01",
@@ -450,6 +450,432 @@
       "why": "история пишется в globalState без шифрования",
       "source": "code",
       "negative": true
+    },
+    {
+      "id": "A31",
+      "query": "есть отдельный переключатель как зайти в это меню настроек",
+      "expect": [
+        "src/activation/registerCommands.ts",
+        "src/extension.ts",
+        "src/modes/autocomplete/AutocompleteController.ts",
+        "src/modes/edit/EditController.ts"
+      ],
+      "primary": "src/activation/registerCommands.ts",
+      "source": "session",
+      "negative": false
+    },
+    {
+      "id": "A32",
+      "query": "у pro шире контекст там сжимать будет реже",
+      "expect": [
+        "src/modes/chat/ChatViewProvider.ts",
+        "src/modes/chat/ConversationManager.ts",
+        "src/shared/ContextSummarizer.ts",
+        "src/shared/SessionLog.ts",
+        "src/webviews/chat/main.js"
+      ],
+      "primary": "src/modes/chat/ChatViewProvider.ts",
+      "source": "session",
+      "negative": false
+    },
+    {
+      "id": "A33",
+      "query": "можно переключить модель только в одном чате а в остальных дешёвая",
+      "expect": [
+        "src/activation/registerCommands.ts",
+        "src/modes/chat/ChatViewProvider.ts",
+        "src/providers/manager.ts"
+      ],
+      "primary": "src/activation/registerCommands.ts",
+      "source": "session",
+      "negative": false
+    },
+    {
+      "id": "A34",
+      "query": "если в каком-то чате переключить модель она во всех чатах поменяется",
+      "expect": [
+        "src/activation/registerCommands.ts",
+        "src/extension.ts",
+        "src/modes/apply/AgentWorker.ts",
+        "src/modes/chat/ChatPanel.ts",
+        "src/modes/chat/ChatViewProvider.ts",
+        "src/modes/chat/ConversationManager.ts",
+        "src/modes/chat/PlanModeManager.ts",
+        "src/modes/chat/SessionManager.ts",
+        "src/modes/edit/EditController.ts",
+        "src/modes/history/HistoryViewProvider.ts",
+        "src/shared/RunHistoryStore.ts",
+        "src/shared/SessionLog.ts",
+        "src/webviews/chat/main.js",
+        "src/webviews/chat/toolbar.js"
+      ],
+      "primary": "src/activation/registerCommands.ts",
+      "source": "session",
+      "negative": false
+    },
+    {
+      "id": "A35",
+      "query": "как работает режим планирования перед правками",
+      "expect": [
+        "src/modes/chat/PlanModeManager.ts"
+      ],
+      "primary": "src/modes/chat/PlanModeManager.ts",
+      "source": "backlog",
+      "negative": false
+    },
+    {
+      "id": "A36",
+      "query": "где проверяется allowlist инструментов для роли",
+      "expect": [
+        "src/activation/registerCommands.ts",
+        "src/modes/apply/AgentWorker.ts",
+        "src/modes/apply/ToolAllowList.ts",
+        "src/modes/chat/ChatAgentTools.ts",
+        "src/modes/chat/ChatViewProvider.ts",
+        "src/modes/chat/PlanModeManager.ts",
+        "src/modes/review/CodeReviewer.ts",
+        "src/shared/AgentsMdLoader.ts",
+        "src/shared/RoleAgentsMdLoader.ts"
+      ],
+      "primary": "src/activation/registerCommands.ts",
+      "source": "backlog",
+      "negative": false
+    },
+    {
+      "id": "A37",
+      "query": "где выводится отчёт «показать источники правил»",
+      "expect": [
+        "src/activation/registerCommands.ts",
+        "src/shared/AgentsMdLoader.ts"
+      ],
+      "primary": "src/activation/registerCommands.ts",
+      "source": "backlog",
+      "negative": false
+    },
+    {
+      "id": "A38",
+      "query": "где команда сброса дневного бюджета",
+      "expect": [
+        "src/activation/registerCommands.ts"
+      ],
+      "primary": "src/activation/registerCommands.ts",
+      "source": "backlog",
+      "negative": false
+    },
+    {
+      "id": "A39",
+      "query": "где команда пересборки индекса",
+      "expect": [
+        "src/activation/registerCommands.ts"
+      ],
+      "primary": "src/activation/registerCommands.ts",
+      "source": "backlog",
+      "negative": false
+    },
+    {
+      "id": "A40",
+      "query": "как определяются роли субагентов из .claude/agents",
+      "expect": [
+        "src/modes/apply/AgentOrchestrator.ts",
+        "src/modes/apply/AgentWorker.ts",
+        "src/modes/chat/ChatViewProvider.ts",
+        "src/shared/AgentsMdLoader.ts",
+        "src/shared/RoleAgentsMdLoader.ts"
+      ],
+      "primary": "src/modes/apply/AgentOrchestrator.ts",
+      "source": "backlog",
+      "negative": false
+    },
+    {
+      "id": "A41",
+      "query": "где ограничение длины каталога скиллов",
+      "expect": [
+        "src/shared/RetryHandler.ts",
+        "src/shared/RoleAgentsMdLoader.ts"
+      ],
+      "primary": "src/shared/RetryHandler.ts",
+      "source": "backlog",
+      "negative": false
+    },
+    {
+      "id": "A44",
+      "query": "где считается прогноз стоимости агентского прогона",
+      "expect": [
+        "src/activation/registerCommands.ts",
+        "src/modes/apply/AgentController.ts",
+        "src/modes/apply/AgentOrchestrator.ts",
+        "src/modes/apply/AgentWorker.ts",
+        "src/modes/chat/ChatViewProvider.ts",
+        "src/modes/chat/ModelRouter.ts",
+        "src/modes/chat/PlanModeManager.ts",
+        "src/modes/review/CodeReviewer.ts"
+      ],
+      "primary": "src/activation/registerCommands.ts",
+      "source": "backlog",
+      "negative": false
+    },
+    {
+      "id": "A45",
+      "query": "где предупреждение о превышении бюджета на 80 процентов",
+      "expect": [
+        "src/modes/apply/AgentWorker.ts",
+        "src/modes/chat/AskUserTool.ts",
+        "src/modes/chat/ChatViewProvider.ts",
+        "src/modes/chat/ModelRouter.ts",
+        "src/modes/edit/EditController.ts",
+        "src/modes/edit/diff.ts",
+        "src/providers/base.ts",
+        "src/providers/ollama.ts",
+        "src/providers/types.ts",
+        "src/shared/RetryHandler.ts",
+        "src/shared/RoleAgentsMdLoader.ts",
+        "src/webviews/chat/main.js"
+      ],
+      "primary": "src/modes/apply/AgentWorker.ts",
+      "source": "backlog",
+      "negative": false
+    },
+    {
+      "id": "A46",
+      "query": "где сохраняется история прогонов между перезапусками",
+      "expect": [
+        "src/activation/registerCommands.ts",
+        "src/extension.ts",
+        "src/modes/chat/ChatViewProvider.ts",
+        "src/modes/edit/EditController.ts",
+        "src/modes/history/HistoryViewProvider.ts",
+        "src/shared/RunHistoryStore.ts",
+        "src/shared/SessionLog.ts",
+        "src/shared/runStats.ts"
+      ],
+      "primary": "src/activation/registerCommands.ts",
+      "source": "backlog",
+      "negative": false
+    },
+    {
+      "id": "A47",
+      "query": "как отличить остановку по лимиту от отмены в истории",
+      "expect": [
+        "src/activation/registerCommands.ts",
+        "src/modes/chat/ChatViewProvider.ts",
+        "src/modes/history/HistoryViewProvider.ts",
+        "src/shared/RunHistoryStore.ts",
+        "src/shared/runStats.ts"
+      ],
+      "primary": "src/activation/registerCommands.ts",
+      "source": "backlog",
+      "negative": false
+    },
+    {
+      "id": "A48",
+      "query": "где генерируется ghost text для автокомплита",
+      "expect": [
+        "src/modes/autocomplete/AutocompleteController.ts",
+        "src/modes/autocomplete/GhostTextManager.ts"
+      ],
+      "primary": "src/modes/autocomplete/AutocompleteController.ts",
+      "source": "code",
+      "negative": false
+    },
+    {
+      "id": "A49",
+      "query": "где собирается контекст для автокомплита",
+      "expect": [
+        "src/modes/autocomplete/AutocompleteController.ts",
+        "src/modes/autocomplete/ContextBuilder.ts",
+        "src/modes/autocomplete/GhostTextManager.ts"
+      ],
+      "primary": "src/modes/autocomplete/AutocompleteController.ts",
+      "source": "code",
+      "negative": false
+    },
+    {
+      "id": "A50",
+      "query": "где формируется ревью файла",
+      "expect": [
+        "src/activation/registerCommands.ts",
+        "src/modes/review/CodeReviewer.ts",
+        "src/modes/review/ReviewPanel.ts",
+        "src/modes/review/ReviewViewProvider.ts"
+      ],
+      "primary": "src/activation/registerCommands.ts",
+      "source": "code",
+      "negative": false
+    },
+    {
+      "id": "A51",
+      "query": "где оркестратор распределяет задачи между ролями",
+      "expect": [
+        "src/modes/apply/AgentOrchestrator.ts"
+      ],
+      "primary": "src/modes/apply/AgentOrchestrator.ts",
+      "source": "code",
+      "negative": false
+    },
+    {
+      "id": "A52",
+      "query": "где обрабатываются повторные попытки при ошибке провайдера",
+      "expect": [
+        "src/modes/apply/AgentOrchestrator.ts",
+        "src/modes/apply/AgentWorker.ts",
+        "src/modes/autocomplete/AutocompleteController.ts",
+        "src/modes/chat/ChatViewProvider.ts",
+        "src/providers/base.ts",
+        "src/providers/ollama.ts",
+        "src/providers/openai.ts",
+        "src/providers/types.ts",
+        "src/shared/RetryHandler.ts",
+        "src/webviews/chat/main.js"
+      ],
+      "primary": "src/modes/apply/AgentOrchestrator.ts",
+      "source": "code",
+      "negative": false
+    },
+    {
+      "id": "A53",
+      "query": "где выделяются блоки размышлений модели",
+      "expect": [
+        "src/modes/apply/AgentController.ts",
+        "src/modes/apply/AgentWorker.ts",
+        "src/modes/autocomplete/AutocompleteController.ts",
+        "src/modes/chat/ChatPanel.ts",
+        "src/modes/chat/ChatViewProvider.ts",
+        "src/modes/edit/EditController.ts",
+        "src/providers/ollama.ts",
+        "src/providers/openai.ts",
+        "src/providers/types.ts",
+        "src/shared/thinking.ts"
+      ],
+      "primary": "src/modes/apply/AgentController.ts",
+      "source": "code",
+      "negative": false
+    },
+    {
+      "id": "A54",
+      "query": "где формируется сообщение в webview чата",
+      "expect": [
+        "src/modes/apply/AgentWorker.ts",
+        "src/modes/chat/ChatPanel.ts",
+        "src/modes/chat/ChatViewProvider.ts",
+        "src/modes/history/HistoryViewProvider.ts",
+        "src/modes/orchestrator/OrchestratorViewProvider.ts",
+        "src/modes/review/ReviewPanel.ts",
+        "src/modes/review/ReviewViewProvider.ts",
+        "src/webviews/chat/main.js"
+      ],
+      "primary": "src/modes/apply/AgentWorker.ts",
+      "source": "code",
+      "negative": false
+    },
+    {
+      "id": "A55",
+      "query": "где копятся события сессии в журнал",
+      "expect": [
+        "src/activation/registerCommands.ts",
+        "src/extension.ts",
+        "src/modes/chat/ChatViewProvider.ts",
+        "src/modes/chat/ConversationManager.ts",
+        "src/modes/history/HistoryViewProvider.ts",
+        "src/shared/SessionLog.ts",
+        "src/shared/logger.ts",
+        "src/webviews/chat/main.js"
+      ],
+      "primary": "src/activation/registerCommands.ts",
+      "source": "code",
+      "negative": false
+    },
+    {
+      "id": "A59",
+      "query": "где проверяется, что спека обновлена вместе с кодом",
+      "expect": [
+        "scripts/spec-validate.js"
+      ],
+      "primary": "scripts/spec-validate.js",
+      "source": "backlog",
+      "negative": false
+    },
+    {
+      "id": "A60",
+      "query": "где смоук собранного пакета проверяет загрузку",
+      "expect": [
+        "scripts/check-vsix-loads.py",
+        "scripts/smoke-vsix-index.js"
+      ],
+      "primary": "scripts/check-vsix-loads.py",
+      "source": "backlog",
+      "negative": false
+    },
+    {
+      "id": "A56",
+      "query": "где описывается стоимость прогона словами",
+      "expect": [
+        "src/activation/registerCommands.ts",
+        "src/modes/chat/ChatViewProvider.ts",
+        "src/modes/history/HistoryViewProvider.ts",
+        "src/modes/review/ReviewPanel.ts",
+        "src/modes/review/ReviewViewProvider.ts",
+        "src/providers/ollama.ts",
+        "src/shared/runStats.ts",
+        "src/webviews/chat/main.js"
+      ],
+      "primary": "src/activation/registerCommands.ts",
+      "source": "code",
+      "negative": false
+    },
+    {
+      "id": "A57",
+      "query": "где выбирается первичный источник правил проекта",
+      "expect": [
+        "src/modes/apply/AgentController.ts",
+        "src/modes/apply/AgentWorker.ts",
+        "src/modes/chat/ChatViewProvider.ts",
+        "src/modes/chat/ConversationManager.ts",
+        "src/modes/history/HistoryViewProvider.ts",
+        "src/shared/AgentsMdLoader.ts",
+        "src/shared/SearchIndex.ts",
+        "src/webviews/chat/main.js",
+        "src/webviews/chat/toolbar.js"
+      ],
+      "primary": "src/modes/apply/AgentController.ts",
+      "source": "code",
+      "negative": false
+    },
+    {
+      "id": "A58",
+      "query": "где обрабатывается ошибка соединения с локальным сервером",
+      "expect": [
+        "src/providers/ollama.ts",
+        "src/providers/openai.ts",
+        "src/shared/RetryHandler.ts"
+      ],
+      "primary": "src/providers/ollama.ts",
+      "source": "code",
+      "negative": false
+    },
+    {
+      "id": "A59",
+      "query": "где проверяется поддержка vision у модели",
+      "expect": [
+        "src/modes/chat/ChatViewProvider.ts",
+        "src/providers/manager.ts",
+        "src/providers/ollama.ts",
+        "src/providers/openai.ts",
+        "src/providers/types.ts"
+      ],
+      "primary": "src/modes/chat/ChatViewProvider.ts",
+      "source": "code",
+      "negative": false
+    },
+    {
+      "id": "A60",
+      "query": "где ведётся статистика по запускам",
+      "expect": [
+        "src/modes/history/HistoryViewProvider.ts",
+        "src/shared/runStats.ts"
+      ],
+      "primary": "src/modes/history/HistoryViewProvider.ts",
+      "source": "code",
+      "negative": false
     }
   ]
 }

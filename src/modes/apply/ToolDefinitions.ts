@@ -257,7 +257,26 @@ const patchFileTool: Tool = {
 
 /** Источник лексической выдачи: индекс подключается в activate, инструмент о нём не знает. */
 export interface IndexSearchProvider {
-  search(query: string, limit?: number): Array<{ path: string; rank: number; snippet?: string }>;
+  search(query: string, limit?: number): Array<{ path: string; rank: number; snippet?: string; matched?: number }>;
+}
+
+/**
+ * Минимум различных слов запроса в файле, чтобы считать попадание ответом.
+ *
+ * Замер на 60 запросах и 5 негативных: BM25 отдаёт непустую выдачу всегда, поэтому на вопрос
+ * «где экспорт в PDF», которого в коде нет, агент получал посторонний файл (0–1 совпавшее
+ * слово). Порог 2 отсекает такие попадания и не отнимает найденных: у верных попаданий 2–4.
+ */
+const MIN_MATCHED_TOKENS = 2;
+
+/**
+ * Порог для конкретного запроса: не требовать двух совпадений там, где слов меньше.
+ * Запрос из одного слова («налог») не может дать два совпадения, а из двух — требует
+ * оба, что для коротких запросов превращается в фильтр «ничего не найдено».
+ */
+export function matchedThreshold(query: string): number {
+  const length = new Set((query.toLowerCase().match(/[a-zа-яё0-9_]{3,}/gu) ?? [])).size;
+  return Math.min(MIN_MATCHED_TOKENS, Math.max(1, length - 1));
 }
 
 let indexSearchProvider: IndexSearchProvider | undefined;
@@ -297,7 +316,9 @@ const searchFilesTool: Tool = {
     // он почти всегда даёт 0 попаданий (замер: 0/15), а стоит полного прохода по файлам
     const backend = classifyQuery(pattern);
     if (backend === 'fuzzy' && indexSearchProvider) {
-      const earlyHits = indexSearchProvider.search(pattern, 5);
+      const earlyHits = indexSearchProvider
+        .search(pattern, 5)
+        .filter((hit) => hit.matched !== undefined && hit.matched >= matchedThreshold(pattern));
       if (earlyHits.length >= MIN_FUZZY_HITS) {
         const lines = earlyHits.map((hit) => `${hit.path}: ${hit.snippet ?? ''}`.trim());
         return `Найдено совпадений: ${earlyHits.length} (лексический индекс)\n${lines.join('\n')}`;
@@ -349,7 +370,12 @@ const searchFilesTool: Tool = {
     }
 
     // Слабый индекс доклеиваем к точной выдаче (сильный уже отдан выше, до обхода файлов)
-    const fuzzyHits = backend === 'fuzzy' ? indexSearchProvider?.search(pattern, 5) ?? [] : [];
+    const fuzzyHits =
+      backend === 'fuzzy'
+        ? (indexSearchProvider?.search(pattern, 5) ?? []).filter(
+            (hit) => hit.matched !== undefined && hit.matched >= matchedThreshold(pattern),
+          )
+        : [];
 
     if (found.length === 0 && fuzzyHits.length === 0) {
       return `По запросу '${pattern}' в '${searchDir}' (glob: ${file_glob}) ничего не найдено`;

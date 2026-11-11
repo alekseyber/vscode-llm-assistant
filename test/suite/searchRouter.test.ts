@@ -93,9 +93,9 @@ suite('SearchRouter / S3', () => {
         search: (query: string) => {
           calls.push(query);
           return [
-            { path: 'src/budget.ts', rank: -1.5, snippet: 'лимит бюджета сессии' },
-            { path: 'src/router.ts', rank: -1.1, snippet: 'прогноз стоимости' },
-            { path: 'src/cost.ts', rank: -0.9, snippet: 'calculateCost' },
+            { path: 'src/budget.ts', rank: -1.5, snippet: 'лимит бюджета сессии', matched: 3 },
+            { path: 'src/router.ts', rank: -1.1, snippet: 'прогноз стоимости', matched: 2 },
+            { path: 'src/cost.ts', rank: -0.9, snippet: 'calculateCost', matched: 2 },
           ];
         },
       });
@@ -111,12 +111,55 @@ suite('SearchRouter / S3', () => {
       assert.ok(!exactOut.includes('(лексический индекс)'), 'точный поиск работает как раньше');
     });
 
+    test('IDX-34: попадание без счёта совпавших слов не считается ответом', async () => {
+      // Провайдер без поля matched — это доверие на слово: раньше undefined пропускался,
+      // и шум снова уходил агенту (замечание ревью)
+      const root = '/fake/workspace';
+      stubExactSearch(root);
+      setIndexSearchProvider({ search: () => [{ path: 'src/unknown.ts', rank: -3, snippet: 'что-то' }] });
+
+      const tool = createTools().find((t) => t.name === 'search_files')!;
+      const out = await tool.execute({ pattern: 'где хранится индекс кодовой базы' });
+      assert.ok(!out.includes('src/unknown.ts'), `попадание без matched не должно выдаваться: ${out}`);
+    });
+
+    test('IDX-32: слабые попадания индекса не выдаются как ответ', async () => {
+      // Замер: BM25 отдаёт непустую выдачу всегда, поэтому на вопрос без ответа в коде
+      // агент получал посторонний файл с 0–1 совпавшим словом (проверено на 5 негативных).
+      const root = '/fake/workspace';
+      stubExactSearch(root);
+      const provider = (hits: Array<{ path: string; rank: number; snippet?: string; matched?: number }>) => {
+        setIndexSearchProvider({ search: () => hits });
+      };
+
+      // Все попадания слабые (1 и 0 совпавших слов) — ответа нет, и это должно быть видно
+      provider([
+        { path: 'scripts/check-bundle-loads.js', rank: -5.9, snippet: 'bundle', matched: 0 },
+        { path: 'src/providers/ollama.ts', rank: -4.1, snippet: 'ollama', matched: 1 },
+      ]);
+      const tool = createTools().find((t) => t.name === 'search_files')!;
+      const weak = await tool.execute({ pattern: 'где экспортируется отчёт в PDF для агента' });
+      assert.ok(
+        !weak.includes('(лексический индекс)'),
+        `слабые попадания не должны выдаваться как индексный ответ: ${weak}`,
+      );
+
+      // Одно сильное попадание среди слабых — выдаётся только оно
+      provider([
+        { path: 'scripts/check-bundle-loads.js', rank: -9.9, snippet: 'bundle', matched: 0 },
+        { path: 'src/shared/SearchIndex.ts', rank: -2.0, snippet: 'индекс', matched: 3 },
+      ]);
+      const strong = await tool.execute({ pattern: 'где хранится индекс кодовой базы' });
+      assert.ok(strong.includes('src/shared/SearchIndex.ts'), `сильное попадание остаётся: ${strong}`);
+      assert.ok(!strong.includes('check-bundle-loads'), `слабое попадание отсечено: ${strong}`);
+    });
+
     test('IDX-23: дубль между абсолютным и относительным путём схлопывается', async () => {
       const root = '/fake/workspace';
       stubExactSearch(root);
       // Индекс отдаёт относительный путь того же файла, что нашёлся точным поиском
       setIndexSearchProvider({
-        search: () => [{ path: 'src/cost.ts', rank: -1.2, snippet: 'calculateCost' }],
+        search: () => [{ path: 'src/cost.ts', rank: -1.2, snippet: 'calculateCost', matched: 2 }],
       });
 
       const tool = createTools().find((t) => t.name === 'search_files')!;
@@ -131,7 +174,7 @@ suite('SearchRouter / S3', () => {
       const root = '/fake/workspace';
       stubExactSearch(root);
       setIndexSearchProvider({
-        search: () => [{ path: 'src/cost.ts', rank: -1.0, snippet: 'дубль пути' }],
+        search: () => [{ path: 'src/cost.ts', rank: -1.0, snippet: 'дубль пути', matched: 2 }],
       });
 
       const tool = createTools().find((t) => t.name === 'search_files')!;
