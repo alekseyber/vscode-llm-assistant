@@ -33,35 +33,55 @@ const MASSIVE_CHANGES = 2000;
  * (копируются `scripts/copy-sqlite-assets.js`): в VSIX нет `node_modules`.
  * В dev-режиме (без пакета) работает обычное имя пакета.
  */
-let sqlitePromise: Promise<any> | undefined;
+/**
+ * Загрузчик sqlite-wasm: локальная копия в `dist/sqlite` (в VSIX нет `node_modules`).
+ *
+ * Вынесен в класс, чтобы поведение кэша проверялось тестами без подмены `fs`:
+ * тест подставляет свою проверку наличия файла и свой импорт.
+ */
+export class SqliteLoader {
+  private promise?: Promise<any>;
 
-async function loadSqlite(): Promise<any> {
-  // Кэш на модуль: при переактивации окна WASM не поднимается второй раз (это ~900 КБ
-  // и инициализация Emscripten-рантайма). Ошибку не кэшируем — следующий вызов попробует снова.
-  if (!sqlitePromise) {
-    sqlitePromise = (async () => {
-      const dynamicImport = new Function('specifier', 'return import(specifier)') as (
-        specifier: string,
-      ) => Promise<any>;
+  constructor(
+    private readonly importModule: (specifier: string) => Promise<any> = SqliteLoader.dynamicImport,
+    private readonly exists: (filePath: string) => boolean = (filePath) => fs.existsSync(filePath),
+  ) {}
 
-      const local = path.join(__dirname, 'sqlite', 'node.mjs');
-      if (!fs.existsSync(local)) {
-        // В собранном расширении node_modules нет: без локальной копии модуль не найдётся,
-        // и без явного сообщения пользователь увидит ERR_MODULE_NOT_FOUND без причины
-        throw new Error(
-          `Файл индекса не найден: ${local}. Пересоберите расширение (npm run compile) — ` +
-            'он копируется из @sqlite.org/sqlite-wasm.',
-        );
-      }
-      const mod = await dynamicImport(pathToFileURL(local).href);
-      return typeof mod.default === 'function' ? await mod.default() : mod;
-    })().catch((error) => {
-      sqlitePromise = undefined;
-      throw error;
-    });
+  /** Настоящий динамический import: TypeScript в CJS превратил бы его в `require`, а пакет — ESM. */
+  private static dynamicImport(specifier: string): Promise<any> {
+    const dynamicImport = new Function('specifier', 'return import(specifier)') as (
+      specifier: string,
+    ) => Promise<any>;
+    return dynamicImport(specifier);
   }
-  return sqlitePromise;
+
+  async load(): Promise<any> {
+    // Кэш на модуль: при переактивации окна WASM не поднимается второй раз (~900 КБ
+    // и инициализация Emscripten-рантайма). Ошибку не кэшируем — иначе после пересборки
+    // расширение до перезапуска окна осталось бы без индекса.
+    if (!this.promise) {
+      this.promise = (async () => {
+        const local = path.join(__dirname, 'sqlite', 'node.mjs');
+        // В собранном расширении node_modules нет: без локальной копии модуль не найдётся,
+        // и без явного сообщения человек увидит ERR_MODULE_NOT_FOUND без причины
+        if (!this.exists(local)) {
+          throw new Error(
+            `Файл индекса не найден: ${local}. Пересоберите расширение (npm run compile) — ` +
+              'он копируется из @sqlite.org/sqlite-wasm.',
+          );
+        }
+        const mod = await this.importModule(pathToFileURL(local).href);
+        return typeof mod.default === 'function' ? await mod.default() : mod;
+      })().catch((error) => {
+        this.promise = undefined;
+        throw error;
+      });
+    }
+    return this.promise;
+  }
 }
+
+const sqliteLoader = new SqliteLoader();
 
 /** Адаптер ФС поверх VS Code для одного корня. */
 function vscodeAdapter(root: string): {
@@ -140,7 +160,7 @@ export class IndexService {
 
     let sqlite3: any;
     try {
-      sqlite3 = await loadSqlite();
+      sqlite3 = await sqliteLoader.load();
     } catch (error: any) {
       onDebug(`[index] sqlite-wasm не загрузился: ${error?.message ?? String(error)}`);
       return undefined;
