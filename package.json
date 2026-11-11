@@ -415,7 +415,8 @@
     "test": "node ./out/test/runTest.js",
     "test:mocked": "node test/run-mocked.js",
     "package": "vsce package",
-    "publish": "vsce publish"
+    "publish": "vsce publish",
+    "check:acceptance": "node scripts/acceptance/check.js"
   },
   "devDependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",

@@ -38,6 +38,13 @@ jobs:
         with: { node-version: 22 }
       - run: npm ci
       - run: npx tsc -p tsconfig.test.json
+      - name: Приёмка поиска (индекс против grep)
+        # Пороги из ревью Pro: recall@5 ≥ 70%, strict@5 ≥ 45%, MRR ≥ 0.45, P@1 ≥ 30%,
+        # на негативных запросах — ни одного уверенного совпадения
+        run: |
+          npm run compile
+          npm run check:acceptance
+
       - name: Unit tests
         run: |
           set -o pipefail

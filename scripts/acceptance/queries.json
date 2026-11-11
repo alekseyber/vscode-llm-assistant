@@ -1,0 +1,455 @@
+{
+  "measuredAt": "2026-11-11",
+  "repo": "vscode-llm-assistant@bb988fa",
+  "note": "Эталон зафиксирован до правок алгоритма. expect — все файлы, где символ объявлен (grep). Правки по ревью Pro: baseline AND по словам, без буста путей, интервалы Уилсона, negative-метрика, sha256.",
+  "queries": [
+    {
+      "id": "A01",
+      "query": "этого агента нужно в настройках подключать или он сам подхватится из папки",
+      "expect": [
+        "src/shared/AgentsMdLoader.ts",
+        "src/shared/RoleAgentsMdLoader.ts"
+      ],
+      "primary": "src/shared/RoleAgentsMdLoader.ts",
+      "source": "session",
+      "negative": false
+    },
+    {
+      "id": "A02",
+      "query": "деструктивные команды будут запрашивать подтверждение в чате",
+      "expect": [
+        "src/modes/apply/AgentWorker.ts",
+        "src/modes/apply/ToolAllowList.ts",
+        "src/modes/apply/ToolDefinitions.ts",
+        "src/modes/chat/ChatAgentTools.ts",
+        "src/modes/chat/ChatViewProvider.ts",
+        "src/shared/RoleAgentsMdLoader.ts"
+      ],
+      "primary": "src/modes/apply/ToolDefinitions.ts",
+      "source": "session",
+      "negative": false
+    },
+    {
+      "id": "A03",
+      "query": "локальная модель в edit работает долго и правка не такая как в диффе",
+      "expect": [
+        "src/modes/apply/ToolDefinitions.ts",
+        "src/modes/chat/ChatAgentTools.ts",
+        "src/modes/edit/EditController.ts",
+        "src/modes/history/HistoryViewProvider.ts",
+        "src/providers/manager.ts",
+        "src/providers/ollama.ts",
+        "src/providers/openai.ts",
+        "src/providers/types.ts",
+        "src/shared/IndexService.ts",
+        "src/shared/RetryHandler.ts",
+        "src/shared/SearchIndexer.ts"
+      ],
+      "primary": "src/modes/edit/EditController.ts",
+      "source": "session",
+      "negative": false
+    },
+    {
+      "id": "A04",
+      "query": "стоит ли настройку агента вносить на уровень репозитория с кодом",
+      "expect": [
+        "src/activation/registerCommands.ts",
+        "src/modes/apply/AgentController.ts",
+        "src/modes/apply/AgentOrchestrator.ts",
+        "src/modes/apply/AgentWorker.ts",
+        "src/modes/chat/ChatViewProvider.ts",
+        "src/modes/chat/ConversationManager.ts",
+        "src/modes/review/CodeReviewer.ts",
+        "src/shared/AgentsMdLoader.ts",
+        "src/shared/RoleAgentsMdLoader.ts"
+      ],
+      "primary": "src/shared/AgentsMdLoader.ts",
+      "source": "session",
+      "negative": false
+    },
+    {
+      "id": "A05",
+      "query": "когда скрипт выдаст результат агент подхватит его и внесёт правки",
+      "expect": [
+        "src/modes/apply/AgentController.ts",
+        "src/modes/apply/AgentWorker.ts",
+        "src/modes/apply/ToolSystem.ts"
+      ],
+      "primary": "src/modes/apply/AgentWorker.ts",
+      "source": "session",
+      "negative": false
+    },
+    {
+      "id": "A06",
+      "query": "отчёт субагента как проверить или запустить его ещё раз",
+      "expect": [
+        "src/modes/apply/AgentOrchestrator.ts",
+        "src/modes/chat/ChatAgentTools.ts",
+        "src/modes/chat/ChatViewProvider.ts",
+        "src/shared/RoleAgentsMdLoader.ts"
+      ],
+      "primary": "src/modes/chat/ChatAgentTools.ts",
+      "source": "session",
+      "negative": false
+    },
+    {
+      "id": "A07",
+      "query": "настройки плагина под локальные модели требуется расширять",
+      "expect": [
+        "src/activation/registerCommands.ts",
+        "src/modes/apply/AgentController.ts",
+        "src/modes/apply/AgentWorker.ts",
+        "src/modes/apply/McpClient.ts",
+        "src/modes/apply/ToolAllowList.ts",
+        "src/modes/autocomplete/AutocompleteController.ts",
+        "src/modes/chat/ChatPanel.ts",
+        "src/modes/chat/ChatViewProvider.ts",
+        "src/modes/chat/ConversationManager.ts",
+        "src/modes/chat/ModelRouter.ts",
+        "src/modes/edit/EditController.ts",
+        "src/providers/manager.ts",
+        "src/providers/ollama.ts",
+        "src/providers/openai.ts",
+        "src/shared/AgentsMdLoader.ts",
+        "src/shared/logger.ts",
+        "src/shared/thinking.ts"
+      ],
+      "primary": "src/providers/manager.ts",
+      "source": "session",
+      "negative": false
+    },
+    {
+      "id": "A08",
+      "query": "где обрезается история сообщений под окно",
+      "expect": [
+        "src/modes/chat/ConversationManager.ts",
+        "src/shared/SessionLog.ts"
+      ],
+      "primary": "src/shared/SessionLog.ts",
+      "source": "session",
+      "negative": false
+    },
+    {
+      "id": "A09",
+      "query": "где история запусков агента",
+      "expect": [
+        "src/activation/registerCommands.ts",
+        "src/modes/chat/ChatViewProvider.ts",
+        "src/modes/edit/EditController.ts",
+        "src/shared/RunHistoryStore.ts"
+      ],
+      "primary": "src/shared/RunHistoryStore.ts",
+      "source": "session",
+      "negative": false
+    },
+    {
+      "id": "A10",
+      "query": "как обрезается длинный ответ под лимит",
+      "expect": [
+        "src/activation/registerCommands.ts",
+        "src/modes/apply/AgentController.ts",
+        "src/modes/apply/ToolDefinitions.ts",
+        "src/modes/autocomplete/GhostTextManager.ts",
+        "src/modes/chat/AskUserTool.ts",
+        "src/modes/chat/ChatAgentTools.ts",
+        "src/modes/chat/ChatViewProvider.ts",
+        "src/modes/chat/ConversationManager.ts",
+        "src/modes/chat/ModelRouter.ts",
+        "src/modes/chat/SlashCommands.ts",
+        "src/modes/edit/EditController.ts",
+        "src/modes/review/CodeReviewer.ts",
+        "src/providers/ollama.ts",
+        "src/shared/AgentsMdLoader.ts",
+        "src/shared/ContextSummarizer.ts",
+        "src/shared/RoleAgentsMdLoader.ts",
+        "src/shared/SearchIndex.ts",
+        "src/shared/SearchRouter.ts",
+        "src/shared/SessionLog.ts",
+        "src/shared/cleanLlmResponse.ts",
+        "src/shared/gitignore.ts",
+        "src/shared/promptGuard.ts",
+        "src/shared/runSummary.ts",
+        "src/shared/streaming.ts"
+      ],
+      "primary": "src/modes/chat/ChatViewProvider.ts",
+      "source": "session",
+      "negative": false
+    },
+    {
+      "id": "A11",
+      "query": "как выбирается модель автоматически",
+      "expect": [
+        "src/modes/chat/ChatViewProvider.ts",
+        "src/modes/chat/ModelRouter.ts"
+      ],
+      "primary": "src/modes/chat/ModelRouter.ts",
+      "source": "backlog",
+      "negative": false
+    },
+    {
+      "id": "A12",
+      "query": "где лимит бюджета на сессию",
+      "expect": [
+        "src/modes/chat/ChatViewProvider.ts",
+        "src/modes/chat/ModelRouter.ts"
+      ],
+      "primary": "src/modes/chat/ModelRouter.ts",
+      "source": "backlog",
+      "negative": false
+    },
+    {
+      "id": "A13",
+      "query": "где дневной лимит расходов",
+      "expect": [
+        "src/modes/chat/ChatViewProvider.ts"
+      ],
+      "primary": "src/modes/chat/ChatViewProvider.ts",
+      "source": "backlog",
+      "negative": false
+    },
+    {
+      "id": "A14",
+      "query": "что останавливает агента при превышении бюджета",
+      "expect": [
+        "src/modes/apply/AgentWorker.ts",
+        "src/modes/chat/ChatViewProvider.ts"
+      ],
+      "primary": "src/modes/apply/AgentWorker.ts",
+      "source": "backlog",
+      "negative": false
+    },
+    {
+      "id": "A15",
+      "query": "где читаются правила проекта из AGENTS.md",
+      "expect": [
+        "src/activation/registerCommands.ts",
+        "src/modes/apply/AgentController.ts",
+        "src/modes/apply/AgentOrchestrator.ts",
+        "src/modes/apply/AgentWorker.ts",
+        "src/modes/chat/ChatViewProvider.ts",
+        "src/modes/chat/ConversationManager.ts",
+        "src/modes/review/CodeReviewer.ts",
+        "src/shared/AgentsMdLoader.ts",
+        "src/shared/RoleAgentsMdLoader.ts"
+      ],
+      "primary": "src/shared/AgentsMdLoader.ts",
+      "source": "backlog",
+      "negative": false
+    },
+    {
+      "id": "A16",
+      "query": "как загружаются скиллы из .llma/skills",
+      "expect": [
+        "src/shared/RoleAgentsMdLoader.ts"
+      ],
+      "primary": "src/shared/RoleAgentsMdLoader.ts",
+      "source": "backlog",
+      "negative": false
+    },
+    {
+      "id": "A17",
+      "query": "где читается контекст модели из /api/ps",
+      "expect": [
+        "src/providers/ollama.ts"
+      ],
+      "primary": "src/providers/ollama.ts",
+      "source": "backlog",
+      "negative": false
+    },
+    {
+      "id": "A18",
+      "query": "как считаются токены локальной модели",
+      "expect": [
+        "src/modes/chat/ChatViewProvider.ts",
+        "src/providers/ollama.ts",
+        "src/providers/types.ts",
+        "src/shared/SearchRouter.ts",
+        "src/shared/logger.ts"
+      ],
+      "primary": "src/providers/ollama.ts",
+      "source": "backlog",
+      "negative": false
+    },
+    {
+      "id": "A19",
+      "query": "где поиск файлов учитывает gitignore",
+      "expect": [
+        "src/modes/apply/ToolDefinitions.ts",
+        "src/shared/SearchIndexer.ts",
+        "src/shared/gitignore.ts"
+      ],
+      "primary": "src/shared/gitignore.ts",
+      "source": "backlog",
+      "negative": false
+    },
+    {
+      "id": "A20",
+      "query": "как выбирается поиск по фразе или идентификатору",
+      "expect": [
+        "src/modes/apply/ToolDefinitions.ts",
+        "src/shared/SearchRouter.ts"
+      ],
+      "primary": "src/shared/SearchRouter.ts",
+      "source": "backlog",
+      "negative": false
+    },
+    {
+      "id": "A21",
+      "query": "где считается стоимость запроса",
+      "expect": [
+        "src/modes/apply/AgentWorker.ts",
+        "src/modes/chat/ChatViewProvider.ts",
+        "src/modes/chat/ModelRouter.ts",
+        "src/modes/edit/EditController.ts",
+        "src/providers/manager.ts",
+        "src/providers/types.ts",
+        "src/shared/SearchIndex.ts",
+        "src/shared/SearchRouter.ts"
+      ],
+      "primary": "src/providers/types.ts",
+      "source": "code",
+      "negative": false
+    },
+    {
+      "id": "A22",
+      "query": "где включается стриминг usage у openai-совместимых",
+      "expect": [
+        "src/providers/openai.ts"
+      ],
+      "primary": "src/providers/openai.ts",
+      "source": "code",
+      "negative": false
+    },
+    {
+      "id": "A23",
+      "query": "где собирается системный промпт проекта",
+      "expect": [
+        "src/modes/apply/AgentController.ts",
+        "src/modes/chat/ChatViewProvider.ts",
+        "src/modes/chat/ConversationManager.ts",
+        "src/shared/AgentsMdLoader.ts"
+      ],
+      "primary": "src/shared/AgentsMdLoader.ts",
+      "source": "code",
+      "negative": false
+    },
+    {
+      "id": "A24",
+      "query": "где хранится индекс кодовой базы",
+      "expect": [
+        "src/shared/IndexService.ts",
+        "src/shared/SearchIndex.ts"
+      ],
+      "primary": "src/shared/IndexService.ts",
+      "source": "code",
+      "negative": false
+    },
+    {
+      "id": "A25",
+      "query": "где взвешивается путь в ранжировании поиска",
+      "expect": [
+        "src/shared/SearchIndex.ts"
+      ],
+      "primary": "src/shared/SearchIndex.ts",
+      "source": "code",
+      "negative": false
+    },
+    {
+      "id": "A26",
+      "query": "где регистрируются команды расширения",
+      "expect": [
+        "src/activation/registerCommands.ts",
+        "src/extension.ts",
+        "src/modes/autocomplete/AutocompleteController.ts",
+        "src/modes/edit/EditController.ts"
+      ],
+      "primary": "src/activation/registerCommands.ts",
+      "source": "code",
+      "negative": false
+    },
+    {
+      "id": "A27",
+      "query": "где собирается описание инструментов агента",
+      "expect": [
+        "src/activation/registerCommands.ts",
+        "src/modes/apply/ToolDefinitions.ts"
+      ],
+      "primary": "src/modes/apply/ToolDefinitions.ts",
+      "source": "code",
+      "negative": false
+    },
+    {
+      "id": "A28",
+      "query": "где зашиты цены моделей для прогноза стоимости",
+      "expect": [
+        "src/providers/manager.ts"
+      ],
+      "primary": "src/providers/manager.ts",
+      "source": "code",
+      "negative": false
+    },
+    {
+      "id": "A29",
+      "query": "где ограничение размера файла при индексации",
+      "expect": [
+        "src/shared/SearchIndex.ts",
+        "src/shared/SearchIndexer.ts"
+      ],
+      "primary": "src/shared/SearchIndex.ts",
+      "source": "code",
+      "negative": false
+    },
+    {
+      "id": "A30",
+      "query": "где открывается diff для правки",
+      "expect": [
+        "src/modes/chat/ChatPanel.ts",
+        "src/modes/edit/EditController.ts",
+        "src/modes/review/ReviewPanel.ts"
+      ],
+      "primary": "src/modes/edit/EditController.ts",
+      "source": "code",
+      "negative": false
+    },
+    {
+      "id": "N01",
+      "query": "где экспортируется отчёт в PDF для агента",
+      "expect": [],
+      "why": "экспорта в PDF в коде нет",
+      "source": "code",
+      "negative": true
+    },
+    {
+      "id": "N02",
+      "query": "как подключить провайдера Anthropic напрямую по API",
+      "expect": [],
+      "why": "Anthropic только через openai-совместимый шлюз",
+      "source": "code",
+      "negative": true
+    },
+    {
+      "id": "N03",
+      "query": "где кэш эмбеддингов для семантического поиска",
+      "expect": [],
+      "why": "эмбеддингов нет, только лексический индекс",
+      "source": "code",
+      "negative": true
+    },
+    {
+      "id": "N04",
+      "query": "как включается телеметрия использования расширения",
+      "expect": [],
+      "why": "телеметрии нет намеренно",
+      "source": "code",
+      "negative": true
+    },
+    {
+      "id": "N05",
+      "query": "где шифрование истории запусков на диске",
+      "expect": [],
+      "why": "история пишется в globalState без шифрования",
+      "source": "code",
+      "negative": true
+    }
+  ]
+}
