@@ -13,6 +13,7 @@ import {
   tokenize,
   SearchIndexStore,
   INDEX_SCHEMA_VERSION,
+  pathPenalty,
 } from '../../src/shared/SearchIndex';
 
 /**
@@ -156,5 +157,52 @@ suite('SearchIndex / S1', () => {
     assert.strictEqual(await broken.init(), false, 'без SQLite индекс не поднимается');
     assert.deepStrictEqual(broken.search('x'), [], 'поиск не бросает');
     assert.strictEqual(broken.upsertFile({ path: 'a.ts', body: 'x', size: 1, mtime: 1 }), false);
+  });
+
+  test('IDX-28: перевес путей — исходники важнее тестов, спек и документации', () => {
+    assert.ok(pathPenalty('src/modes/chat/ModelRouter.ts') < 1, 'src получает перевес');
+    assert.ok(pathPenalty('test/suite/modelRouter.test.ts') > 2, 'тесты отодвигаются');
+    assert.ok(pathPenalty('specs/ModelRouter.md') > 2, 'спеки отодвигаются');
+    assert.ok(pathPenalty('docs/readme.md') > 1, 'документация отодвигается слабее тестов');
+    assert.strictEqual(pathPenalty('package.json'), 1, 'корневые файлы — без перевеса');
+  });
+
+  test('IDX-29: фрагмент — первая содержательная строка файла, а не склейка основ', async () => {
+    const store = new SearchIndexStore(sqlite3, { indexPath });
+    assert.strictEqual(await store.init(), true);
+
+    const body = [
+      '// Модуль расчёта стоимости прогона',
+      '',
+      'export function calculateCost(model: string, tokensIn: number): number {',
+      '  return tokensIn * 0.001;',
+      '}',
+    ].join('\n');
+    store.upsertFile({ path: 'src/pricing.ts', body, size: body.length, mtime: Date.now() });
+
+    const hits = store.search('расчёт стоимости прогона');
+    assert.strictEqual(hits.length, 1, `файл найден: ${JSON.stringify(hits)}`);
+    assert.ok(
+      hits[0].snippet.startsWith('Модуль расчёта стоимости прогона'),
+      `фрагмент должен быть читаемой строкой файла: ${hits[0].snippet}`,
+    );
+    assert.ok(!/\bрасч[а-я]*\b\s+стоимост[а-я]*\s+прогон[а-я]*\s+модул/i.test(hits[0].snippet) ||
+      hits[0].snippet === 'Модуль расчёта стоимости прогона',
+      `фрагмент не должен быть нормализованной склейкой: ${hits[0].snippet}`);
+    store.close();
+  });
+
+  test('IDX-30: при одинаковом содержимом исходник идёт выше теста', async () => {
+    const store = new SearchIndexStore(sqlite3, { indexPath });
+    assert.strictEqual(await store.init(), true);
+
+    const body = 'export function calculateCost(tokens: number) { return tokens * 0.001; }';
+    // Тест записан первым: без перевеса он и остался бы первым в выдаче
+    store.upsertFile({ path: 'test/suite/pricing.test.ts', body, size: body.length, mtime: Date.now() });
+    store.upsertFile({ path: 'src/shared/pricing.ts', body, size: body.length, mtime: Date.now() });
+
+    const hits = store.search('calculateCost');
+    assert.strictEqual(hits[0].path, 'src/shared/pricing.ts', `порядок выдачи: ${JSON.stringify(hits.map((h) => h.path))}`);
+    store.close();
   });
 });

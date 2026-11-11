@@ -45,6 +45,8 @@ export class SqliteLoader {
   constructor(
     private readonly importModule: (specifier: string) => Promise<any> = SqliteLoader.dynamicImport,
     private readonly exists: (filePath: string) => boolean = (filePath) => fs.existsSync(filePath),
+    /** Путь к модулю: рядом с бандлом (по умолчанию) либо явно — для стендов и замеров */
+    private readonly localFile: string = path.join(__dirname, 'sqlite', 'node.mjs'),
   ) {}
 
   /** Настоящий динамический import: TypeScript в CJS превратил бы его в `require`, а пакет — ESM. */
@@ -61,7 +63,7 @@ export class SqliteLoader {
     // расширение до перезапуска окна осталось бы без индекса.
     if (!this.promise) {
       this.promise = (async () => {
-        const local = path.join(__dirname, 'sqlite', 'node.mjs');
+        const local = this.localFile;
         // В собранном расширении node_modules нет: без локальной копии модуль не найдётся,
         // и без явного сообщения человек увидит ERR_MODULE_NOT_FOUND без причины
         if (!this.exists(local)) {

@@ -11,7 +11,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 /** Версия схемы индекса. Расхождение → индекс пересобирается целиком. */
-export const INDEX_SCHEMA_VERSION = 1;
+export const INDEX_SCHEMA_VERSION = 2;
 
 /** Потолок размера файла для индексации (байты). */
 export const MAX_INDEXED_FILE_BYTES = 512 * 1024;
@@ -145,6 +145,32 @@ export interface SearchIndexOptions {
  * Обёртка над SQLite FTS5. Экземпляр живёт в памяти, на диск пишется через `flush()`
  * (sqlite-wasm не открывает файлы хоста напрямую).
  */
+/**
+ * Перевес путей: исходники важнее тестов, спек и документации.
+ *
+ * Живой прогон по реальному репозиторию показал, что тесты и спеки содержат те же слова
+ * в фикстурах и описаниях, поэтому BM25 ставил `test/suite/*.ts` и `specs/*.md` выше
+ * `src/**`. Агент ищет код, а не упоминания кода.
+ */
+export function pathPenalty(filePath: string): number {
+  const normalized = filePath.replace(/\\/g, '/').toLowerCase();
+  if (/(^|\/)(tests?|__tests__|specs?|e2e)(\/|$)/.test(normalized)) return 2.2;
+  if (/(^|\/)(docs?|reports?|qa)(\/|$)/.test(normalized)) return 1.6;
+  if (/\.(test|spec)\.[a-z]+$/.test(normalized)) return 2.2;
+  if (/(^|\/)src\//.test(normalized)) return 0.7;
+  return 1;
+}
+
+/** Фрагмент для агента: первая содержательная строка файла, а не склейка основ слов. */
+export function firstMeaningfulLine(text: string, maxChars = 160): string {
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim().replace(/^\/\/\s*|^\*\s*|^#\s*/, '');
+    if (line.length < 8) continue;
+    return line.length > maxChars ? `${line.slice(0, maxChars - 1)}…` : line;
+  }
+  return '';
+}
+
 export class SearchIndexStore {
   private readonly sqlite3: any;
   private readonly indexPath: string;
@@ -271,7 +297,10 @@ export class SearchIndexStore {
   private ensureSchema(): void {
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS files(
-        path TEXT PRIMARY KEY, ext TEXT, size INTEGER, mtime INTEGER, crc INTEGER
+        path TEXT PRIMARY KEY, ext TEXT, size INTEGER, mtime INTEGER, crc INTEGER,
+        -- Сырой текст (первые символы): из него берётся фрагмент для агента.
+        -- Индексируется только fts.body_norm, поэтому колонка не участвует в поиске.
+        text TEXT
       );
       CREATE VIRTUAL TABLE IF NOT EXISTS fts USING fts5(
         path UNINDEXED, path_tokens, body_norm
@@ -295,8 +324,8 @@ export class SearchIndexStore {
       this.db.exec({ sql: 'DELETE FROM files WHERE path = ?', bind: [entry.path] });
       this.db.exec({ sql: 'DELETE FROM fts WHERE path = ?', bind: [entry.path] });
       this.db.exec({
-        sql: 'INSERT INTO files(path, ext, size, mtime, crc) VALUES(?,?,?,?,?)',
-        bind: [entry.path, ext, entry.size, entry.mtime, entry.crc ?? null],
+        sql: 'INSERT INTO files(path, ext, size, mtime, crc, text) VALUES(?,?,?,?,?,?)',
+        bind: [entry.path, ext, entry.size, entry.mtime, entry.crc ?? null, body.slice(0, 4000)],
       });
       this.db.exec({
         sql: 'INSERT INTO fts(path, path_tokens, body_norm) VALUES(?,?,?)',
@@ -339,21 +368,29 @@ export class SearchIndexStore {
     const match = buildFtsQuery(query);
     if (!match) return [];
     try {
+      // Берём с запасом: после перевеса исходников над тестами порядок меняется
       const rows = this.db.exec({
-        // bm25() принимает только литералы: параметры (? ) в весах дают ошибку SQLite
+        // bm25() принимает только литералы: параметры (?) в весах дают ошибку SQLite
         sql:
-          `SELECT path, bm25(fts, ${PATH_WEIGHT}, ${BODY_WEIGHT}) AS rank, ` +
-          "snippet(fts, 2, '', '', '…', 20) " +
-          'FROM fts WHERE fts MATCH ? ORDER BY rank LIMIT ?',
-        bind: [match, Math.max(1, limit)],
+          `SELECT f.path, bm25(fts, ${PATH_WEIGHT}, ${BODY_WEIGHT}) AS rank, ` +
+          'COALESCE(files.text, \'\') ' +
+          'FROM fts AS f JOIN files ON files.path = f.path ' +
+          'WHERE fts MATCH ? ORDER BY rank LIMIT ?',
+        bind: [match, Math.max(1, limit) * 4],
         rowMode: 'array',
         returnValue: 'resultRows',
       });
-      return (rows ?? []).map((row: any[]) => ({
-        path: String(row[0]),
-        rank: Number(row[1]),
-        snippet: String(row[2] ?? '').slice(0, 200),
-      }));
+      return (rows ?? [])
+        .map((row: any[]) => ({
+          path: String(row[0]),
+          // bm25 отдаёт отрицательные значения (чем меньше, тем релевантнее), поэтому
+          // перевес — деление: у тестов множитель 2.2 приближает ранг к нулю (хуже),
+          // у src 0.7 отдаляет (лучше)
+          rank: Number(row[1]) / pathPenalty(String(row[0])),
+          snippet: firstMeaningfulLine(String(row[2] ?? '')),
+        }))
+        .sort((a: SearchHit, b: SearchHit) => a.rank - b.rank)
+        .slice(0, Math.max(1, limit));
     } catch (error: any) {
       this.debug(`запрос не выполнен: ${error?.message ?? String(error)}`);
       return [];
