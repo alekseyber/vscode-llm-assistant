@@ -1,0 +1,11 @@
+{
+  "measuredAt": "2026-11-11",
+  "note": "Приёмка P8 на реальном репозитории. Ожидания сверены с кодом: лимит бюджета живёт в ModelRouter, calculateCost — в providers/types.ts. Менять ожидания можно только вместе с датой.",
+  "queries": [
+    { "pattern": "где считается стоимость прогона", "expect": "providers/types.ts" },
+    { "pattern": "лимит бюджета на сессию", "expect": "ModelRouter" },
+    { "pattern": "calculateCost", "expect": "providers/types.ts" },
+    { "pattern": "тейл-сообщения из истории чата", "expect": "SessionLog" },
+    { "pattern": "обрезка правил проекта по лимиту", "expect": "AgentsMdLoader" }
+  ]
+}

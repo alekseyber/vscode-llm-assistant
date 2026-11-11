@@ -6,6 +6,7 @@
 // заглушкой, которая читает реальный диск, поэтому проверяется именно то, что увидит агент.
 //
 // Запуск: node scripts/live-search.js [каталог репозитория]
+// Запросы и ожидания — scripts/live-search.queries.json (с датой замера).
 
 'use strict';
 
@@ -69,12 +70,16 @@ Module._load = function (request, parent, isMain) {
 const sqliteModule = path.join(ROOT, 'dist', 'sqlite', 'node.mjs');
 
 const { SearchIndexStore } = require(path.join(ROOT, 'out/src/shared/SearchIndex.js'));
+const { isIgnored, parseGitignore } = require(path.join(ROOT, 'out/src/shared/gitignore.js'));
 const { SearchIndexer } = require(path.join(ROOT, 'out/src/shared/SearchIndexer.js'));
 const tools = require(path.join(ROOT, 'out/src/modes/apply/ToolDefinitions.js'));
 
 const adapter = {
   async listFiles() {
-    return allFiles.map((abs) => {
+    // Реальный vscode.workspace.findFiles учитывает .gitignore и files.exclude;
+    // заглушка — нет, поэтому применяем правила здесь, иначе прогон завышает полноту
+    const rules = parseGitignore(fs.existsSync(path.join(ROOT, '.gitignore')) ? fs.readFileSync(path.join(ROOT, '.gitignore'), 'utf-8') : '');
+    return allFiles.filter((abs) => !isIgnored(path.relative(ROOT, abs).replace(/\\/g, '/'), rules)).map((abs) => {
       const stat = fs.statSync(abs);
       return { relPath: path.relative(ROOT, abs).replace(/\\/g, '/'), size: stat.size, mtime: Math.round(stat.mtimeMs) };
     });
@@ -104,13 +109,8 @@ const adapter = {
   const searchFiles = tools.createTools().find((t) => t.name === 'search_files');
 
   // Ожидания сверены с кодом: «лимит бюджета» живёт в ModelRouter, а не в ChatViewProvider
-  const queries = [
-    { pattern: 'где считается стоимость прогона', expect: 'providers/types.ts' },
-    { pattern: 'лимит бюджета на сессию', expect: 'ModelRouter' },
-    { pattern: 'calculateCost', expect: 'ModelRouter' },
-    { pattern: 'тейл-сообщения из истории чата', expect: 'SessionLog' },
-    { pattern: 'обрезка правил проекта по лимиту', expect: 'AgentsMdLoader' },
-  ];
+  const queryFile = path.join(__dirname, 'live-search.queries.json');
+  const queries = JSON.parse(fs.readFileSync(queryFile, 'utf-8')).queries;
 
   let hits = 0;
   for (const query of queries) {

@@ -14,6 +14,8 @@ import {
   SearchIndexStore,
   INDEX_SCHEMA_VERSION,
   pathPenalty,
+  applyPathPenalty,
+  firstMeaningfulLine,
 } from '../../src/shared/SearchIndex';
 
 /**
@@ -165,6 +167,20 @@ suite('SearchIndex / S1', () => {
     assert.ok(pathPenalty('specs/ModelRouter.md') > 2, 'спеки отодвигаются');
     assert.ok(pathPenalty('docs/readme.md') > 1, 'документация отодвигается слабее тестов');
     assert.strictEqual(pathPenalty('package.json'), 1, 'корневые файлы — без перевеса');
+  });
+
+  test('IDX-31: перевес учитывает знак bm25 и не разрезает суррогатные пары', () => {
+    // FTS5 отдаёт bm25 отрицательным: у теста ранг должен приблизиться к нулю (хуже),
+    // у src — отдалиться (лучше). Положительный ранг (нестандартный случай) — наоборот.
+    assert.ok(applyPathPenalty(-10, 'test/suite/x.test.ts') > -10, 'тест отодвигается');
+    assert.ok(applyPathPenalty(-10, 'src/x.ts') < -10, 'исходник поднимается');
+    assert.strictEqual(applyPathPenalty(10, 'test/suite/x.test.ts'), 22, 'положительный ранг умножается');
+    assert.ok(applyPathPenalty(10, 'src/x.ts') < 10, 'положительный ранг для src уменьшается');
+
+    const long = '🙂'.repeat(200);
+    const snippet = firstMeaningfulLine(long, 20);
+    assert.ok(!snippet.includes('\uFFFD'), `фрагмент не содержит битых символов: ${snippet}`);
+    assert.strictEqual(Array.from(snippet).length, 20, 'длина по кодовым точкам');
   });
 
   test('IDX-29: фрагмент — первая содержательная строка файла, а не склейка основ', async () => {

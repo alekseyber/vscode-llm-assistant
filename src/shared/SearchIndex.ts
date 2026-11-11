@@ -153,7 +153,8 @@ export interface SearchIndexOptions {
  * `src/**`. Агент ищет код, а не упоминания кода.
  */
 export function pathPenalty(filePath: string): number {
-  const normalized = filePath.replace(/\\/g, '/').toLowerCase();
+  // normalize убирает `..`/`./`: иначе правило src/ не сработает для пути вида src/../README.md
+  const normalized = path.normalize(filePath).replace(/\\/g, '/').toLowerCase();
   if (/(^|\/)(tests?|__tests__|specs?|e2e)(\/|$)/.test(normalized)) return 2.2;
   if (/(^|\/)(docs?|reports?|qa)(\/|$)/.test(normalized)) return 1.6;
   if (/\.(test|spec)\.[a-z]+$/.test(normalized)) return 2.2;
@@ -161,12 +162,27 @@ export function pathPenalty(filePath: string): number {
   return 1;
 }
 
+/**
+ * Применить перевес пути к рангу bm25.
+ *
+ * FTS5 отдаёт bm25 отрицательным (меньше — релевантнее), и для такого ранга перевес —
+ * деление: множитель > 1 приближает тест к нулю (хуже). Если ранг вдруг положительный
+ * (нестандартный токенизатор, нулевой ранг), логика обратная — умножаем.
+ */
+export function applyPathPenalty(rank: number, filePath: string): number {
+  const penalty = pathPenalty(filePath);
+  return rank < 0 ? rank / penalty : rank * penalty;
+}
+
 /** Фрагмент для агента: первая содержательная строка файла, а не склейка основ слов. */
 export function firstMeaningfulLine(text: string, maxChars = 160): string {
   for (const raw of text.split(/\r?\n/)) {
     const line = raw.trim().replace(/^\/\/\s*|^\*\s*|^#\s*/, '');
     if (line.length < 8) continue;
-    return line.length > maxChars ? `${line.slice(0, maxChars - 1)}…` : line;
+    // Режем по кодовым точкам: slice() может разрезать суррогатную пару (эмодзи)
+    return line.length > maxChars
+      ? `${Array.from(line).slice(0, maxChars - 1).join('')}…`
+      : line;
   }
   return '';
 }
@@ -376,7 +392,7 @@ export class SearchIndexStore {
           'COALESCE(files.text, \'\') ' +
           'FROM fts AS f JOIN files ON files.path = f.path ' +
           'WHERE fts MATCH ? ORDER BY rank LIMIT ?',
-        bind: [match, Math.max(1, limit) * 4],
+        bind: [match, Math.max(1, limit) * 10],
         rowMode: 'array',
         returnValue: 'resultRows',
       });
@@ -386,7 +402,7 @@ export class SearchIndexStore {
           // bm25 отдаёт отрицательные значения (чем меньше, тем релевантнее), поэтому
           // перевес — деление: у тестов множитель 2.2 приближает ранг к нулю (хуже),
           // у src 0.7 отдаляет (лучше)
-          rank: Number(row[1]) / pathPenalty(String(row[0])),
+          rank: applyPathPenalty(Number(row[1]), String(row[0])),
           snippet: firstMeaningfulLine(String(row[2] ?? '')),
         }))
         .sort((a: SearchHit, b: SearchHit) => a.rank - b.rank)
