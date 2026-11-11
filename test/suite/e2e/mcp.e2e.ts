@@ -33,7 +33,9 @@ suite('E2E-17: MCP по stdio', function () {
   test('E2E-17a: сервер из настроек поднимается, инструменты появляются в списке', async () => {
     snap = await applySettings({
       'mcp.servers': [
-        { name: 'fake', command: process.execPath, args: [FAKE_SERVER], enabled: true },
+        // Команда — `node` из PATH, а не process.execPath: в Extension Host это Electron,
+        // и запуск .cjs им закрывал соединение («MCP error -32000: Connection closed», поймал CI)
+        { name: 'fake', command: 'node', args: [FAKE_SERVER], enabled: true },
       ],
     });
 
@@ -54,7 +56,9 @@ suite('E2E-17: MCP по stdio', function () {
   test('E2E-17b: вызов инструмента возвращает ответ сервера', async () => {
     snap = await applySettings({
       'mcp.servers': [
-        { name: 'fake', command: process.execPath, args: [FAKE_SERVER], enabled: true },
+        // Команда — `node` из PATH, а не process.execPath: в Extension Host это Electron,
+        // и запуск .cjs им закрывал соединение («MCP error -32000: Connection closed», поймал CI)
+        { name: 'fake', command: 'node', args: [FAKE_SERVER], enabled: true },
       ],
     });
 
@@ -74,7 +78,7 @@ suite('E2E-17: MCP по stdio', function () {
   test('E2E-17c: выключенный сервер не поднимается', async () => {
     snap = await applySettings({
       'mcp.servers': [
-        { name: 'off', command: process.execPath, args: [FAKE_SERVER], enabled: false },
+        { name: 'off', command: 'node', args: [FAKE_SERVER], enabled: false },
       ],
     });
 
