@@ -3,6 +3,7 @@
 // read_file, write_file, patch_file, search_files, run_terminal
 
 import * as vscode from 'vscode';
+import { classifyQuery, mergeHits, needsMerge } from '../../shared/SearchRouter';
 import * as path from 'path';
 import { exec } from 'child_process';
 import { TextDecoder, TextEncoder } from 'util';
@@ -277,7 +278,19 @@ const patchFileTool: Tool = {
   }
 };
 
-/** search_files: поиск по имени файла и по содержимому (regex) */
+/** Источник лексической выдачи: индекс подключается в activate, инструмент о нём не знает. */
+export interface IndexSearchProvider {
+  search(query: string, limit?: number): Array<{ path: string; rank: number; snippet?: string }>;
+}
+
+let indexSearchProvider: IndexSearchProvider | undefined;
+
+/** Подключить/отключить лексический индекс. Отсутствие провайдера — прежнее поведение. */
+export function setIndexSearchProvider(provider: IndexSearchProvider | undefined): void {
+  indexSearchProvider = provider;
+}
+
+/** search_files: поиск по имени файла и по тексту внутри файлов (regex) */
 const searchFilesTool: Tool = {
   name: 'search_files',
   description: 'Ищет файлы по имени или текст внутри файлов. Использует ripgrep-like регулярные выражения.',
@@ -346,12 +359,29 @@ const searchFilesTool: Tool = {
       if (found.length >= MAX_COLLECT) break;
     }
 
-    if (found.length === 0) {
+    // ── S3: роутинг. Запрос естественным языком идёт в лексический индекс,
+    // точный (идентификатор, regex) — прежним путём. Контракт инструмента тот же.
+    const backend = classifyQuery(pattern);
+    const fuzzyHits = backend === 'fuzzy' ? indexSearchProvider?.search(pattern, 5) ?? [] : [];
+    if (fuzzyHits.length > 0 && !needsMerge(fuzzyHits)) {
+      const lines = fuzzyHits.map((hit) => `${hit.path}: ${hit.snippet ?? ''}`.trim());
+      return `Найдено совпадений: ${fuzzyHits.length} (лексический индекс)\n${lines.join('\n')}`;
+    }
+
+    if (found.length === 0 && fuzzyHits.length === 0) {
       return `По запросу '${pattern}' в '${searchDir}' (glob: ${file_glob}) ничего не найдено`;
     }
 
     // Ранжирование: объявления символов и совпадения в имени файла выше случайных вхождений
     found.sort((a, b) => b.score - a.score);
+    if (fuzzyHits.length > 0) {
+      // FTS дал меньше MIN_FUZZY_HITS — доклеиваем после точных совпадений, без дублей
+      const exactHits = found.map((match) => ({ path: match.text.split(':')[0], snippet: match.text }));
+      const merged = mergeHits(exactHits, fuzzyHits);
+      const lines = merged.slice(0, MAX_MATCHES).map((hit) => (hit.source === 'exact' ? hit.snippet : `${hit.path}: ${hit.snippet}`));
+      return `Найдено совпадений: ${merged.length} (точные + индекс)\n${lines.join('\n')}`;
+    }
+
     const shown = found.slice(0, MAX_MATCHES).map((m) => m.text);
     const rest = found.length > shown.length ? `\n…и ещё ${found.length - shown.length} совпадений` : '';
     const ignoredNote = skippedByIgnore > 0 ? ` (${skippedByIgnore} файлов пропущено по .gitignore)` : '';

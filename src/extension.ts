@@ -12,6 +12,7 @@ import { registerCommands } from './activation/registerCommands';
 import { debugLog, setDebugSink } from './shared/logger';
 import { RunHistoryStore } from './shared/RunHistoryStore';
 import { SessionLog } from './shared/SessionLog';
+import { IndexService } from './shared/IndexService';
 import { HistoryViewProvider, HISTORY_VIEW_TYPE } from './modes/history/HistoryViewProvider';
 import { OrchestratorViewProvider, ORCHESTRATOR_VIEW_TYPE } from './modes/orchestrator/OrchestratorViewProvider';
 import { ReviewViewProvider, REVIEW_VIEW_TYPE } from './modes/review/ReviewViewProvider';
@@ -37,6 +38,9 @@ let sessionLog: SessionLog;
 
 /** Глобальный экземпляр провайдера вкладки «История» */
 let historyViewProvider: HistoryViewProvider;
+
+/** Локальный индекс кодовой базы (P8): поднимается в фоне, может отсутствовать */
+let indexService: IndexService | undefined;
 
 /** Глобальный экземпляр провайдера вкладки «Оркестратор» */
 let orchestratorViewProvider: OrchestratorViewProvider;
@@ -109,7 +113,13 @@ export function activate(context: vscode.ExtensionContext) {
     };
 
     // ── 3. Команды ──
-    registerCommands({ context, providerManager, conversationManager, editController, autocompleteController, runHistoryStore, historyViewProvider, reviewViewProvider, sessionLog, refreshSessions: () => chatViewProvider.refreshSessionList(), revealChat: () => chatViewProvider.reveal() });
+    registerCommands({ context, providerManager, conversationManager, editController, autocompleteController, runHistoryStore, historyViewProvider, reviewViewProvider, sessionLog, refreshSessions: () => chatViewProvider.refreshSessionList(), revealChat: () => chatViewProvider.reveal(), getIndexService: () => indexService });
+
+    // ── 3.5. Локальный индекс (P8): в фоне, без блокировки активации.
+    // Любая проблема → инструмент search_files работает прежним путём.
+    void IndexService.start(context, (message) => debugChannel.appendLine(message)).then((service) => {
+        indexService = service;
+    });
 
     // ── 4. Конфигурация ──
     context.subscriptions.push(
@@ -132,6 +142,10 @@ export function activate(context: vscode.ExtensionContext) {
  */
 export function deactivate() {
     console.log('[LLM Assistant] Деактивация');
+
+    // Индекс: пишем на диск и закрываем (deactivate — единственный гарантированный flush)
+    indexService?.dispose();
+    indexService = undefined;
 
     // Освобождаем ресурсы EditController
     if (editController) {

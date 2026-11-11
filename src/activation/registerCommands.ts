@@ -53,6 +53,8 @@ export interface CommandDependencies {
   refreshSessions?: () => void;
   /** Колбэк показа/фокуса вкладки чата (для llmAssistant.chat.open) */
   revealChat?: () => void;
+  /** Локальный индекс (P8): нужен команде пересборки, может отсутствовать */
+  getIndexService?: () => { rebuild(): Promise<void>; info(): { files: number; ready: boolean } } | undefined;
 }
 
 /**
@@ -63,7 +65,7 @@ export interface CommandDependencies {
  * @param deps - зависимости (контекст, менеджеры, контроллеры режимов)
  */
 export function registerCommands(deps: CommandDependencies): void {
-  const { context, providerManager, conversationManager, editController, autocompleteController, runHistoryStore, historyViewProvider, reviewViewProvider, sessionLog, refreshSessions, revealChat } = deps;
+  const { context, providerManager, conversationManager, editController, autocompleteController, runHistoryStore, historyViewProvider, reviewViewProvider, sessionLog, refreshSessions, revealChat, getIndexService } = deps;
 
   // ── 1. llmAssistant.chat.open (Ctrl+Alt+L) — открыть/сфокусировать чат ──
   context.subscriptions.push(
@@ -146,6 +148,26 @@ export function registerCommands(deps: CommandDependencies): void {
     vscode.commands.registerCommand('llmAssistant.clearAllSessions', () => {
       clearAllSessions(conversationManager, runHistoryStore, historyViewProvider, refreshSessions);
     })
+  );
+
+  // ── 15. llmAssistant.rebuildIndex — полная пересборка локального индекса (P8) ──
+  context.subscriptions.push(
+    vscode.commands.registerCommand('llmAssistant.rebuildIndex', async () => {
+      const service = getIndexService?.();
+      if (!service) {
+        vscode.window.showWarningMessage(
+          'Локальный индекс недоступен (нет рабочего пространства или SQLite не загрузился). Поиск работает прежним путём.',
+        );
+        return;
+      }
+      const before = service.info().files;
+      await vscode.window.withProgress(
+        { location: vscode.ProgressLocation.Notification, title: 'LLM Assistant: пересборка индекса' },
+        () => service.rebuild(),
+      );
+      const after = service.info().files;
+      vscode.window.showInformationMessage(`Индекс пересобран: файлов ${before} → ${after}.`);
+    }),
   );
 
   // ── 14. llmAssistant.resetDailyBudget — сброс дневного расхода (P9.1) ──

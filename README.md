@@ -246,6 +246,7 @@ ollama pull gemma3:4b        # ~3.4 ГБ, работает и с картинк�
 | `LLM Assistant: Экспортировать сессию` | Экспорт транскрипции в `.md` (системный save-диалог) |
 | `LLM Assistant: Скопировать сессию (fork)` | Копия активной сессии («… (копия)») |
 | `LLM Assistant: Удалить все сессии` | Полная очистка (с модальным подтверждением) |
+| `LLM Assistant: Пересобрать индекс поиска` | Перестроить локальный индекс кодовой базы (P8): нужен после массовых изменений или если поиск кажется устаревшим |
 | `LLM Assistant: Сбросить дневной лимит бюджета` | Обнулить расход за сегодня: снять сработавший дневной лимит, не дожидаясь смены суток |
 | `LLM Assistant: Показать источники правил` | Какие файлы правил и скилы реально попали в промпт: пути относительно проекта, объём, что отрезано лимитом. Содержимое не выводится |
 | `LLM Assistant: Проверить локальный сервер (Ollama)` | Версия, модели, размеры и capabilities локального Ollama |
@@ -484,7 +485,7 @@ ollama pull gemma3:4b        # ~3.4 ГБ, работает и с картинк�
 ## Разработка
 
 - **Стек:** TypeScript, VS Code Extension API, WebView, Webpack
-- **Тесты:** Mocha + Sinon (**698** mocked-тестов), E2E в реальном Extension Host (**50** теста: сокеты, панель, настройки, гейт подтверждения, tools-цикл, бюджет, Plan Mode, workspace-контекст и правила проекта), GitHub Actions CI (юниты и e2e идут параллельно)
+- **Тесты:** Mocha + Sinon (**704** mocked-тестов), E2E в реальном Extension Host (**50** теста: сокеты, панель, настройки, гейт подтверждения, tools-цикл, бюджет, Plan Mode, workspace-контекст и правила проекта), GitHub Actions CI (юниты и e2e идут параллельно)
 - **SDD:** 41 spec-файлов (`specs/`), валидатор, pre-commit + CI
 - **Репозиторий:** github.com/alekseyber/vscode-llm-assistant
 - **Спецификации:** [specs/](https://github.com/alekseyber/vscode-llm-assistant/tree/main/specs) — 38 компонентов (+3 мета-документа), интерфейсы, контракты, AC
@@ -494,7 +495,7 @@ ollama pull gemma3:4b        # ~3.4 ГБ, работает и с картинк�
 npm install
 npm run compile        # Сборка
 npm run lint           # Линтер
-npm run test:mocked    # Тесты без VS Code (698 шт.)
+npm run test:mocked    # Тесты без VS Code (704 шт.)
 node scripts/spec-validate.js  # Проверка SDD
 ```
 

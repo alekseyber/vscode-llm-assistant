@@ -120,6 +120,8 @@ export interface IndexEntry {
   body: string;
   size: number;
   mtime: number;
+  /** crc32 первых 4 КБ — для свежих файлов, где mtime ненадёжен */
+  crc?: number;
 }
 
 export interface SearchHit {
@@ -291,7 +293,7 @@ export class SearchIndexStore {
       this.db.exec({ sql: 'DELETE FROM fts WHERE path = ?', bind: [entry.path] });
       this.db.exec({
         sql: 'INSERT INTO files(path, ext, size, mtime, crc) VALUES(?,?,?,?,?)',
-        bind: [entry.path, ext, entry.size, entry.mtime, null],
+        bind: [entry.path, ext, entry.size, entry.mtime, entry.crc ?? null],
       });
       this.db.exec({
         sql: 'INSERT INTO fts(path, path_tokens, body_norm) VALUES(?,?,?)',
@@ -384,10 +386,10 @@ export class SearchIndexStore {
   }
 
   /** Список проиндексированных файлов — для сверки при старте (S2). */
-  listIndexed(): Array<{ path: string; size: number; mtime: number }> {
+  listIndexed(): Array<{ path: string; size: number; mtime: number; crc: number | null }> {
     if (!this.ready) return [];
     const rows = this.db.exec({
-      sql: 'SELECT path, size, mtime FROM files',
+      sql: 'SELECT path, size, mtime, crc FROM files',
       rowMode: 'array',
       returnValue: 'resultRows',
     });
@@ -395,6 +397,7 @@ export class SearchIndexStore {
       path: String(row[0]),
       size: Number(row[1] ?? 0),
       mtime: Number(row[2] ?? 0),
+      crc: row[3] === null || row[3] === undefined ? null : Number(row[3]),
     }));
   }
 

@@ -1,6 +1,6 @@
 ---
 document: TRACEABILITY
-version: 0.14.31
+version: 0.14.32
 ---
 
 # Матрица трассировки: spec → AC → тест → код
@@ -22,7 +22,9 @@ version: 0.14.31
 | SessionManager | `src/modes/chat/SessionManager.ts` | `test/suite/session.test.ts` | — |
 | ChatAgentTools | `src/modes/chat/ChatAgentTools.ts` | — | AC-4.1–AC-4.4 |
 | SearchIndex | `src/shared/SearchIndex.ts` | `test/suite/searchIndex.test.ts` | IDX-1,2,3,10,11,12 |
-| SearchIndexer | `src/shared/SearchIndexer.ts` | `test/suite/searchIndexer.test.ts` | IDX-4,5,6,13,14,15 |
+| SearchIndexer | `src/shared/SearchIndexer.ts` | `test/suite/searchIndexer.test.ts` | IDX-4,5,6,13,14,15,19 |
+| SearchRouter | `src/shared/SearchRouter.ts` | `test/suite/searchRouter.test.ts` | IDX-7,8,20 |
+| IndexService | `src/shared/IndexService.ts` | — (проводка VS Code API; косвенно `IDX-9`, `IDX-21`) | — |
 | ContextSummarizer | `src/shared/ContextSummarizer.ts` | `test/suite/contextSummarizer.test.ts`, `test/suite/summaryIntegration.test.ts` | AC-2.1–AC-2.6 |
 | RetryHandler | `src/shared/RetryHandler.ts` | `test/suite/retryHandler.test.ts` | AC-3.1–AC-3.7 |
 | AgentsMdLoader | `src/shared/AgentsMdLoader.ts` | `test/suite/agentsMd.test.ts` | AC-1.1–AC-1.6 |

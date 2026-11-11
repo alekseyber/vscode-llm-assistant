@@ -1,6 +1,6 @@
 ---
 document: ARCHITECTURE
-version: 0.14.55
+version: 0.14.56
 status: living
 ---
 
@@ -32,6 +32,9 @@ extension.ts (вход)
 │   │   ├── AskUserTool            [spec ✅] — уточняющие вопросы (QuickPick/InputBox)
 │   │   ├── ModelRouter            [spec ✅] — прогноз стоимости, лимит бюджета сессии, авто-выбор модели по сложности (routing.*)
 │   ├── SearchIndex               [spec ✅ beta] — локальный FTS5-индекс кодовой базы (BM25, вес пути), деградация к ripgrep; контракт search_files не меняет
+│   ├── SearchIndexer             [spec ✅ beta] — обход, фильтры, детект не-текста, пачки, инкремент
+│   ├── SearchRouter              [spec ✅ beta] — роутинг запроса (идентификатор → ripgrep, фраза → FTS) и склейка выдачи
+│   ├── IndexService              [spec ✅ beta] — фоновая сборка, watcher, провайдер выдачи, команда пересборки
 │   │   └── PlanModeManager        [spec ✅] — Plan Mode (план → имплементация → рефлексия)
 │   │
 │   ├── 🤖 Агент (ReAct через чат)
@@ -253,6 +256,7 @@ AgentController (Apply Mode)
 
 | Версия | Дата | Изменения |
 |--------|------|-----------|
+| 0.14.56 | 2026-11-11 | `SearchIndexer`, `SearchRouter`, `IndexService` в карте; `search_files` получил роутинг без изменения контракта |
 | 0.14.55 | 2026-11-11 | `SearchIndex` в карте компонентов: локальный FTS5-индекс для `search_files` (S1: нормализация, схема, запрос, экспорт/импорт) |
 | 0.14.54 | 2026-11-10 | `ModelRouter` в карте компонентов (прогноз стоимости, лимит сессии, авто-выбор модели); описание `OllamaProvider` приведено к факту: `/api/ps`, окно = `context_length/2`, первый байт по `local.requestTimeout`, 30 с — только discovery |
 | 0.14.53 | 2026-11-09 | Порог предупреждения об обрезке промпта исправлен на реальную границу `numCtx/2` (`effectivePromptWindow`); e2e-покрытие `E2E-3..E2E-9` в реальном Extension Host (42 e2e, 611 юнит) |

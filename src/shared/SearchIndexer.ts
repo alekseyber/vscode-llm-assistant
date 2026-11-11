@@ -136,6 +136,34 @@ export function decodeIndexableText(bytes: Uint8Array): string | null {
   }
 }
 
+/** Сколько байт сверяем по crc32 у свежих файлов: mtime на грубых ФС врёт. */
+const CRC_PROBE_BYTES = 4096;
+
+/** Файлы, изменённые в этот интервал, дополнительно сверяем по crc32. */
+const RECENT_MS = 5_000;
+
+const CRC_TABLE = (() => {
+  const table = new Uint32Array(256);
+  for (let i = 0; i < 256; i += 1) {
+    let value = i;
+    for (let bit = 0; bit < 8; bit += 1) {
+      value = value & 1 ? 0xedb88320 ^ (value >>> 1) : value >>> 1;
+    }
+    table[i] = value >>> 0;
+  }
+  return table;
+})();
+
+/** crc32 первых `CRC_PROBE_BYTES` байт: дешёвая сверка содержимого. */
+export function crc32(bytes: Uint8Array, limit = CRC_PROBE_BYTES): number {
+  const end = Math.min(bytes.length, limit);
+  let crc = 0xffffffff;
+  for (let i = 0; i < end; i += 1) {
+    crc = CRC_TABLE[(crc ^ bytes[i]) & 0xff] ^ (crc >>> 8);
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
 /** Отдать управление хосту между пачками: Extension Host однопоточный. */
 function yieldToHost(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0));
@@ -259,6 +287,7 @@ export class SearchIndexer {
         body: text,
         size: file.size,
         mtime: file.mtime,
+        crc: crc32(bytes),
       });
     } catch (error: any) {
       this.debug(`не прочитан ${file.relPath}: ${error?.message ?? String(error)}`);
@@ -313,7 +342,17 @@ export class SearchIndexer {
       }
       present.add(file.relPath);
       const known = indexed.get(file.relPath);
-      const changed = !known || known.size !== file.size || known.mtime !== file.mtime;
+      let changed = !known || known.size !== file.size || known.mtime !== file.mtime;
+      // mtime на грубых ФС (и после git checkout) врёт: свежие файлы сверяем по содержимому
+      if (!changed && known && Date.now() - file.mtime <= RECENT_MS) {
+        try {
+          const probe = await this.fs.readFile(file.relPath);
+          changed = crc32(probe) !== (known.crc ?? -1);
+        } catch {
+          // Не читается — считаем, что не изменился: удалять запись из-за сбоя чтения нельзя
+          changed = false;
+        }
+      }
       if (changed) {
         const ok = await this.indexOne(file, stats);
         if (ok) stats.indexed += 1;
