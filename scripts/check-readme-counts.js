@@ -22,7 +22,9 @@ const README = path.join(__dirname, '..', 'README.md');
 const PATTERNS = {
   mockedStars: { regex: /\*\*(\d+)\*\* mocked-тестов/, what: 'число mocked-тестов (**N** mocked-тестов)' },
   mockedCommand: { regex: /Тесты без VS Code \((\d+) шт\.\)/, what: 'число в команде npm run test:mocked' },
-  e2e: { regex: /Extension Host \(\*\*(\d+)\*\* теста/, what: 'число e2e в разделе про тесты' },
+  // Форма слова зависит от числа («53 теста», «56 тестов») — принимаем все три,
+  // сверка идёт по цифре, а не по окончанию
+  e2e: { regex: /Extension Host \(\*\*(\d+)\*\* тест(?:а|ов)?/, what: 'число e2e в разделе про тесты' },
 };
 
 function parseArgs(argv) {
