@@ -191,4 +191,20 @@ suite('AutocompleteController', () => {
     controller.dispose();
     assert.strictEqual(((vscode as any).__inlineProviders as unknown[]).length, before, 'после dispose регистрация снята');
   });
+
+  test('ACL-10: обрезка не разрывает суррогатную пару', async () => {
+    // Ответ из эмодзи: 600 пар = 1200 UTF-16 единиц, потолок 1024 приходится на середину пары
+    const { provider } = makeProvider('😀'.repeat(600));
+    const controller = makeController(provider);
+    const result = await ask(lastInlineProvider());
+    assert.ok(result, 'подсказка показана');
+    const text = String(result!.items[0].insertText);
+    assert.ok(Array.from(text).length <= 1024, `длина в кодовых точках в пределах потолка: ${Array.from(text).length}`);
+    // Разрезанная пара выглядит как одиночный суррогат: проверяем, что таких нет
+    assert.ok(
+      !/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/.test(text),
+      'в тексте не должно быть одиночных старших суррогатов',
+    );
+    controller.dispose();
+  });
 });

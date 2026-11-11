@@ -16,7 +16,7 @@
 - **Мок `vscode` перестал врать:** живая конфигурация (`workspace.__settings`,
   `getConfiguration().update()` с событием), `InlineCompletionItem`, `InlineCompletionList`,
   `CancellationTokenSource`, `Range(position, position)`.
-- Тесты: 722 → **739**; мутаций 10, все ловятся.
+- Тесты: 722 → **744**; мутаций 11, все ловятся.
 
 ## 0.22.1 (2026-11-11)
 

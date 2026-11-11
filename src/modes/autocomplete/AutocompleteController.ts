@@ -161,11 +161,15 @@ ${context.suffix}
       for await (const chunk of stream) {
         fullResponse += chunk;
         // Ограничение автокомплита: длинный ответ бесполезен и дороже по вставке.
-        // Режем по кодовым точкам, чтобы не разорвать суррогатную пару (эмодзи).
-        if (fullResponse.length > MAX_RESPONSE_CHARS) {
-          fullResponse = Array.from(fullResponse).slice(0, MAX_RESPONSE_CHARS).join('');
+        // Запас в чанк: обрезка по кодовым точкам делается один раз, после сборки —
+        // иначе можно разрезать суррогатную пару на границе чанка или потолка.
+        if (fullResponse.length > MAX_RESPONSE_CHARS * 2) {
           break;
         }
+      }
+      const points = Array.from(fullResponse);
+      if (points.length > MAX_RESPONSE_CHARS) {
+        fullResponse = points.slice(0, MAX_RESPONSE_CHARS).join('');
       }
 
       // Очищаем ответ от лишних обрамлений

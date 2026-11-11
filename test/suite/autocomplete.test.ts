@@ -11,7 +11,10 @@ import { GhostTextManager } from '../../src/modes/autocomplete/GhostTextManager'
 import { AutocompleteContext } from '../../src/modes/autocomplete/ContextBuilder';
 
 /** Документ с настоящим `getText(range)`: провайдер собирает по нему контекст. */
-function makeDocument(text: string, options: { scheme?: string } = {}): vscode.TextDocument {
+function makeDocument(
+  text: string,
+  options: { scheme?: string; uri?: string } = {},
+): vscode.TextDocument {
   const lines = text.split('\n');
   const offsets: number[] = [];
   let offset = 0;
@@ -26,7 +29,7 @@ function makeDocument(text: string, options: { scheme?: string } = {}): vscode.T
     uri: {
       scheme: options.scheme ?? 'file',
       fsPath: '/fake/workspace/src/example.ts',
-      toString: () => `file:///fake/workspace/src/${Buffer.from(text).toString('hex').slice(0, 12)}.ts`,
+      toString: () => options.uri ?? 'file:///fake/workspace/src/example.ts',
     },
     languageId: 'typescript',
     lineCount: lines.length,
@@ -120,22 +123,26 @@ suite('GhostTextManager', () => {
     manager.dispose();
   });
 
-  test('GHT-6: другой документ не считается повтором', async () => {
+  test('GHT-6: другой документ не считается повтором даже при том же ответе', async () => {
     const { manager } = makeManager({ response: 'const a = 1;' });
-    const first = await ask(manager, makeDocument('a\n'));
-    const second = await ask(manager, makeDocument('b\n'));
-    assert.ok(first.result && second.result, 'для другого документа подсказка показывается снова');
+    // URI заданы явно: кэш привязан к документу, а не к тексту
+    const first = await ask(manager, makeDocument('a\n', { uri: 'file:///w/one.ts' }));
+    const second = await ask(manager, makeDocument('a\n', { uri: 'file:///w/two.ts' }));
+    assert.ok(first.result, 'первый документ получает подсказку');
+    assert.ok(second.result, 'второй документ получает ту же подсказку — это не повтор');
     manager.dispose();
   });
 
-  test('GHT-7: отмена запроса прерывает обращение к модели', async () => {
+  test('GHT-7: отмена прерывает незавершённый запрос', async () => {
+    let release!: (value: string | null) => void;
     const signals: AbortSignal[] = [];
     const manager = new GhostTextManager(
       async (_ctx, signal) => {
         signals.push(signal!);
-        // Модель «думает», отмена приходит от VS Code
-        await new Promise((resolve) => setTimeout(resolve, 5));
-        return signal?.aborted ? null : 'late();';
+        // Запрос висит, пока тест не отпустит его вручную — никаких таймеров и гонок
+        return new Promise<string | null>((resolve) => {
+          release = resolve;
+        }).then((value) => (signal?.aborted ? null : value));
       },
       () => true,
     );
@@ -147,12 +154,12 @@ suite('GhostTextManager', () => {
       {} as vscode.InlineCompletionContext,
       source.token as vscode.CancellationToken,
     );
-    await new Promise((resolve) => setTimeout(resolve, 1)); // дать запросу начаться
+    // Ждём, пока запрос действительно начнётся: без таймеров, по факту вызова модели
+    while (signals.length === 0) await Promise.resolve();
     source.cancel();
-    const result = await promise;
-    assert.strictEqual(signals.length, 1, 'запрос к модели начался');
-    assert.ok(signals[0].aborted, 'отмена VS Code должна доходить до запроса как AbortSignal');
-    assert.strictEqual(result, null, 'отменённый запрос не показывает подсказку');
+    assert.ok(signals[0].aborted, 'отмена VS Code доходит до запроса как AbortSignal');
+    release('late();');
+    assert.strictEqual(await promise, null, 'отменённый запрос не показывает подсказку');
     manager.dispose();
   });
 
@@ -169,5 +176,70 @@ suite('GhostTextManager', () => {
     assert.ok(next.result, 'после ошибки автокомплит продолжает работать');
     manager.dispose();
     healthy.dispose();
+  });
+
+  test('GHT-9: отмена после получения ответа не отменяет показ', async () => {
+    // Контракт: отмена проверяется до запроса и внутри него; готовый ответ показывается,
+    // а скрывает его уже VS Code при следующем вводе (см. спеку, «Детали реализации»)
+    const { manager } = makeManager({ response: 'ready();' });
+    const doc = makeDocument('y\n', { uri: 'file:///w/ready.ts' });
+    const source = new vscode.CancellationTokenSource();
+    const promise = manager.provideInlineCompletionItems(
+      doc,
+      new vscode.Position(0, 1),
+      {} as vscode.InlineCompletionContext,
+      source.token as vscode.CancellationToken,
+    );
+    const result = await promise;
+    source.cancel(); // отмена приходит уже после ответа
+    assert.ok(result, 'готовый ответ не отбрасывается отменой, пришедшей после него');
+    manager.dispose();
+  });
+
+  test('GHT-10: ответ из переводов строк не показывается', async () => {
+    const { manager } = makeManager({ response: '\n\n   \n\t\n' });
+    const { result } = await ask(manager, makeDocument('z\n', { uri: 'file:///w/blank.ts' }));
+    assert.strictEqual(result, null, 'пустой по смыслу ответ не показывается');
+    manager.dispose();
+  });
+
+  test('GHT-11: при пустом префиксе и непустом суффиксе запрос всё равно уходит', async () => {
+    const { manager, calls } = makeManager({ response: 'tail();' });
+    const position = new vscode.Position(0, 0);
+    const doc = makeDocument('\nconst x = 1;\n', { uri: 'file:///w/empty-prefix.ts' });
+    const source = new vscode.CancellationTokenSource();
+    const result = await manager.provideInlineCompletionItems(
+      doc,
+      position,
+      {} as vscode.InlineCompletionContext,
+      source.token as vscode.CancellationToken,
+    );
+    assert.strictEqual(calls.length, 1, 'контекст с одним суффиксом достаточен для запроса');
+    assert.ok(result, 'подсказка показана');
+    manager.dispose();
+  });
+
+  test('GHT-12: два параллельных запроса не мешают друг другу', async () => {
+    let n = 0;
+    const manager = new GhostTextManager(
+      async () => {
+        n += 1;
+        const value = `const v${n} = ${n};`;
+        await new Promise((resolve) => setTimeout(resolve, n === 1 ? 5 : 0));
+        return value;
+      },
+      () => true,
+    );
+    const [a, b] = await Promise.all([
+      ask(manager, makeDocument('q\n', { uri: 'file:///w/par-a.ts' })),
+      ask(manager, makeDocument('q\n', { uri: 'file:///w/par-b.ts' })),
+    ]);
+    assert.ok(a.result && b.result, 'оба параллельных запроса показывают свою подсказку');
+    assert.notStrictEqual(
+      String(a.result!.items[0].insertText),
+      String(b.result!.items[0].insertText),
+      'подсказки не перепутались между документами',
+    );
+    manager.dispose();
   });
 });

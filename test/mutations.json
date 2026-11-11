@@ -80,6 +80,14 @@
       "to": "const MAX_RESPONSE_CHARS = 100000;",
       "label": "потолок ответа автокомплита 1024 → 100000",
       "expect": "must-fail"
+    },
+    {
+      "id": "GHT-CLEAR",
+      "file": "src/modes/autocomplete/GhostTextManager.ts",
+      "from": "    this.lastSuggestion = null;\n    this.lastUri = null;",
+      "to": "    void this.lastSuggestion;",
+      "label": "сброс кэша подсказки отключён",
+      "expect": "must-fail"
     }
   ]
 }
