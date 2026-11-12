@@ -67,17 +67,28 @@ async function main() {
   // Правка без отметки: файл изменился, а version/updated — нет
   if (since) {
     const { execFileSync } = require('child_process');
-    const changed = execFileSync('git', ['diff', '--name-only', since, '--', '.llma', '.claude'], {
-      cwd: ROOT,
-      encoding: 'utf-8',
-    })
+    let raw = '';
+    try {
+      raw = execFileSync('git', ['diff', '--name-only', since, '--', '.llma', '.claude'], {
+        cwd: ROOT,
+        encoding: 'utf-8',
+      });
+    } catch (error) {
+      console.error(`[skills] не удалось сравнить с ${since}: ${error.message.split('\n')[0]}`);
+      process.exit(2);
+    }
+    const changed = raw
       .split('\n')
       .map((line) => line.trim())
       .filter((line) => line.endsWith('.md'));
 
     for (const rel of changed) {
       const full = path.join(ROOT, rel);
-      if (!fs.existsSync(full)) continue; // файл удалён — это не «правка без отметки»
+      if (!fs.existsSync(full)) {
+        // Удаление скилла — не «правка без отметки», но и не молчаливое событие: видно в логе
+        console.log(`[skills] удалён скилл: ${rel}`);
+        continue;
+      }
       let before = '';
       try {
         before = execFileSync('git', ['show', `${since}:${rel}`], { cwd: ROOT, encoding: 'utf-8' });
