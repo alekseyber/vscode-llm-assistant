@@ -27,6 +27,9 @@ jobs:
       - run: npm run lint
       - run: npm run check:mock
       - run: npm run check:changelog
+      - name: Бюджет `as any` в тестах
+        # Пофайловый ратчет: сумма и отдельные файлы не растут; новый файл — только с обоснованием
+        run: node scripts/test-any-count.js
 
   # Юнит-тесты с мок-vscode (npm run test:mocked) — быстрые, без реального VS Code
   test-unit:
