@@ -103,6 +103,12 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
       - run: npm ci
+      - name: Кэш дистрибутива VS Code
+        # Иначе каждый прогон скачивает VS Code заново и иногда падает по таймауту
+        uses: actions/cache@v4
+        with:
+          path: ~/.vscode-test
+          key: vscode-test-${{ runner.os }}-stable-${{ hashFiles('package-lock.json') }}
       - run: npm run compile
       - run: npx tsc -p tsconfig.test.json
       - name: Проверка бандла dist

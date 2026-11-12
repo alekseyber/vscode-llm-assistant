@@ -152,6 +152,22 @@
       "to": "      if (false) continue;",
       "label": "list_files лезет в node_modules и скрытые каталоги",
       "expect": "must-fail"
+    },
+    {
+      "id": "DR-NO-RETRY",
+      "file": "test/harness/downloadWithRetry.ts",
+      "from": "  const attempts = Math.max(1, options.attempts ?? 3);",
+      "to": "  const attempts = 1;",
+      "label": "повтор отключён — одна попытка вместо трёх",
+      "expect": "must-fail"
+    },
+    {
+      "id": "DR-NO-BACKOFF",
+      "file": "test/harness/downloadWithRetry.ts",
+      "from": "      await sleep(delayMs * attempt);",
+      "to": "      await sleep(0);",
+      "label": "пауза между попытками убрана (бэкофф)",
+      "expect": "must-fail"
     }
   ]
 }

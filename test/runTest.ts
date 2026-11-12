@@ -11,6 +11,7 @@ import {
   downloadAndUnzipVSCode,
   resolveCliPathFromVSCodeExecutablePath,
 } from '@vscode/test-electron';
+import { withRetry } from './harness/downloadWithRetry';
 
 /**
  * Запустить тесты extension во временном VS Code окне.
@@ -34,7 +35,15 @@ async function main(): Promise<void> {
     const extensionTestsPath = path.resolve(__dirname, './suite/index');
 
     // Скачиваем VS Code (если ещё не скачан) и запускаем тесты
-    const vscodeExecutablePath = await downloadAndUnzipVSCode('stable');
+    // Скачивание VS Code — сеть: сдаваться после первого таймаута нельзя, иначе прогон
+    // краснеет из-за инфраструктуры (так и случилось 12.11: request timeout 15000ms)
+    const vscodeExecutablePath = await withRetry(() => downloadAndUnzipVSCode('stable'), {
+      attempts: 3,
+      delayMs: 5_000,
+      onRetry: (error, attempt) => {
+        console.warn(`Скачивание VS Code не удалось (попытка ${attempt}): ${String(error)}`);
+      },
+    });
     
     // Настройки для запуска VS Code в headless режиме
     // Открываем КОПИЮ фикстуры во временном каталоге, а не корень репозитория:
