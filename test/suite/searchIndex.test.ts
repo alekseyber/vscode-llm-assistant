@@ -19,6 +19,21 @@ import {
   countMatchedTokens,
 } from '../../src/shared/SearchIndex';
 
+/** Минимум sqlite-API, который нужен тесту: exec строкой и чтение результата массивом. */
+interface RawSqliteDb {
+  exec(sql: string): unknown;
+  exec(options: { sql: string; rowMode: 'array'; returnValue: 'resultRows' }): number[][];
+}
+
+/**
+ * Хэндл sqlite, которым пользуется хранилище. Поле `db` приватное и в src типизировано
+ * как `any` (WASM-модуль без типов) — снаружи достаём его структурным типом, чтобы
+ * сломать версию схемы мимо публичного API.
+ */
+function rawDb(store: SearchIndexStore): RawSqliteDb {
+  return (store as unknown as { db: RawSqliteDb }).db; // cast-ok: приватное поле индекса, иначе схему не сломать
+}
+
 /**
  * Пакет `@sqlite.org/sqlite-wasm` — ESM-only, а тесты собираются в CJS.
  * `new Function('return import(...)')` сохраняет настоящий динамический import.
@@ -133,14 +148,14 @@ suite('SearchIndex / S1', () => {
     const seed = new SearchIndexStore(sqlite3, { indexPath });
     await seed.init();
     seed.upsertFile({ path: 'old.ts', body: 'старый индекс', size: 10, mtime: 1 });
-    (seed as any).db.exec(`PRAGMA user_version = ${INDEX_SCHEMA_VERSION + 5}`);
+    rawDb(seed).exec(`PRAGMA user_version = ${INDEX_SCHEMA_VERSION + 5}`);
     await seed.flush();
     seed.close();
 
     const reopened = new SearchIndexStore(sqlite3, { indexPath });
     assert.strictEqual(await reopened.init(), true, 'индекс открылся');
     assert.strictEqual(reopened.stats().files, 0, 'старые данные не перенесены — индекс пуст');
-    const version = (reopened as any).db.exec({ sql: 'PRAGMA user_version', rowMode: 'array', returnValue: 'resultRows' });
+    const version = rawDb(reopened).exec({ sql: 'PRAGMA user_version', rowMode: 'array', returnValue: 'resultRows' });
     assert.strictEqual(Number(version[0][0]), INDEX_SCHEMA_VERSION, 'версия схемы обновлена');
     reopened.close();
   });

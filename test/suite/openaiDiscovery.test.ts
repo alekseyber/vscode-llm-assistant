@@ -7,6 +7,8 @@ import * as sinon from 'sinon';
 import * as vscode from 'vscode';
 import * as assert from 'assert';
 import * as http from 'http';
+import { AddressInfo } from 'net';
+import { fakeConfiguration } from '../support/vscode-harness';
 import { OpenAIProvider } from '../../src/providers/openai';
 
 suite('Discovery моделей у локального OpenAI-совместимого провайдера', () => {
@@ -18,12 +20,9 @@ suite('Discovery моделей у локального OpenAI-совмести�
 
   setup((done) => {
     sandbox = sinon.createSandbox();
-    sandbox.stub(vscode.workspace, 'getConfiguration').returns({
-      get: (_key: string, defaultValue?: unknown) => defaultValue,
-      has: () => false,
-      inspect: () => undefined,
-      update: () => Promise.resolve(),
-    } as any);
+    sandbox.stub(vscode.workspace, 'getConfiguration').returns(
+      fakeConfiguration((_key, defaultValue) => defaultValue),
+    );
     hits = 0;
     server = http.createServer((req, res) => {
       hits += 1;
@@ -35,7 +34,7 @@ suite('Discovery моделей у локального OpenAI-совмести�
       res.end();
     });
     server.listen(0, '127.0.0.1', () => {
-      baseUrl = `http://127.0.0.1:${(server.address() as any).port}/v1`;
+      baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`;
       done();
     });
   });

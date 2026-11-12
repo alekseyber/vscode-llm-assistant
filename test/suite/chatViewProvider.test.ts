@@ -11,29 +11,59 @@ import { ConversationManager } from '../../src/modes/chat/ConversationManager';
 import { RunHistoryStore } from '../../src/shared/RunHistoryStore';
 import { PlanModeManager } from '../../src/modes/chat/PlanModeManager';
 import { AgentOrchestrator } from '../../src/modes/apply/AgentOrchestrator';
-import { SessionLog } from '../../src/shared/SessionLog';
+import { SessionLog, SessionEvent } from '../../src/shared/SessionLog';
+import { ProviderManager } from '../../src/providers/manager';
+import { OrchestratorViewProvider } from '../../src/modes/orchestrator/OrchestratorViewProvider';
+import { ChatMessage, CompletionOptions, LLMProvider, RetryCallback } from '../../src/providers/types';
+import {
+  MutableExtensionContext,
+  fakeConfiguration,
+  fakeExtensionContext,
+  fakeMemento,
+  fakeMultiAgentResult,
+  fakeOutputChannel,
+  fakeWebviewView,
+  fakeWorkspaceFolder,
+} from '../support/fakes';
 
 /** Асинхронный генератор чанков — имитация стриминга LLM */
 async function* chunks(...parts: string[]): AsyncIterable<string> {
   for (const p of parts) yield p;
 }
 
-let noteChosenCalls: Array<[string, string]> = [];
+/**
+ * Мок LLM-провайдера: помимо контракта `LLMProvider` нужен `chatWithVision` — vision-ветка
+ * ChatViewProvider зовёт его прямо у провайдера, в интерфейс он не входит.
+ */
+interface MockLLMProvider extends LLMProvider {
+  chatWithVision(
+    messages: ChatMessage[],
+    options: CompletionOptions,
+    signal?: AbortSignal,
+    onRetry?: RetryCallback,
+  ): AsyncIterable<string>;
+}
+
+/** Событие ассистента из session-log (для сужения union по `type`) */
+type AssistantMessageEvent = Extract<SessionEvent, { type: 'assistant/message' }>;
+
+let noteChosenCalls: Array<[string | undefined, string | undefined]> = [];
 
 suite('ChatViewProvider.handleSendMessage', () => {
   let sandbox: sinon.SinonSandbox;
-  let storage: any;
-  let globalState: any;
+  let storage: vscode.Memento;
+  let globalState: vscode.Memento;
   let cm: ConversationManager;
   let history: RunHistoryStore;
   let provider: ChatViewProvider;
-  let mockLLM: any;
-  let wsFolders: any = undefined;
+  let mockLLM: MockLLMProvider;
+  let wsFolders: readonly vscode.WorkspaceFolder[] | undefined = undefined;
   /** Переопределения настроек для отдельного теста (сбрасываются в setup). */
   let configOverrides: Record<string, unknown> = {};
   /** Ссылки на контекст и менеджер провайдеров — нужны тестам перезапуска окна. */
-  let ctxRef: any;
-  let pmRef: any;
+  let ctxRef: MutableExtensionContext;
+  let pmRef: ProviderManager;
+  let orchestratorView: OrchestratorViewProvider;
 
   setup(() => {
     sandbox = sinon.createSandbox();
@@ -41,89 +71,65 @@ suite('ChatViewProvider.handleSendMessage', () => {
     configOverrides = {};
 
     // ── vscode.workspace ──
-    const config = {
-      get: sandbox.fake((key: string, defaultValue?: unknown) => {
-        if (key in configOverrides) return configOverrides[key];
-        if (key === 'chat.maxContextTokens') return 4096;
-        if (key === 'chat.systemPrompt') return '';
-        if (key === 'chat.summaryEnabled') return false;
-        if (key === 'chat.includeOpenFile') return false;
-        if (key === 'chat.agentSystemPrompt') return '';
-        if (key === 'defaultProvider') return 'test';
-        if (key === 'defaultModel') return 'test-model';
-        if (key === 'providers') return {};
-        return defaultValue;
-      }),
-      has: sandbox.fake(() => false),
-      inspect: sandbox.fake(() => undefined),
-      update: sandbox.fake(() => Promise.resolve()),
-    };
-    sandbox.stub(vscode.workspace, 'getConfiguration').returns(config as any);
+    const config = fakeConfiguration((key, defaultValue) => {
+      if (key in configOverrides) return configOverrides[key];
+      if (key === 'chat.maxContextTokens') return 4096;
+      if (key === 'chat.systemPrompt') return '';
+      if (key === 'chat.summaryEnabled') return false;
+      if (key === 'chat.includeOpenFile') return false;
+      if (key === 'chat.agentSystemPrompt') return '';
+      if (key === 'defaultProvider') return 'test';
+      if (key === 'defaultModel') return 'test-model';
+      if (key === 'providers') return {};
+      return defaultValue;
+    });
+    sandbox.stub(vscode.workspace, 'getConfiguration').returns(config);
     wsFolders = undefined;
     sandbox.stub(vscode.workspace, 'workspaceFolders').get(() => wsFolders);
-    sandbox.stub(vscode.workspace, 'onDidChangeConfiguration').returns({ dispose: () => {} } as any);
-    sandbox.stub(vscode.workspace, 'onDidChangeTextDocument').returns({ dispose: () => {} } as any);
-    sandbox.stub(vscode.workspace, 'onDidCreateFiles').returns({ dispose: () => {} } as any);
-    sandbox.stub(vscode.workspace, 'onDidDeleteFiles').returns({ dispose: () => {} } as any);
+    // Подписки не доставляют событий: расширению важно, что регистрация вернула `Disposable`
+    sandbox.stub(vscode.workspace, 'onDidChangeConfiguration').returns({ dispose: () => {} });
+    sandbox.stub(vscode.workspace, 'onDidChangeTextDocument').returns({ dispose: () => {} });
+    sandbox.stub(vscode.workspace, 'onDidCreateFiles').returns({ dispose: () => {} });
+    sandbox.stub(vscode.workspace, 'onDidDeleteFiles').returns({ dispose: () => {} });
 
     // ── vscode.window ──
-    const outputChannel = { appendLine: () => {}, append: () => {}, show: () => {}, hide: () => {}, clear: () => {}, replace: () => {}, dispose: () => {} };
-    sandbox.stub(vscode.window, 'createOutputChannel').returns(outputChannel as any);
+    sandbox.stub(vscode.window, 'createOutputChannel').returns(fakeOutputChannel('LLM Assistant'));
 
     // ── Хранилища ──
-    storage = {
-      get: sandbox.stub().callsFake((_key: string, def: unknown) => def),
-      update: sandbox.stub().returns(Promise.resolve()),
-      keys: sandbox.stub().returns([]),
-      setKeysForSync: sandbox.stub(),
-    };
-    // Ключи независимы: раньше заглушка хранила одно значение на все ключи,
+    // workspaceState пустой: `get` всегда отдаёт defaultValue, как у расширения без сохранений.
+    storage = fakeMemento({ persist: false });
+    // Ключи globalState независимы: раньше заглушка хранила одно значение на все ключи,
     // и запись дневного счётчика затирала историю прогонов
-    globalState = (() => {
-      const store = new Map<string, any>();
-      return {
-        get: sandbox.stub().callsFake((key: string, def: unknown) => (store.has(key) ? store.get(key) : def)),
-        update: sandbox.stub().callsFake((key: string, value: any) => { store.set(key, value); return Promise.resolve(); }),
-        keys: sandbox.stub().callsFake(() => [...store.keys()]),
-        setKeysForSync: sandbox.stub(),
-      };
-    })();
+    globalState = fakeMemento();
 
     cm = new ConversationManager(storage);
     history = new RunHistoryStore(globalState);
 
     // ── Mock LLM-провайдер ──
     mockLLM = {
-      chat: (_messages: any, _opts: any, _signal?: AbortSignal, _onRetry?: any) => chunks('Ответ: ', 'тест'),
+      name: 'test',
+      isLocal: false,
+      models: async () => ['test-model'],
+      chat: () => chunks('Ответ: ', 'тест'),
       chatWithVision: () => chunks('vision-ответ'),
       createWithTools: undefined, // для chat-режима и проверки ошибки агента
     };
 
-    // ── Mock ProviderManager ──
-    const pm: any = {
-      getProvider: () => mockLLM,
-      getDefault: () => mockLLM,
-      pricingMap: new Map(),
-      refresh: () => {},
-      noteChosen: (provider: string, model: string) => { noteChosenCalls.push([provider, model]); },
-      getChosen: () => undefined,
-    };
+    // ── Mock ProviderManager: настоящий менеджер с подменёнными провайдерами ──
+    const pm = new ProviderManager();
+    sandbox.stub(pm, 'getProvider').returns(mockLLM);
+    sandbox.stub(pm, 'getDefault').returns(mockLLM);
+    sandbox.stub(pm, 'refresh');
+    sandbox.stub(pm, 'noteChosen').callsFake((providerName, model) => {
+      noteChosenCalls.push([providerName, model]);
+    });
+    sandbox.stub(pm, 'getChosen').returns(undefined);
 
-    // ── Mock ExtensionContext ──
-    const ctx: any = {
-      subscriptions: { push: sandbox.stub() },
-      extensionUri: vscode.Uri.file('/tmp'),
-      workspaceState: storage,
-      globalState: globalState,
-      extensionPath: '/tmp',
-      asAbsolutePath: (p: string) => p,
-    };
+    // ── ExtensionContext с нашими хранилищами ──
+    const ctx = fakeExtensionContext({ workspaceState: storage, globalState });
 
-    // ── Mock OrchestratorViewProvider ──
-    const orchestratorView: any = {
-      showTask: sandbox.stub(),
-      updateWorker: sandbox.stub(),
-    };
+    // ── Mock OrchestratorViewProvider: методы-пустышки, панель не показывается ──
+    orchestratorView = sandbox.createStubInstance(OrchestratorViewProvider);
 
     ctxRef = ctx;
     pmRef = pm;
@@ -132,9 +138,21 @@ suite('ChatViewProvider.handleSendMessage', () => {
 
   teardown(() => sandbox.restore());
 
-  /** Вызвать приватный handleSendMessage */
+  /**
+   * Вызвать приватный handleSendMessage.
+   * Element access (`provider['…']`) — единственный способ дотянуться до приватного члена
+   * из теста без приведения: тип метода при этом проверяется компилятором.
+   */
   function send(text: string, mode = 'chat', planMode = false, sessionId?: string): Promise<void> {
-    return (provider as any).handleSendMessage(text, mode, undefined, undefined, planMode, sessionId);
+    return provider['handleSendMessage'](text, mode, undefined, undefined, planMode, sessionId);
+  }
+
+  /**
+   * Провайдер с session-log: поле readonly, поэтому журнал внедряется конструктором
+   * (так же, как в активации расширения), а не подменой поля после создания.
+   */
+  function providerWithLog(sessionLog: SessionLog): ChatViewProvider {
+    return new ChatViewProvider(ctxRef, pmRef, cm, history, undefined, orchestratorView, sessionLog);
   }
 
   test('restoreTokenIndicator: восстанавливает токены последнего запуска сессии', () => {
@@ -145,34 +163,36 @@ suite('ChatViewProvider.handleSendMessage', () => {
       cost: 0.01, duration: 100, status: 'success', sessionId: id1,
     });
 
-    const spy = sandbox.spy(provider as any, 'postMessage');
-    (provider as any).restoreTokenIndicator(id1);
+    const webview = fakeWebviewView();
+    provider['view'] = webview.view;
+    provider['restoreTokenIndicator'](id1);
 
-    const call = spy.getCalls().find((c: any) => c.args[0]?.type === 'tokens');
+    const call = webview.messages.find((m) => m?.type === 'tokens');
     assert.ok(call, 'должен быть вызов tokens');
-    assert.strictEqual(call.args[0].inputTokens, 100);
-    assert.strictEqual(call.args[0].outputTokens, 50);
+    assert.strictEqual(call.inputTokens, 100);
+    assert.strictEqual(call.outputTokens, 50);
   });
 
   test('restoreTokenIndicator: без запусков в сессии — сброс в 0', () => {
     const id1 = cm.session.getActive()!.meta.id;
-    const spy = sandbox.spy(provider as any, 'postMessage');
-    (provider as any).restoreTokenIndicator(id1);
+    const webview = fakeWebviewView();
+    provider['view'] = webview.view;
+    provider['restoreTokenIndicator'](id1);
 
-    const call = spy.getCalls().find((c: any) => c.args[0]?.type === 'tokens');
+    const call = webview.messages.find((m) => m?.type === 'tokens');
     assert.ok(call, 'должен быть вызов tokens');
-    assert.strictEqual(call.args[0].inputTokens, 0);
-    assert.strictEqual(call.args[0].outputTokens, 0);
+    assert.strictEqual(call.inputTokens, 0);
+    assert.strictEqual(call.outputTokens, 0);
   });
 
   test('SEL-1: смена провайдера в селекторе запоминается сразу (Edit идёт за ней)', async () => {
-    await (provider as any).handleWebviewMessage({ type: 'selectionChanged', provider: 'local', model: 'qwen3:8b' });
+    await provider['handleWebviewMessage']({ type: 'selectionChanged', provider: 'local', model: 'qwen3:8b' });
     assert.deepStrictEqual(noteChosenCalls.at(-1), ['local', 'qwen3:8b'], 'выбор провайдера запомнен без отправки сообщения');
   });
 
   test('MR-10: превышение лимита бюджета — запрос не уходит, прогон отменён', async () => {
     const chatSpy = sandbox.spy(mockLLM, 'chat');
-    sandbox.stub(vscode.window, 'showWarningMessage').resolves(undefined as any); // пользователь отказался
+    sandbox.stub(vscode.window, 'showWarningMessage').resolves(undefined); // пользователь отказался
     configOverrides['budget.sessionLimitUsd'] = 0.000001;
     configOverrides['maxTokens'] = 4096;
     // Расход сессии уже есть: 0.01 при лимите 0.000001
@@ -195,7 +215,7 @@ suite('ChatViewProvider.handleSendMessage', () => {
 
     await send('привет', 'chat');
 
-    const reserved = (provider as any).budgetReserved as Map<string, number>;
+    const reserved: Map<string, number> = provider['budgetReserved'];
     assert.strictEqual(reserved.size, 0, `резерв должен быть снят, осталось ${reserved.size}`);
   });
 
@@ -214,17 +234,17 @@ suite('ChatViewProvider.handleSendMessage', () => {
       usage: { prompt_tokens: 100_000, completion_tokens: 100_000 },
     });
 
-    const postSpy = sandbox.spy(provider as any, 'postMessage');
+    const webview = fakeWebviewView();
+    provider['view'] = webview.view;
     await send('читай файл', 'agent');
 
     const run = history.getRuns()[0];
     assert.strictEqual(run.status, 'limit_exceeded', `агентский прогон остановлен лимитом: ${run.status}`);
     assert.match(String(run.error), /Лимит сессии/, `причина с числами: ${run.error}`);
     assert.strictEqual(run.steps, 1, 'остановка после первого шага, а не после maxIterations');
-    const errors = postSpy.getCalls()
-      .map((c: any) => c.args[0])
-      .filter((msg: any) => msg?.type === 'error')
-      .map((msg: any) => String(msg.text))
+    const errors = webview.messages
+      .filter((msg) => msg?.type === 'error')
+      .map((msg) => String(msg.text))
       .join(' | ');
     assert.match(errors, /Лимит сессии/, `пользователь видит причину в панели: ${errors}`);
   });
@@ -254,7 +274,7 @@ suite('ChatViewProvider.handleSendMessage', () => {
 
   test('MR-14: дневной лимит блокирует запрос до отправки (новая сессия не обнуляет)', async () => {
     const chatSpy = sandbox.spy(mockLLM, 'chat');
-    sandbox.stub(vscode.window, 'showWarningMessage').resolves(undefined as any); // отказ
+    sandbox.stub(vscode.window, 'showWarningMessage').resolves(undefined); // отказ
     configOverrides['budget.dailyLimitUsd'] = 0.005;
     // Сегодня уже потрачено больше лимита — дневной счётчик общий для всех сессий
     await globalState.update('llmAssistant.dailySpend', { date: todayLocalDate(), usd: 0.01 });
@@ -314,8 +334,8 @@ suite('ChatViewProvider.handleSendMessage', () => {
   test('CVP-6: в историю попадает расход от сервера, а не оценка по символам', async () => {
     // Провайдер отдаёт usage, как локальный движок; текст ответа короткий,
     // а промпт длинный — оценка по символам дала бы совсем другие цифры.
-    (mockLLM as any).chat = (_m: any, opts: any) => (async function* () {
-      opts?.onUsage?.({ input: 258, output: 40 });
+    mockLLM.chat = (_messages, options) => (async function* () {
+      options.onUsage?.({ input: 258, output: 40 });
       yield 'ок';
     })();
 
@@ -391,8 +411,8 @@ suite('ChatViewProvider.handleSendMessage', () => {
   });
 
   test('chat-режим: провайдер получает system + user сообщения', async () => {
-    let capturedMessages: any[] = [];
-    mockLLM.chat = (messages: any) => {
+    let capturedMessages: ChatMessage[] = [];
+    mockLLM.chat = (messages) => {
       capturedMessages = messages;
       return chunks('ок');
     };
@@ -402,12 +422,12 @@ suite('ChatViewProvider.handleSendMessage', () => {
 
     assert.strictEqual(capturedMessages.length > 0, true);
     assert.strictEqual(capturedMessages[0].role, 'system');
-    assert.ok(capturedMessages.some((m: any) => m.role === 'user' && m.content.includes('тест контекста')));
+    assert.ok(capturedMessages.some((m) => m.role === 'user' && m.content.includes('тест контекста')));
   });
 
   test('Plan Mode с workspace: одна запись success (без двойной записи)', async () => {
     sandbox.stub(PlanModeManager.prototype, 'generatePlan').resolves({ planPath: '/tmp/plan.md', content: '# План', planId: 'abc' });
-    wsFolders = [{ uri: { fsPath: '/tmp' } }];
+    wsFolders = [fakeWorkspaceFolder('/tmp')];
 
     const id1 = cm.session.getActive()!.meta.id;
     await send('составь план', 'agent', true, id1);
@@ -428,17 +448,17 @@ suite('ChatViewProvider.handleSendMessage', () => {
 
   test('handleImplementPlan: персистит имплементацию и рефлексию в исходную сессию', async () => {
     sandbox.stub(PlanModeManager.prototype, 'implementPlan').resolves({
-      orchestratorResult: { workers: [{ roleName: 'coder' }] },
-    } as any);
+      orchestratorResult: fakeMultiAgentResult({ workers: [{ roleName: 'coder' }] }),
+    });
     sandbox.stub(PlanModeManager.prototype, 'reflect').resolves({
       report: 'AC-1 ✅ пройден',
       allPassed: true,
       cycles: 1,
       summary: 'всё готово',
-    } as any);
+    });
 
     const id1 = cm.session.getActive()!.meta.id;
-    await (provider as any).handleImplementPlan('/tmp/plan.md', undefined, undefined, id1);
+    await provider['handleImplementPlan']('/tmp/plan.md', undefined, undefined, id1);
 
     // Одна запись success в исходной сессии
     const runs = history.getRuns();
@@ -513,52 +533,52 @@ suite('ChatViewProvider.handleSendMessage', () => {
   // ===== Отмена: AbortError → cancelled (не error) =====
 
   test('Plan Mode: AbortError → cancelled (не «Ошибка планирования»)', async () => {
-    const abortErr: any = new Error('Request was aborted');
+    const abortErr = new Error('Request was aborted');
     abortErr.name = 'AbortError';
     sandbox.stub(PlanModeManager.prototype, 'generatePlan').rejects(abortErr);
-    wsFolders = [{ uri: { fsPath: '/tmp' } }];
+    wsFolders = [fakeWorkspaceFolder('/tmp')];
 
-    const postMessage = sandbox.stub();
-    (provider as any).view = { webview: { postMessage }, show: sandbox.stub() };
+    const webview = fakeWebviewView();
+    provider['view'] = webview.view;
 
     const id1 = cm.session.getActive()!.meta.id;
     await send('составь план', 'agent', true, id1);
 
-    const types = postMessage.getCalls().map(c => c.args[0]?.type);
+    const types = webview.messages.map((m) => m?.type);
     assert.ok(types.includes('cancelled'), 'должен быть cancelled');
     assert.ok(!types.includes('error'), 'не должно быть error');
     assert.strictEqual(history.getRuns()[0].status, 'cancelled');
   });
 
   test('handleImplementPlan: AbortError → cancelled (не «Ошибка имплементации»)', async () => {
-    const abortErr: any = new Error('Request was aborted');
+    const abortErr = new Error('Request was aborted');
     abortErr.name = 'AbortError';
     sandbox.stub(PlanModeManager.prototype, 'implementPlan').rejects(abortErr);
 
-    const postMessage = sandbox.stub();
-    (provider as any).view = { webview: { postMessage }, show: sandbox.stub() };
+    const webview = fakeWebviewView();
+    provider['view'] = webview.view;
 
     const id1 = cm.session.getActive()!.meta.id;
-    await (provider as any).handleImplementPlan('/tmp/plan.md', undefined, undefined, id1);
+    await provider['handleImplementPlan']('/tmp/plan.md', undefined, undefined, id1);
 
-    const types = postMessage.getCalls().map(c => c.args[0]?.type);
+    const types = webview.messages.map((m) => m?.type);
     assert.ok(types.includes('cancelled'), 'должен быть cancelled');
     assert.ok(!types.includes('error'), 'не должно быть error');
     assert.strictEqual(history.getRuns()[0].status, 'cancelled');
   });
 
   test('@orchestrate: AbortError → cancelled (не ошибка)', async () => {
-    const abortErr: any = new Error('Request was aborted');
+    const abortErr = new Error('Request was aborted');
     abortErr.name = 'AbortError';
     sandbox.stub(AgentOrchestrator.prototype, 'execute').rejects(abortErr);
 
-    const postMessage = sandbox.stub();
-    (provider as any).view = { webview: { postMessage }, show: sandbox.stub() };
+    const webview = fakeWebviewView();
+    provider['view'] = webview.view;
 
     const id1 = cm.session.getActive()!.meta.id;
     await send('@orchestrate сделай модуль', 'agent', false, id1);
 
-    const types = postMessage.getCalls().map(c => c.args[0]?.type);
+    const types = webview.messages.map((m) => m?.type);
     assert.ok(types.includes('cancelled'), 'должен быть cancelled');
     assert.ok(!types.includes('error'), 'не должно быть error');
     assert.strictEqual(history.getRuns()[0].status, 'cancelled');
@@ -566,18 +586,18 @@ suite('ChatViewProvider.handleSendMessage', () => {
 
   test('агент: AbortError из createWithTools → cancelled', async () => {
     mockLLM.createWithTools = sinon.stub().callsFake(async () => {
-      const e: any = new Error('Request was aborted');
+      const e = new Error('Request was aborted');
       e.name = 'AbortError';
       throw e;
     });
 
-    const postMessage = sandbox.stub();
-    (provider as any).view = { webview: { postMessage }, show: sandbox.stub() };
+    const webview = fakeWebviewView();
+    provider['view'] = webview.view;
 
     const id1 = cm.session.getActive()!.meta.id;
     await send('сделай задачу', 'agent', false, id1);
 
-    const types = postMessage.getCalls().map(c => c.args[0]?.type);
+    const types = webview.messages.map((m) => m?.type);
     assert.ok(types.includes('cancelled'), 'должен быть cancelled');
     assert.ok(!types.includes('error'), 'не должно быть error');
     assert.strictEqual(history.getRuns()[0].status, 'cancelled');
@@ -589,14 +609,14 @@ suite('ChatViewProvider.handleSendMessage', () => {
     const sessionLog = new SessionLog(storage);
     const sid = 'session_transcript_test';
     sessionLog.append({ sessionId: sid, ts: 1, type: 'user/message', content: 'привет' });
-    (provider as any).sessionLog = sessionLog;
-    const postMessage = sandbox.stub();
-    (provider as any).view = { webview: { postMessage } };
+    provider = providerWithLog(sessionLog);
+    const webview = fakeWebviewView();
+    provider['view'] = webview.view;
 
-    await (provider as any).handleWebviewMessage({ type: 'getTranscript', sessionId: sid, action: 'copy' });
+    await provider['handleWebviewMessage']({ type: 'getTranscript', sessionId: sid, action: 'copy' });
 
-    assert.ok(postMessage.calledOnce, 'postMessage вызван один раз');
-    const msg = postMessage.getCall(0).args[0];
+    assert.strictEqual(webview.messages.length, 1, 'postMessage вызван один раз');
+    const msg = webview.messages[0];
     assert.strictEqual(msg.type, 'sessionTranscript');
     assert.strictEqual(msg.action, 'copy');
     assert.ok(msg.text.includes(`# Сессия: ${sid}`), 'заголовок транскрипции');
@@ -604,12 +624,12 @@ suite('ChatViewProvider.handleSendMessage', () => {
   });
 
   test('refreshSessionList(): шлёт sessionList + history в WebView', () => {
-    const postMessage = sandbox.stub();
-    (provider as any).view = { webview: { postMessage } };
+    const webview = fakeWebviewView();
+    provider['view'] = webview.view;
 
-    (provider as any).refreshSessionList();
+    provider['refreshSessionList']();
 
-    const types = postMessage.getCalls().map((c: any) => c.args[0].type);
+    const types = webview.messages.map((m) => m.type);
     assert.ok(types.includes('sessionList'), 'sessionList отправлен');
     assert.ok(types.includes('history'), 'history отправлен');
   });
@@ -617,59 +637,57 @@ suite('ChatViewProvider.handleSendMessage', () => {
   test('clearAllSessions → executeCommand("llmAssistant.clearAllSessions")', async () => {
     const executeCommand = sandbox.stub(vscode.commands, 'executeCommand').resolves(undefined);
 
-    await (provider as any).handleWebviewMessage({ type: 'clearAllSessions' });
+    await provider['handleWebviewMessage']({ type: 'clearAllSessions' });
 
     assert.ok(executeCommand.calledOnce, 'executeCommand вызван один раз');
     assert.ok(executeCommand.calledWith('llmAssistant.clearAllSessions'), 'с правильным именем команды');
   });
 
   test('toggleFavorite: переключает избранное и пересылает sessionList', async () => {
-    const postMessage = sandbox.stub();
-    (provider as any).view = { webview: { postMessage } };
+    const webview = fakeWebviewView();
+    provider['view'] = webview.view;
 
     const sid = cm.session.getActive()!.meta.id;
-    await (provider as any).handleWebviewMessage({ type: 'toggleFavorite', sessionId: sid });
+    await provider['handleWebviewMessage']({ type: 'toggleFavorite', sessionId: sid });
 
     assert.strictEqual(cm.session.getActive()!.meta.favorite, true, 'избранное включено');
 
-    const msg = postMessage.getCalls().map((c: any) => c.args[0]).find((m: any) => m.type === 'sessionList');
+    const msg = webview.messages.find((m) => m.type === 'sessionList');
     assert.ok(msg, 'sessionList переслан');
     const s = msg.sessions.find((x: any) => x.id === sid);
     assert.strictEqual(s.favorite, true, 'favorite проставлен в sessionList');
   });
 
   test('sendSessionListToWebview: обогащает сессии превью из session-log', () => {
-    const postMessage = sandbox.stub();
-    (provider as any).view = { webview: { postMessage } };
-
     const sid = cm.session.getActive()!.meta.id;
     const sessionLog = new SessionLog(storage);
     sessionLog.append({ sessionId: sid, ts: 1, type: 'user/message', content: 'Как написать юнит-тест?' });
-    (provider as any).sessionLog = sessionLog;
+    provider = providerWithLog(sessionLog);
+    const webview = fakeWebviewView();
+    provider['view'] = webview.view;
 
-    (provider as any).sendSessionListToWebview();
+    provider['sendSessionListToWebview']();
 
-    const msg = postMessage.getCall(0).args[0];
+    const msg = webview.messages[0];
     const s = msg.sessions.find((x: any) => x.id === sid);
     assert.ok(s, 'сессия в sessionList');
     assert.strictEqual(s.preview, 'Как написать юнит-тест?', 'превью из последнего сообщения');
   });
 
   test('sendHistoryToWebview: шлёт items с шагами из session-log (P0-fix)', () => {
-    const postMessage = sandbox.stub();
-    (provider as any).view = { webview: { postMessage } };
-
     const sid = cm.session.getActive()!.meta.id;
     const sessionLog = new SessionLog(storage);
     sessionLog.append({ sessionId: sid, ts: 1, type: 'user/message', content: 'задача' });
     sessionLog.append({ sessionId: sid, ts: 2, type: 'tool/call', stepId: 's1', name: 'read_file', args: { path: 'a.ts' } });
     sessionLog.append({ sessionId: sid, ts: 3, type: 'tool/result', stepId: 's1', name: 'read_file', result: 'содержимое' });
     sessionLog.append({ sessionId: sid, ts: 4, type: 'assistant/message', content: 'готово' });
-    (provider as any).sessionLog = sessionLog;
+    provider = providerWithLog(sessionLog);
+    const webview = fakeWebviewView();
+    provider['view'] = webview.view;
 
-    (provider as any).sendHistoryToWebview();
+    provider['sendHistoryToWebview']();
 
-    const msg = postMessage.getCall(0).args[0];
+    const msg = webview.messages[0];
     assert.strictEqual(msg.type, 'history');
     const items = msg.messages;
     assert.strictEqual(items.length, 2, 'user + assistant');
@@ -682,17 +700,18 @@ suite('ChatViewProvider.handleSendMessage', () => {
   });
 
   test('markCancelled: персистит «Запрос отменён» в session-log (P0-fix)', () => {
-    const postMessage = sandbox.stub();
-    (provider as any).view = { webview: { postMessage } };
+    const webview = fakeWebviewView();
+    provider['view'] = webview.view;
 
     const sid = cm.session.getActive()!.meta.id;
     const sessionLog = new SessionLog(storage);
-    (cm as any).sessionLog = sessionLog;
+    // журнал внедряется в ConversationManager (поле не readonly) — сообщение пишется через него
+    cm['sessionLog'] = sessionLog;
 
-    (provider as any).markCancelled(sid);
+    provider['markCancelled'](sid);
 
     const events = sessionLog.getEvents(sid);
-    const assistant = events.find((e: any) => e.type === 'assistant/message') as any;
+    const assistant = events.find((e): e is AssistantMessageEvent => e.type === 'assistant/message');
     assert.ok(assistant, 'маркер отмены в логе');
     assert.strictEqual(assistant.content, '_Запрос отменён._');
   });
@@ -700,9 +719,10 @@ suite('ChatViewProvider.handleSendMessage', () => {
   test('getHtmlForWebview: инжектит webview-ресурсы без незаменённых плейсхолдеров (P0-6.1)', () => {
     // Указываем реальный корень репо, чтобы getHtmlForWebview читал настоящие файлы webview
     const realRoot = path.resolve(__dirname, '../../..');
-    (provider as any).context.extensionUri = vscode.Uri.file(realRoot);
+    // тот же объект контекста, что держит провайдер: подменяем корень для чтения ресурсов
+    ctxRef.extensionUri = vscode.Uri.file(realRoot);
 
-    const html = (provider as any).getHtmlForWebview();
+    const html = provider['getHtmlForWebview']();
 
     assert.ok(!html.includes('{{'), 'нет незаменённых {{...}}-плейсхолдеров');
     assert.ok(html.includes('TOOLBAR_ACTIONS'), 'toolbar.js инжектирован ({{TOOLBAR}})');
@@ -812,15 +832,18 @@ suite('ChatViewProvider / reveal (chat.open)', () => {
   test('CVP-1.8: reveal() раскрывает панель и посылает focusInput', () => {
     const postMessage = sinon.stub();
     const show = sinon.stub();
-    const { ChatViewProvider } = require('../../src/modes/chat/ChatViewProvider');
-    const provider: any = Object.create(ChatViewProvider.prototype);
-    provider.view = { webview: { postMessage }, show };
-    provider.postMessage = (m: any) => postMessage(m);
+    const webview = fakeWebviewView();
+    webview.view.show = show;
+
+    // Экземпляр без конструктора: reveal() не трогает остальные поля провайдера
+    const provider: ChatViewProvider = Object.create(ChatViewProvider.prototype);
+    provider['view'] = webview.view;
+    provider['postMessage'] = (m) => postMessage(m);
 
     provider.reveal();
 
     assert.strictEqual(show.calledOnce, true, 'панель раскрыта');
-    const types = postMessage.getCalls().map((c: any) => c.args[0]?.type);
+    const types = postMessage.getCalls().map((c) => c.args[0]?.type);
     assert.ok(types.includes('focusInput'), `ожидали focusInput, факт: ${JSON.stringify(types)}`);
   });
 });

@@ -409,6 +409,8 @@ module.exports = {
   ExtensionContext,
   EventEmitter,
   commands,
+  // Уровни журнала: нужны фейкам канала вывода (`fakeOutputChannel`)
+  LogLevel: { Off: 0, Trace: 1, Debug: 2, Info: 3, Warning: 4, Error: 5 },
   // Часто используемые enum'ы
   ConfigurationTarget: { Global: 1, Workspace: 2, WorkspaceFolder: 3 },
   ProgressLocation: { Notification: 15, Window: 15 },

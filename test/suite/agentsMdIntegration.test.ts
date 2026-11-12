@@ -7,6 +7,7 @@ import * as sinon from 'sinon';
 import * as assert from 'assert';
 import { loadAgentsMd } from '../../src/shared/AgentsMdLoader';
 import * as vscode from 'vscode';
+import { fakeConfiguration } from '../support/vscode-harness';
 
 suite('AGENTS.md — интеграция с system prompt', () => {
   let sandbox: sinon.SinonSandbox;
@@ -20,18 +21,13 @@ suite('AGENTS.md — интеграция с system prompt', () => {
       index: 0,
     }]);
     // Мок getConfiguration для agentsMd.enabled=true
-    sandbox.stub(vscode.workspace, 'getConfiguration').returns({
-      get: sandbox.stub().callsFake((key: string, defaultValue: any) => {
-        if (key === 'agentsMd.enabled') return true;
-        return false;
-      }),
-      has: sandbox.stub().returns(false),
-      inspect: sandbox.stub().returns(undefined),
-    } as any);
+    sandbox.stub(vscode.workspace, 'getConfiguration').returns(
+      fakeConfiguration((key: string) => key === 'agentsMd.enabled'),
+    );
     // Мок onDidChangeTextDocument
-    sandbox.stub(vscode.workspace, 'onDidChangeTextDocument').returns({ dispose: () => {} } as any);
-    sandbox.stub(vscode.workspace, 'onDidCreateFiles').returns({ dispose: () => {} } as any);
-    sandbox.stub(vscode.workspace, 'onDidDeleteFiles').returns({ dispose: () => {} } as any);
+    sandbox.stub(vscode.workspace, 'onDidChangeTextDocument').returns({ dispose: () => undefined });
+    sandbox.stub(vscode.workspace, 'onDidCreateFiles').returns({ dispose: () => undefined });
+    sandbox.stub(vscode.workspace, 'onDidDeleteFiles').returns({ dispose: () => undefined });
     // Создаём временный .llma/main.md
     const llmaDir = '/tmp/test-workspace/.llma';
     const agentsPath = '/tmp/test-workspace/.llma/main.md';

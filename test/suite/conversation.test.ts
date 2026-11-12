@@ -7,7 +7,21 @@ import * as sinon from 'sinon';
 import * as vscode from 'vscode';
 import * as assert from 'assert';
 import { ConversationManager, ContextMessage, CodeContext } from '../../src/modes/chat/ConversationManager';
-import { SessionLog } from '../../src/shared/SessionLog';
+import { SessionEvent, SessionLog } from '../../src/shared/SessionLog';
+import { fakeConfiguration, fakeMementoStubs } from '../support/vscode-harness';
+
+/**
+ * Событие нужного типа из лога: сужение по дискриминанту вместо приведения к `any`.
+ * Тест падает на отсутствующем событии — проверка остаётся строгой.
+ */
+function eventOf<T extends SessionEvent['type']>(
+  events: SessionEvent[],
+  type: T,
+): Extract<SessionEvent, { type: T }> {
+  const found = events.find((event): event is Extract<SessionEvent, { type: T }> => event.type === type);
+  assert.ok(found, `событие ${type} есть в логе`);
+  return found;
+}
 
 suite('ConversationManager', () => {
   let sandbox: sinon.SinonSandbox;
@@ -18,12 +32,7 @@ suite('ConversationManager', () => {
     sandbox = sinon.createSandbox();
 
     // Создаём mock Memento (workspaceState)
-    storage = {
-      get: sandbox.stub(),
-      update: sandbox.stub().returns(Promise.resolve()),
-      keys: sandbox.stub().returns([]),
-      setKeysForSync: sandbox.stub(),
-    } as any;
+    storage = fakeMementoStubs(sandbox);
 
     // Сессии: пустой объект (нет сохранённых сессий)
     storage.get.withArgs('llmAssistant.chat.sessions', {}).returns({});
@@ -31,19 +40,15 @@ suite('ConversationManager', () => {
     storage.get.withArgs('llmAssistant.chat.activeSession', null).returns(null);
 
     // Мокаем vscode.workspace для getMessagesForRequest и loadAgentsMd
-    const mockConfig = {
-      get: sandbox.fake((key: string, defaultValue?: unknown) => {
+    sandbox.stub(vscode.workspace, 'getConfiguration').returns(
+      fakeConfiguration((key, defaultValue) => {
         if (key === 'chat.maxContextTokens') return 4096;
         if (key === 'chat.systemPrompt') return '';
         if (key === 'chat.summaryEnabled') return false; // summary выключен для чистоты тестов
         if (key === 'agentsMd.enabled') return true;
         return defaultValue;
       }),
-      has: sandbox.fake(() => false),
-      inspect: sandbox.fake(() => undefined),
-      update: sandbox.fake(() => Promise.resolve()),
-    };
-    sandbox.stub(vscode.workspace, 'getConfiguration').returns(mockConfig as any);
+    );
 
     // Мокаем workspaceFolders для AgentsMdLoader
     sandbox.stub(vscode.workspace, 'workspaceFolders').value(undefined);
@@ -238,27 +243,18 @@ suite('ConversationManager', () => {
     };
 
     // Обновляем mock чтобы вернуть сохранённые данные
-    const savedStorage = {
-      get: sandbox.stub(),
-      update: sandbox.stub().returns(Promise.resolve()),
-      keys: sandbox.stub().returns([]),
-      setKeysForSync: sandbox.stub(),
-    } as any;
+    const savedStorage = fakeMementoStubs(sandbox);
     savedStorage.get.withArgs('llmAssistant.chat.sessions', {}).returns(savedSessions);
     savedStorage.get.withArgs('llmAssistant.chat.activeSession', null).returns('session_test_1');
 
     // Мокаем vscode для нового менеджера
-    const mockConfig2 = {
-      get: sandbox.fake((key: string, defaultValue?: unknown) => {
+    (vscode.workspace.getConfiguration as sinon.SinonStub).returns(
+      fakeConfiguration((key, defaultValue) => {
         if (key === 'chat.summaryEnabled') return false;
         if (key === 'agentsMd.enabled') return true;
         return defaultValue;
       }),
-      has: sandbox.fake(() => false),
-      inspect: sandbox.fake(() => undefined),
-      update: sandbox.fake(() => Promise.resolve()),
-    };
-    (vscode.workspace.getConfiguration as sinon.SinonStub).returns(mockConfig2 as any);
+    );
 
     // Создаём новый менеджер — он должен загрузить историю
     const restoredManager = new ConversationManager(savedStorage);
@@ -301,27 +297,18 @@ suite('ConversationManager', () => {
     manager.addMessage(createMessage('assistant', 'Короткий ответ.'));
 
     // Мокаем маленький лимит токенов для проверки обрезания
-    const mockConfig = {
-      get: sandbox.fake((key: string, defaultValue?: unknown) => {
+    (vscode.workspace.getConfiguration as sinon.SinonStub).returns(
+      fakeConfiguration((key, defaultValue) => {
         if (key === 'chat.maxContextTokens') return 100; // Очень маленький лимит
         if (key === 'chat.systemPrompt') return '';
         if (key === 'chat.summaryEnabled') return false;
         if (key === 'agentsMd.enabled') return true;
         return defaultValue;
       }),
-      has: sandbox.fake(() => false),
-      inspect: sandbox.fake(() => undefined),
-      update: sandbox.fake(() => Promise.resolve()),
-    };
-    (vscode.workspace.getConfiguration as sinon.SinonStub).returns(mockConfig as any);
+    );
 
     // Сбрасываем моки для нового менеджера
-    const storage2 = {
-      get: sandbox.stub(),
-      update: sandbox.stub().returns(Promise.resolve()),
-      keys: sandbox.stub().returns([]),
-      setKeysForSync: sandbox.stub(),
-    } as any;
+    const storage2 = fakeMementoStubs(sandbox);
     storage2.get.withArgs('llmAssistant.chat.sessions', {}).returns({});
     storage2.get.withArgs('llmAssistant.chat.activeSession', null).returns(null);
 
@@ -352,9 +339,9 @@ suite('ConversationManager', () => {
     const types = events.map(e => e.type);
     assert.deepStrictEqual(types, ['user/message', 'assistant/message'], 'оба сообщения в логе');
 
-    const user = events.find(e => e.type === 'user/message') as any;
+    const user = eventOf(events, 'user/message');
     assert.strictEqual(user.content, 'привет');
-    const assistant = events.find(e => e.type === 'assistant/message') as any;
+    const assistant = eventOf(events, 'assistant/message');
     assert.strictEqual(assistant.content, 'привет!');
   });
 

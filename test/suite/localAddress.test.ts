@@ -34,7 +34,7 @@ suite('Локальность по адресу (isLocalBaseUrl)', () => {
       'http://127.0.0.999:8080/v1',
       'http://::1:8080/v1', // IPv6 без скобок — невалидный URL по RFC, локальным не считаем
       '',
-      undefined as unknown as string,
+      undefined as unknown as string, // cast-ok: проверяем защиту от undefined на входе
       'http://${HOST}:8080/v1',
     ];
     for (const url of remote) {

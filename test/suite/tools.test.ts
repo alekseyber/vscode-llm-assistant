@@ -6,6 +6,19 @@ import 'mocha';
 import * as assert from 'assert';
 import { ToolSystem, Tool, ToolResult } from '../../src/modes/apply/ToolSystem';
 
+/**
+ * Форма схемы function calling, которую отдаёт ToolSystem.getToolSchemas().
+ * `Record<string, unknown>` в базе — чтобы сужение с этой формы оставалось прямым приведением.
+ */
+interface FunctionCallSchema extends Record<string, unknown> {
+  type: 'function';
+  function: {
+    name: string;
+    description: string;
+    parameters: { properties?: Record<string, unknown> };
+  };
+}
+
 suite('ToolSystem', () => {
   let toolSystem: ToolSystem;
 
@@ -189,7 +202,8 @@ suite('ToolSystem', () => {
     const schemas = toolSystem.getToolSchemas();
 
     assert.strictEqual(schemas.length, 1);
-    const schema = schemas[0] as any;
+    // src отдаёт Array<Record<string, unknown>>: сужаем до фактической формы схемы function calling
+    const schema = schemas[0] as FunctionCallSchema;
     assert.strictEqual(schema.type, 'function');
     assert.strictEqual(schema.function.name, 'test_tool');
     assert.ok(schema.function.parameters.properties);

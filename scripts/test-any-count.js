@@ -69,6 +69,7 @@ function analyseFile(full, rel) {
   const privateKeys = [];
   const lineOf = (node) => source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1;
 
+  const lines = fs.readFileSync(full, 'utf-8').split('\n');
   const visit = (node) => {
     if (ts.isAsExpression(node) && isAnyType(node.type)) casts += 1;
     // `as unknown as X` — тот же обход типов, но незаметный для основного счётчика
@@ -78,6 +79,11 @@ function analyseFile(full, rel) {
       node.expression.type.kind === ts.SyntaxKind.UnknownKeyword
     ) {
       doubleCasts += 1;
+    if (!rel.startsWith('test/support/')) {
+      const line = lineOf(node);
+      // Разрешено вне support только с явной пометкой cast-ok и объяснением рядом
+      if (!(lines[line - 1] || '').includes('cast-ok')) doubleCastsOutside.push({ file: rel, line });
+    }
     }
 
     if (ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) {
@@ -96,6 +102,8 @@ function analyseFile(full, rel) {
   return { casts, doubleCasts, internalAccess, privateKeys };
 }
 
+const doubleCastsOutside = [];
+
 function analyse() {
   const files = {};
   const internalAccess = [];
@@ -109,7 +117,7 @@ function analyse() {
     internalAccess.push(...result.internalAccess);
     privateKeys.push(...result.privateKeys);
   }
-  return { files, internalAccess, privateKeys, doubleCasts: doubleCastsTotal };
+  return { files, internalAccess, privateKeys, doubleCasts: doubleCastsTotal, doubleCastsOutside };
 }
 
 function readBudget() {
@@ -137,7 +145,7 @@ function main() {
   const asJson = process.argv.includes('--json');
   const reasonsInput = parseReasons(process.argv);
 
-  const { files, internalAccess, privateKeys, doubleCasts } = analyse();
+  const { files, internalAccess, privateKeys, doubleCasts, doubleCastsOutside } = analyse();
   const total = Object.values(files).reduce((sum, n) => sum + n, 0);
   const budget = readBudget();
   const budgetFiles = budget.files || {};
@@ -218,8 +226,15 @@ function main() {
       for (const hit of privateKeys.slice(0, 5)) console.log(`    ${hit.file}:${hit.line} ${hit.snippet}`);
     }
     console.log(`[any] ⚠️ обращений к свойствам через приведение: ${internalAccess.length} (см. --json)`);
-    console.log(`[any] ⚠️ двойных приведений «as unknown as»: ${doubleCasts} — видимость, не гейт`);
+    console.log(`[any] ⚠️ двойных приведений «as unknown as»: ${doubleCasts} (разрешены только в test/support)`);
+    for (const hit of doubleCastsOutside) console.log(`    ❌ ${hit.file}:${hit.line} — приведение вне test/support`);
     for (const hit of internalAccess.slice(0, 5)) console.log(`    ${hit.file}:${hit.line} ${hit.snippet}`);
+  }
+
+  if (doubleCastsOutside.length > 0) {
+    console.log(
+      `[any] ⚠️ ${doubleCastsOutside.length} приведений «as unknown as» вне test/support — переносить в support или помечать «cast-ok» (долг P26)`,
+    );
   }
 
   if (unexplainedGrowth.length > 0) {

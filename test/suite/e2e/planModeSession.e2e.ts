@@ -10,6 +10,37 @@ import { ChatViewProvider } from '../../../src/modes/chat/ChatViewProvider';
 import { ConversationManager } from '../../../src/modes/chat/ConversationManager';
 import { RunHistoryStore } from '../../../src/shared/RunHistoryStore';
 import { PlanModeManager } from '../../../src/modes/chat/PlanModeManager';
+import { MultiAgentResult } from '../../../src/modes/apply/AgentOrchestrator';
+import { fakeConfiguration, fakeOutputChannel } from '../../support/vscode-harness';
+
+/**
+ * Приватные методы ChatViewProvider: публичного API для них нет, e2e дёргает их напрямую.
+ * Сигнатуры повторяют src — при расхождении сборка тестов упадёт.
+ */
+interface ChatProviderInternals {
+  handlePlanMode(text: string, provider: unknown, model: string, sessionId?: string, signal?: AbortSignal): Promise<void>;
+  handleImplementPlan(planPath: string, providerName?: string, modelName?: string, sessionId?: string): Promise<void>;
+}
+
+/** Результат оркестратора-stage: минимальный, но полный по интерфейсу. */
+function orchestratorResult(): MultiAgentResult {
+  return {
+    taskId: 'impl_1',
+    strategy: 'sequential',
+    workers: [
+      {
+        roleName: 'coder',
+        result: { answer: 'готово', steps: [], iterations: 1, inputTokens: 0, outputTokens: 0, cost: 0 },
+      },
+    ],
+    totalInputTokens: 0,
+    totalOutputTokens: 0,
+    totalCost: 0,
+    costPerWorker: { coder: 0 },
+    success: true,
+    summary: 'имплементация завершена',
+  };
+}
 
 suite('E2E: Plan Mode — сессионная привязка', () => {
   let sandbox: sinon.SinonSandbox;
@@ -21,37 +52,36 @@ suite('E2E: Plan Mode — сессионная привязка', () => {
     sandbox = sinon.createSandbox();
 
     // Реальный vscode (workspace/workspaceFolders), но стабы конфигурации и output channel
-    const config = {
-      get: (key: string, def?: unknown) => {
+    sandbox.stub(vscode.workspace, 'getConfiguration').returns(
+      fakeConfiguration((key, def) => {
         if (key === 'chat.maxContextTokens') return 4096;
         if (key === 'chat.summaryEnabled') return false;
         if (key === 'defaultProvider') return 'test';
         if (key === 'defaultModel') return 'test-model';
         return def;
-      },
-      has: () => false,
-      inspect: () => undefined,
-      update: () => Promise.resolve(),
-    };
-    sandbox.stub(vscode.workspace, 'getConfiguration').returns(config as any);
-    sandbox.stub(vscode.window, 'createOutputChannel').returns({
-      appendLine: () => {}, append: () => {}, show: () => {}, hide: () => {}, clear: () => {}, dispose: () => {},
-    } as any);
+      }),
+    );
+    sandbox.stub(vscode.window, 'createOutputChannel').returns(fakeOutputChannel());
 
     // In-memory хранилища (get возвращает дефолт — иначе SessionManager.load падает на Object.entries(undefined))
-    const storage = { get: (_k: string, def: unknown) => def, update: () => Promise.resolve(), keys: () => [], setKeysForSync: () => {} };
-    const globalState = (() => {
-      let runs: any[] = [];
+    const storage: vscode.Memento = {
+      get: <T>(_key: string, def?: T) => def as T,
+      update: async () => undefined,
+      keys: () => [],
+    };
+    const globalState: vscode.Memento = (() => {
+      let stored: unknown = [];
       return {
-        get: () => runs,
-        update: (_k: string, v: any) => { runs = Array.isArray(v) ? [...v] : v; return Promise.resolve(); },
+        get: <T>(_key: string, def?: T) => (stored === undefined ? (def as T) : (stored as T)),
+        update: async (_key: string, value: unknown) => {
+          stored = Array.isArray(value) ? [...value] : value;
+        },
         keys: () => [],
-        setKeysForSync: () => {},
       };
     })();
 
-    cm = new ConversationManager(storage as any);
-    history = new RunHistoryStore(globalState as any);
+    cm = new ConversationManager(storage);
+    history = new RunHistoryStore(globalState);
 
     const mockLLM: any = { chat: () => (async function* () {})(), createWithTools: undefined };
     const pm: any = { getProvider: () => mockLLM, getDefault: () => mockLLM, pricingMap: new Map(), refresh: () => {} };
@@ -76,7 +106,8 @@ suite('E2E: Plan Mode — сессионная привязка', () => {
 
     // 1. Генерация плана в A (явно передаём sessionId=A, хотя активная — B)
     sandbox.stub(PlanModeManager.prototype, 'generatePlan').resolves({ planPath: '/tmp/plan.md', content: '# План', planId: 'abc' });
-    await (provider as any).handlePlanMode('составь план', {} as any, 'test-model', idA);
+    const internals = provider as unknown as ChatProviderInternals; // cast-ok: приватный путь плана, публичного API нет
+    await internals.handlePlanMode('составь план', {}, 'test-model', idA);
 
     // План персистился в A
     cm.session.switchTo(idA);
@@ -88,13 +119,11 @@ suite('E2E: Plan Mode — сессионная привязка', () => {
     history.clearHistory();     // очистить run-историю
 
     // 3. Имплементация в A (исходная сессия)
-    sandbox.stub(PlanModeManager.prototype, 'implementPlan').resolves({
-      orchestratorResult: { workers: [{ roleName: 'coder' }] },
-    } as any);
+    sandbox.stub(PlanModeManager.prototype, 'implementPlan').resolves({ orchestratorResult: orchestratorResult() });
     sandbox.stub(PlanModeManager.prototype, 'reflect').resolves({
       report: 'AC-1 ✅ пройден', allPassed: true, cycles: 1, summary: 'готово',
-    } as any);
-    await (provider as any).handleImplementPlan('/tmp/plan.md', undefined, undefined, idA);
+    });
+    await internals.handleImplementPlan('/tmp/plan.md', undefined, undefined, idA);
 
     // 4. Результат в A, B пуст
     cm.session.switchTo(idA);

@@ -4,8 +4,7 @@
 
 import 'mocha';
 import * as assert from 'assert';
-import * as sinon from 'sinon';
-import * as vscode from 'vscode';
+import { stubDialogs } from '../support/vscode-harness';
 
 suite('активация расширения', () => {
   test('ACT-1: activate() не бросает при пустом workspace', async () => {
@@ -23,19 +22,16 @@ suite('активация расширения', () => {
 
     // activate() ловит исключения внутри и показывает их через showErrorMessage —
     // поэтому проверяем не только throw, но и то, что ошибка не была проглочена
-    const sb = sinon.createSandbox();
-    const errSpy = sb.stub(vscode.window, 'showErrorMessage').returns(undefined as any);
-    const warnSpy = sb.stub(vscode.window, 'showWarningMessage').returns(undefined as any);
+    const dialogs = stubDialogs({ error: () => undefined, warning: () => undefined });
     try {
       await ext.activate(context);
-    } catch (e: any) {
-      sb.restore();
-      assert.fail(`activate() упал: ${e && e.message}`);
+    } catch (e: unknown) {
+      assert.fail(`activate() упал: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      dialogs.restore();
     }
-    const errors = errSpy.getCalls().map((c: any) => String(c.args[0]));
-    sb.restore();
 
-    assert.deepStrictEqual(errors, [], `activate() сообщил об ошибке: ${JSON.stringify(errors)}`);
+    assert.deepStrictEqual(dialogs.errors, [], `activate() сообщил об ошибке: ${JSON.stringify(dialogs.errors)}`);
     assert.ok(subscriptions.length > 0, 'подписки зарегистрированы');
   });
 });

@@ -7,6 +7,7 @@ import * as sinon from 'sinon';
 import * as vscode from 'vscode';
 import * as assert from 'assert';
 import { ContextBuilder, AutocompleteContext } from '../../src/modes/autocomplete/ContextBuilder';
+import { fakeDocument, fakeEditor } from '../support/fakes';
 
 suite('ContextBuilder', () => {
   let sandbox: sinon.SinonSandbox;
@@ -31,58 +32,7 @@ suite('ContextBuilder', () => {
     languageId = 'typescript',
     filePath = '/test/file.ts'
   ): vscode.TextEditor {
-    const lines = content.split('\n');
-
-    // Создаём mock документа
-    const mockDocument = {
-      uri: { fsPath: filePath } as vscode.Uri,
-      languageId,
-      lineCount: lines.length,
-      getText: sandbox.fake((range?: vscode.Range) => {
-        if (!range) return content;
-        if (range.start.line === range.end.line) {
-          return lines[range.start.line]?.slice(range.start.character, range.end.character) ?? '';
-        }
-        const resultLines: string[] = [];
-        for (let i = range.start.line; i <= range.end.line; i++) {
-          if (i === range.start.line) {
-            resultLines.push(lines[i].slice(range.start.character));
-          } else if (i === range.end.line) {
-            resultLines.push(lines[i].slice(0, range.end.character));
-          } else {
-            resultLines.push(lines[i]);
-          }
-        }
-        return resultLines.join('\n');
-      }),
-      lineAt: sandbox.fake((lineNum: number) => ({
-        lineNumber: lineNum,
-        text: lines[lineNum] ?? '',
-        range: new vscode.Range(lineNum, 0, lineNum, (lines[lineNum] ?? '').length),
-        rangeIncludingLineBreak: new vscode.Range(lineNum, 0, lineNum, (lines[lineNum] ?? '').length),
-        firstNonWhitespaceCharacterIndex: 0,
-        isEmptyOrWhitespace: (lines[lineNum] ?? '').trim().length === 0,
-      })),
-    } as any as vscode.TextDocument;
-
-    const mockPosition = new vscode.Position(line, character);
-
-    const mockSelection = {
-      active: mockPosition,
-      anchor: mockPosition,
-      start: mockPosition,
-      end: mockPosition,
-      isEmpty: true,
-      isReversed: false,
-    } as any as vscode.Selection;
-
-    // Создаём mock редактора
-    const mockEditor = {
-      document: mockDocument,
-      selection: mockSelection,
-    } as any as vscode.TextEditor;
-
-    return mockEditor;
+    return fakeEditor(fakeDocument(content, { fsPath: filePath, languageId }), new vscode.Position(line, character));
   }
 
   test('build() возвращает контекст с префиксом и суффиксом', () => {

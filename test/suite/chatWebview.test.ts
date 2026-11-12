@@ -4,15 +4,20 @@ import 'mocha';
 import * as assert from 'assert';
 import * as fs from 'fs';
 import * as path from 'path';
-import { JSDOM } from 'jsdom';
+import { DOMWindow, JSDOM } from 'jsdom';
 
 const CHAT_DIR = path.resolve(__dirname, '../../../src/webviews/chat');
 
 interface WebviewHandle {
-  window: Window & { eval: (code: string) => any };
+  window: DOMWindow;
   document: Document;
   postedMessages: any[];
-  dispatch: (msg: any) => void;
+  dispatch: (msg: unknown) => void;
+}
+
+/** jsdom-элемент «ссылка»: по tagName, без приведения типа. */
+function isAnchor(el: HTMLElement): el is HTMLAnchorElement {
+  return el.tagName === 'A';
 }
 
 /**
@@ -29,7 +34,7 @@ function loadWebview(): WebviewHandle {
     .replace('{{TOOLACTIVITY}}', '')
     .replace('{{SCRIPT}}', '');
   const dom = new JSDOM(html, { runScripts: 'outside-only', url: 'http://localhost/' });
-  const window = dom.window as any;
+  const window = dom.window;
 
   // WebView → extension: перехватываем postMessage
   const postedMessages: any[] = [];
@@ -41,7 +46,10 @@ function loadWebview(): WebviewHandle {
 
   // Stub marked (markdown) и clipboard
   window.marked = { parse: (text: string) => '<p>' + text + '</p>' };
-  window.navigator.clipboard = { writeText: () => Promise.resolve() };
+  Object.defineProperty(window.navigator, 'clipboard', {
+    value: { writeText: () => Promise.resolve() },
+    configurable: true,
+  });
   window.URL.createObjectURL = () => 'blob:mock-url';
   window.URL.revokeObjectURL = () => {};
 
@@ -52,7 +60,7 @@ function loadWebview(): WebviewHandle {
   window.eval(fs.readFileSync(path.join(CHAT_DIR, 'main.js'), 'utf-8'));
 
   // extension → WebView: синхронный dispatch MessageEvent
-  const dispatch = (msg: any) => {
+  const dispatch = (msg: unknown) => {
     const event = new window.MessageEvent('message', { data: msg });
     window.dispatchEvent(event);
   };
@@ -158,7 +166,7 @@ suite('ChatWebview (jsdom)', () => {
 
     const input = document.getElementById('message-input') as HTMLTextAreaElement;
     input.value = '/ex';
-    input.dispatchEvent(new (window as any).Event('input', { bubbles: true }));
+    input.dispatchEvent(new window.Event('input', { bubbles: true }));
 
     const popup = document.getElementById('slash-autocomplete')!;
     assert.ok(!popup.classList.contains('hidden'), 'попап виден');
@@ -192,7 +200,10 @@ suite('ChatWebview (jsdom)', () => {
   test('sessionTranscript (copy): транскрипция уходит в clipboard', async () => {
     const { dispatch, window } = loadWebview();
     let copied = '';
-    (window.navigator as any).clipboard = { writeText: (t: string) => { copied = t; return Promise.resolve(); } };
+    Object.defineProperty(window.navigator, 'clipboard', {
+      value: { writeText: (t: string) => { copied = t; return Promise.resolve(); } },
+      configurable: true,
+    });
 
     dispatch({ type: 'sessionTranscript', text: '# Сессия\nпривет', action: 'copy' });
     await new Promise(r => setTimeout(r, 20));
@@ -203,14 +214,17 @@ suite('ChatWebview (jsdom)', () => {
   test('sessionTranscript (download): blob → a.download .md', () => {
     const { dispatch, window } = loadWebview();
     let urlCreated = false;
-    (window as any).URL.createObjectURL = () => { urlCreated = true; return 'blob:mock'; };
+    window.URL.createObjectURL = () => { urlCreated = true; return 'blob:mock'; };
     let downloadName = '';
     const origCE = window.document.createElement.bind(window.document);
-    (window.document as any).createElement = (tag: string) => {
-      const el = origCE(tag);
-      if (tag === 'a') { (el as any).click = () => { downloadName = (el as any).download; }; }
-      return el;
-    };
+    Object.defineProperty(window.document, 'createElement', {
+      value: (tag: string): HTMLElement => {
+        const el = origCE(tag);
+        if (isAnchor(el)) { el.click = () => { downloadName = el.download; }; }
+        return el;
+      },
+      configurable: true,
+    });
 
     dispatch({ type: 'sessionTranscript', text: '# Сессия\nпривет', action: 'download' });
 
@@ -355,7 +369,7 @@ suite('ChatWebview (jsdom)', () => {
     const input = item.querySelector('.session-rename-input') as HTMLInputElement;
     assert.ok(input, 'инлайн-инпут переименования появился');
     input.value = 'Новое имя';
-    input.dispatchEvent(new (window as any).KeyboardEvent('keydown', { key: 'Enter' }));
+    input.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter' }));
     const ren = postedMessages.find((m) => m.type === 'renameSession');
     assert.ok(ren, 'renameSession отправлен');
     assert.strictEqual(ren.sessionId, 's1');
@@ -410,7 +424,7 @@ suite('ChatWebview (jsdom)', () => {
 
     const search = document.getElementById('session-search') as HTMLInputElement;
     search.value = 'hercules';
-    search.dispatchEvent(new (window as any).Event('input', { bubbles: true }));
+    search.dispatchEvent(new window.Event('input', { bubbles: true }));
 
     const names = [...document.querySelectorAll('#session-list .session-item-name')].map((e) => e.textContent);
     assert.deepStrictEqual(names, ['Проект Hercules'], 'осталась только совпавшая сессия');
@@ -430,7 +444,7 @@ suite('ChatWebview (jsdom)', () => {
 
     const favOnly = document.getElementById('session-fav-only') as HTMLInputElement;
     favOnly.checked = true;
-    favOnly.dispatchEvent(new (window as any).Event('change', { bubbles: true }));
+    favOnly.dispatchEvent(new window.Event('change', { bubbles: true }));
 
     const names = [...document.querySelectorAll('#session-list .session-item-name')].map((e) => e.textContent);
     assert.deepStrictEqual(names, ['⭐ Избранная'], 'осталась только избранная');
@@ -449,7 +463,7 @@ suite('ChatWebview (jsdom)', () => {
 
     const search = document.getElementById('session-search') as HTMLInputElement;
     search.value = 'несуществующее';
-    search.dispatchEvent(new (window as any).Event('input', { bubbles: true }));
+    search.dispatchEvent(new window.Event('input', { bubbles: true }));
 
     const empty = document.querySelector('#session-list .session-empty') as HTMLElement;
     assert.ok(empty, 'пустое состояние показано');
@@ -675,7 +689,7 @@ suite('WebView — выбор провайдера и модели', () => {
 
     // Пользователь переключился на local; моделей пока нет, поэтому модель пустая
     providerSelect.value = 'local';
-    providerSelect.dispatchEvent(new (view.window as any).Event('change'));
+    providerSelect.dispatchEvent(new view.window.Event('change'));
 
     // Пришла вторая посылка — уже с моделями из /api/tags
     view.dispatch({ type: 'providerList', providers: listAfterDiscovery, defaultProvider: 'silicon' });
@@ -712,7 +726,7 @@ suite('WebView — выбор провайдера и модели', () => {
 
     view.dispatch({ type: 'providerList', providers: listAfterDiscovery, defaultProvider: 'silicon' });
     providerSelect.value = 'local';
-    providerSelect.dispatchEvent(new (view.window as any).Event('change'));
+    providerSelect.dispatchEvent(new view.window.Event('change'));
     modelSelect.value = 'qwen3:8b';
 
     view.dispatch({ type: 'providerList', providers: listAfterDiscovery, defaultProvider: 'silicon' });

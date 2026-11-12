@@ -8,6 +8,8 @@ import * as vscode from 'vscode';
 import * as assert from 'assert';
 import { ProviderManager } from '../../src/providers/manager';
 import { OpenAIProvider } from '../../src/providers/openai';
+import { injectOpenAIClient, providerInternals } from '../support/fakes';
+import { fakeConfiguration } from '../support/vscode-harness';
 
 suite('ProviderManager', () => {
   let sandbox: sinon.SinonSandbox;
@@ -63,7 +65,7 @@ suite('ProviderManager', () => {
     };
 
     // Подменяем vscode.workspace.getConfiguration один раз
-    sandbox.stub(vscode.workspace, 'getConfiguration').returns(mockConfig as any);
+    sandbox.stub(vscode.workspace, 'getConfiguration').returns(fakeConfiguration(mockConfig.get));
 
     return {
       config: state,
@@ -78,7 +80,7 @@ suite('ProviderManager', () => {
 
   test('AC-9.4: refresh() читает конфиг и создаёт провайдеров', () => {
     const cfg = createMockVscodeConfig();
-    cfg.setProviders(mockProviderConfig as any);
+    cfg.setProviders(mockProviderConfig);
 
     const manager = new ProviderManager();
 
@@ -91,16 +93,16 @@ suite('ProviderManager', () => {
     // Проверяем, что созданы оба провайдера
     const openai = manager.getProvider('openai');
     assert.ok(openai, 'Провайдер openai должен быть создан');
-    assert.strictEqual((openai as any).name, 'openai');
+    assert.strictEqual(openai.name, 'openai');
 
     const deepseek = manager.getProvider('deepseek');
     assert.ok(deepseek, 'Провайдер deepseek должен быть создан');
-    assert.strictEqual((deepseek as any).name, 'deepseek');
+    assert.strictEqual(deepseek.name, 'deepseek');
   });
 
   test('getProvider() возвращает undefined для неизвестного провайдера', () => {
       const cfg = createMockVscodeConfig();
-      cfg.setProviders(mockProviderConfig as any);
+      cfg.setProviders(mockProviderConfig);
 
       const manager = new ProviderManager();
       const unknown = manager.getProvider('nonexistent');
@@ -110,30 +112,30 @@ suite('ProviderManager', () => {
 
     test('getDefault() возвращает провайдера по умолчанию', () => {
       const cfg = createMockVscodeConfig();
-      cfg.setProviders(mockProviderConfig as any);
+      cfg.setProviders(mockProviderConfig);
       cfg.setDefaultProvider('deepseek');
 
       const manager = new ProviderManager();
       const defaultProvider = manager.getDefault();
 
       assert.ok(defaultProvider, 'Провайдер по умолчанию должен быть найден');
-      assert.strictEqual((defaultProvider as any).name, 'deepseek');
+      assert.strictEqual(defaultProvider.name, 'deepseek');
     });
 
     test('getDefault() возвращает openai если настройка не задана', () => {
       const cfg = createMockVscodeConfig();
-      cfg.setProviders(mockProviderConfig as any);
+      cfg.setProviders(mockProviderConfig);
 
       const manager = new ProviderManager();
       const defaultProvider = manager.getDefault();
 
       assert.ok(defaultProvider, 'Провайдер по умолчанию должен быть openai');
-      assert.strictEqual((defaultProvider as any).name, 'openai');
+      assert.strictEqual(defaultProvider.name, 'openai');
     });
 
     test('getAllProviders() возвращает всех провайдеров', () => {
       const cfg = createMockVscodeConfig();
-      cfg.setProviders(mockProviderConfig as any);
+      cfg.setProviders(mockProviderConfig);
 
       const manager = new ProviderManager();
       const allProviders = manager.getAllProviders();
@@ -145,7 +147,7 @@ suite('ProviderManager', () => {
 
     test('refresh() очищает старых провайдеров и создаёт новых', () => {
       const cfg = createMockVscodeConfig();
-      cfg.setProviders(mockProviderConfig as any);
+      cfg.setProviders(mockProviderConfig);
 
       const manager = new ProviderManager();
 
@@ -159,7 +161,7 @@ suite('ProviderManager', () => {
       };
 
       // Обновляем конфигурацию в mock-объекте
-      cfg.setProviders(newConfig as any);
+      cfg.setProviders(newConfig);
 
       // Вызываем refresh
       manager.refresh();
@@ -171,7 +173,7 @@ suite('ProviderManager', () => {
       // Новый провайдер должен быть создан
       const local = manager.getProvider('local');
       assert.ok(local, 'Новый провайдер должен быть создан');
-      assert.strictEqual((local as any).name, 'local');
+      assert.strictEqual(local.name, 'local');
     });
 
     test('refresh() обрабатывает пустую конфигурацию', () => {
@@ -204,7 +206,7 @@ suite('ProviderManager', () => {
       const manager = new ProviderManager();
       const provider = manager.getProvider('test');
       assert.ok(provider);
-      assert.strictEqual((provider as any).apiKey, 'my-test-key');
+      assert.strictEqual(providerInternals(provider).apiKey, 'my-test-key');
       delete process.env.TEST_KEY;
     });
 
@@ -217,12 +219,12 @@ suite('ProviderManager', () => {
       const manager = new ProviderManager();
       const provider = manager.getProvider('test');
       assert.ok(provider);
-      assert.strictEqual((provider as any).apiKey, '');
+      assert.strictEqual(providerInternals(provider).apiKey, '');
     });
 
     test('Провайдер имеет список моделей из конфигурации', async () => {
       const cfg = createMockVscodeConfig();
-      cfg.setProviders(mockProviderConfig as any);
+      cfg.setProviders(mockProviderConfig);
 
       const manager = new ProviderManager();
       const openai = manager.getProvider('openai')!;
@@ -246,7 +248,7 @@ suite('OpenAIProvider.createWithTools — extraBody', () => {
       models: ['deepseek-v4-flash'],
     });
     const create = sinon.stub().resolves({ choices: [{ message: { content: 'ok' } }], usage: {} });
-    (provider as any).client = { chat: { completions: { create } } };
+    injectOpenAIClient(provider, create);
     return { provider, create };
   }
 
@@ -258,7 +260,7 @@ suite('OpenAIProvider.createWithTools — extraBody', () => {
       inspect: () => undefined,
       update: () => Promise.resolve(),
     };
-    sandbox.stub(vscode.workspace, 'getConfiguration').returns(mockConfig as any);
+    sandbox.stub(vscode.workspace, 'getConfiguration').returns(fakeConfiguration(mockConfig.get));
   }
 
   setup(() => {

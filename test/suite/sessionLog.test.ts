@@ -5,6 +5,36 @@ import * as sinon from 'sinon';
 import * as assert from 'assert';
 import { SessionLog, SessionEvent } from '../../src/shared/SessionLog';
 
+/**
+ * Читатели полей события. `SessionEvent` — union по `type`, поэтому поле доступно
+ * только после сужения: неверный тип падает с понятным сообщением, а не даёт `undefined`.
+ */
+function contentOf(event: SessionEvent): string {
+  switch (event.type) {
+    case 'user/message':
+    case 'assistant/message':
+    case 'summary':
+      return event.content;
+    default:
+      return assert.fail(`у события «${event.type}» нет поля content`);
+  }
+}
+
+function toolNameOf(event: SessionEvent): string {
+  switch (event.type) {
+    case 'tool/call':
+    case 'tool/result':
+      return event.name;
+    default:
+      return assert.fail(`у события «${event.type}» нет имени инструмента`);
+  }
+}
+
+function replacedRangeOf(event: SessionEvent): [number, number] {
+  if (event.type !== 'summary') assert.fail(`ожидалось summary, получено «${event.type}»`);
+  return event.replacedRange;
+}
+
 suite('SessionLog', () => {
   let sandbox: sinon.SinonSandbox;
   let storage: any;
@@ -51,7 +81,7 @@ suite('SessionLog', () => {
     log.append(ev('assistant/message', { content: 'b', ts: 200 }));
     const filtered = log.getEvents(sid, 200);
     assert.strictEqual(filtered.length, 1);
-    assert.strictEqual((filtered[0] as any).content, 'b');
+    assert.strictEqual(contentOf(filtered[0]), 'b');
   });
 
   test('replay() возвращает полный путь агента (тулы + результаты)', () => {
@@ -61,7 +91,7 @@ suite('SessionLog', () => {
     const replay = log.replay(sid);
     assert.strictEqual(replay.length, 3);
     assert.strictEqual(replay[1].type, 'tool/call');
-    assert.strictEqual((replay[1] as any).name, 'read_file');
+    assert.strictEqual(toolNameOf(replay[1]), 'read_file');
     assert.strictEqual(replay[2].type, 'tool/result');
   });
 
@@ -71,7 +101,7 @@ suite('SessionLog', () => {
     assert.notStrictEqual(newId, sid);
     const forked = log.getEvents(newId);
     assert.strictEqual(forked.length, 1);
-    assert.strictEqual((forked[0] as any).content, 'исходное');
+    assert.strictEqual(contentOf(forked[0]), 'исходное');
     assert.strictEqual(forked[0].sessionId, newId);
     // Исходная сессия не тронута
     assert.strictEqual(log.getEvents(sid).length, 1);
@@ -95,7 +125,7 @@ suite('SessionLog', () => {
     const log2 = new SessionLog(storage2);
     const events = log2.getEvents(sid);
     assert.strictEqual(events.length, 1);
-    assert.strictEqual((events[0] as any).content, 'из стора');
+    assert.strictEqual(contentOf(events[0]), 'из стора');
   });
 
   // ===== SL-3: deriveMessages — чистая проекция лога в модельный контекст =====
@@ -211,7 +241,7 @@ suite('SessionLog', () => {
     const events = log.getEvents(sid);
     assert.strictEqual(events.length, 3, 'user + assistant + summary');
     assert.strictEqual(events[2].type, 'summary');
-    assert.deepStrictEqual((events[2] as any).replacedRange, [0, 2], 'summary заменяет [0,2)');
+    assert.deepStrictEqual(replacedRangeOf(events[2]), [0, 2], 'summary заменяет [0,2)');
     // История НЕ удалена
     assert.strictEqual(events[0].type, 'user/message');
     assert.strictEqual(events[1].type, 'assistant/message');
@@ -259,9 +289,9 @@ suite('SessionLog', () => {
     const events = log.getEvents(sid);
     assert.strictEqual(events.length, 2, 'summary + 1 свежее');
     assert.strictEqual(events[0].type, 'summary');
-    assert.strictEqual((events[0] as any).content, 'итог A+B');
+    assert.strictEqual(contentOf(events[0]), 'итог A+B');
     assert.strictEqual(events[1].type, 'user/message');
-    assert.strictEqual((events[1] as any).content, 'C');
+    assert.strictEqual(contentOf(events[1]), 'C');
   });
 
   test('truncate(): сохраняет tool-события свежих сообщений', () => {
@@ -339,7 +369,7 @@ suite('SessionLog', () => {
     const log2 = new SessionLog(storage2);
     const loaded = log2.getEvents(sid);
     assert.strictEqual(loaded.length, 1);
-    assert.strictEqual((loaded[0] as any).content, 'из per-session');
+    assert.strictEqual(contentOf(loaded[0]), 'из per-session');
   });
 
   // ===== SL-9: миграция старых сессий ({meta, messages[]} → события) =====
@@ -368,9 +398,9 @@ suite('SessionLog', () => {
     const events = log2.getEvents('session_old');
     assert.strictEqual(events.length, 2);
     assert.strictEqual(events[0].type, 'user/message');
-    assert.strictEqual((events[0] as any).content, 'привет');
+    assert.strictEqual(contentOf(events[0]), 'привет');
     assert.strictEqual(events[1].type, 'assistant/message');
-    assert.strictEqual((events[1] as any).content, 'привет!');
+    assert.strictEqual(contentOf(events[1]), 'привет!');
   });
 
   test('migrateLegacySessions(): однократно + пропускает system', () => {
@@ -426,7 +456,7 @@ suite('SessionLog', () => {
     const log2 = new SessionLog(storage2);
     const events = log2.getEvents('session_old');
     assert.strictEqual(events.length, 1, 'не дублирует: остаются существующие события');
-    assert.strictEqual((events[0] as any).content, 'уже в логе', 'существующие события не перезаписаны');
+    assert.strictEqual(contentOf(events[0]), 'уже в логе', 'существующие события не перезаписаны');
   });
 
   // ===== UI-хвост: toTranscript (экспорт/реплей) + fork(targetId) =====
@@ -474,6 +504,6 @@ suite('SessionLog', () => {
     const forked = log.getEvents('session_fixed');
     assert.strictEqual(forked.length, 1);
     assert.strictEqual(forked[0].sessionId, 'session_fixed');
-    assert.strictEqual((forked[0] as any).content, 'исходное');
+    assert.strictEqual(contentOf(forked[0]), 'исходное');
   });
 });
