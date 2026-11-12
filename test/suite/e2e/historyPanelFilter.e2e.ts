@@ -40,6 +40,8 @@ suite('E2E-25: панель истории — фильтр по статусу'
     assert.ok(html.includes('function filterRuns(runs, filter)'), 'модуль фильтра не вставлен');
     assert.ok(html.includes('function emptyStateText(filter)'), 'нет функции пустого состояния');
     assert.ok(html.includes('window.HistoryFilters = api') || html.includes('root.HistoryFilters = api'), 'модуль не экспортирует HistoryFilters');
-    assert.ok(!html.includes('window.HistoryFilters = { filterRuns: function (runs) { return runs.slice(); }'), 'сработала заглушка деградации — файл не найден');
+    // Явный маркер деградации, а не совпадение по форматированию: заглушка помечена `degraded: true`
+    assert.ok(!html.includes('degraded: true'), 'сработала заглушка деградации — файл фильтра не найден');
+    assert.ok(html.includes('run.status !== status'), 'в модуле нет самой фильтрации по статусу');
   });
 });
