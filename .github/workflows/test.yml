@@ -62,14 +62,16 @@ jobs:
       - run: npm ci
       - run: npx tsc -p tsconfig.test.json
       - name: Проверка скиллов (манифест и версии)
-        # База сравнения — коммит до пуша; на ручном запуске и первом пуше берём origin/main
+        # База сравнения — коммит до пуша. В мелком клоне его может не быть: тогда origin/main.
         run: |
           BASE="${{ github.event.before }}"
-          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
-            git fetch -q origin main --depth=50 || true
+          git fetch -q origin --depth=200 || true
+          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
             BASE="origin/main"
           fi
+          echo "база сравнения: $BASE"
           node scripts/check-skills.js --since "$BASE"
+
       - name: Приёмка поиска (индекс против grep)
         # Пороги из ревью Pro: recall@5 ≥ 70%, strict@5 ≥ 45%, MRR ≥ 0.45, P@1 ≥ 30%,
         # на негативных запросах — ни одного уверенного совпадения
