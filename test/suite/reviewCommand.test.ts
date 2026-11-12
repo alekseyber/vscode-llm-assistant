@@ -4,6 +4,7 @@ import 'mocha';
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 import * as vscode from 'vscode';
+import { setActiveEditor } from '../support/vscode-harness';
 import { reviewActiveFile } from '../../src/activation/registerCommands';
 import { CodeReviewer } from '../../src/modes/review/CodeReviewer';
 
@@ -18,7 +19,7 @@ suite('reviewActiveFile (команда review.file)', () => {
 
   teardown(() => {
     sandbox.restore();
-    (vscode.window as any).activeTextEditor = undefined;
+    setActiveEditor(undefined);
   });
 
   function makeEditor(selectedText: string, fullText: string): any {
@@ -41,7 +42,7 @@ suite('reviewActiveFile (команда review.file)', () => {
   }
 
   test('нет редактора → warning, showReview не вызывается', async () => {
-    (vscode.window as any).activeTextEditor = undefined;
+    setActiveEditor(undefined);
     const warn = sandbox.stub(vscode.window, 'showWarningMessage').resolves();
 
     await reviewActiveFile(makeProviderManager({ createWithTools: () => {} }), reviewViewProvider);
@@ -51,7 +52,7 @@ suite('reviewActiveFile (команда review.file)', () => {
   });
 
   test('провайдер без createWithTools → error', async () => {
-    (vscode.window as any).activeTextEditor = makeEditor('', 'const x = 1');
+    setActiveEditor(makeEditor('', 'const x = 1'));
     const err = sandbox.stub(vscode.window, 'showErrorMessage').resolves();
 
     await reviewActiveFile(makeProviderManager({}), reviewViewProvider);
@@ -64,19 +65,19 @@ suite('reviewActiveFile (команда review.file)', () => {
     const reviewCodeStub = sandbox.stub(CodeReviewer.prototype, 'reviewCode').resolves({ report: 'r', iterations: 1, cost: 0 });
 
     // Выделение есть → reviewCode
-    (vscode.window as any).activeTextEditor = makeEditor('const y = 2', 'const y = 2');
+    setActiveEditor(makeEditor('const y = 2', 'const y = 2'));
     await reviewActiveFile(makeProviderManager({ createWithTools: () => {} }), reviewViewProvider);
     assert.ok(reviewCodeStub.calledOnce, 'reviewCode вызван для выделения');
 
     // Выделения нет → reviewFile
     const reviewFileStub = sandbox.stub(CodeReviewer.prototype, 'reviewFile').resolves({ report: 'r', iterations: 1, cost: 0 });
-    (vscode.window as any).activeTextEditor = makeEditor('', 'const z = 3');
+    setActiveEditor(makeEditor('', 'const z = 3'));
     await reviewActiveFile(makeProviderManager({ createWithTools: () => {} }), reviewViewProvider);
     assert.ok(reviewFileStub.calledOnce, 'reviewFile вызван для всего файла');
   });
 
   test('результат → showReview с отчётом и стоимостью', async () => {
-    (vscode.window as any).activeTextEditor = makeEditor('', 'const x = 1');
+    setActiveEditor(makeEditor('', 'const x = 1'));
     sandbox.stub(CodeReviewer.prototype, 'reviewFile').resolves({ report: '# Отчёт', iterations: 2, cost: 0.0002 });
 
     await reviewActiveFile(makeProviderManager({ createWithTools: () => {} }), reviewViewProvider);

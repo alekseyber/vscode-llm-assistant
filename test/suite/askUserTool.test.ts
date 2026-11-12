@@ -20,7 +20,7 @@ suite('AskUserTool', () => {
   const F = (q: string, a: string) => `[ВОПРОС ЗАКРЫТ] ${q} — ответ: ${a}`;
 
   test('AC-1.1: 3+ опций показывает QuickPick и возвращает выбор', async () => {
-    (sandbox.stub(vscode.window, 'showQuickPick') as any).resolves('Вариант A');
+    sandbox.stub(vscode.window, 'showQuickPick').resolves('Вариант A' as any);
     const tool = createAskUserTool();
     const result = await tool.execute({
       question: 'Выберите вариант',
@@ -30,7 +30,7 @@ suite('AskUserTool', () => {
   });
 
   test('AC-1.1 (2 опции): модальное showInformationMessage с кнопками', async () => {
-    (sandbox.stub(vscode.window, 'showInformationMessage') as any).resolves('Да');
+    sandbox.stub(vscode.window, 'showInformationMessage').resolves('Да' as any);
     const tool = createAskUserTool();
     const result = await tool.execute({
       question: 'Продолжить?',
@@ -40,14 +40,14 @@ suite('AskUserTool', () => {
   });
 
   test('AC-1.2: без options — InputBox с ignoreFocusOut, возвращает ввод', async () => {
-    (sandbox.stub(vscode.window, 'showInputBox') as any).resolves('Пользовательский ответ');
+    sandbox.stub(vscode.window, 'showInputBox').resolves('Пользовательский ответ');
     const tool = createAskUserTool();
     const result = await tool.execute({ question: 'Как назвать файл?' });
     assert.strictEqual(result, F('Как назвать файл?', 'Пользовательский ответ'));
   });
 
   test('AC-1.3: Закрытие QuickPick (Escape) → "(пропущено)"', async () => {
-    (sandbox.stub(vscode.window, 'showQuickPick') as any).resolves(undefined);
+    sandbox.stub(vscode.window, 'showQuickPick').resolves(undefined);
     const tool = createAskUserTool();
     const result = await tool.execute({
       question: 'Выберите вариант',
@@ -57,21 +57,21 @@ suite('AskUserTool', () => {
   });
 
   test('AC-1.3: Закрытие модального окна → "(пропущено)"', async () => {
-    (sandbox.stub(vscode.window, 'showInformationMessage') as any).resolves(undefined);
+    sandbox.stub(vscode.window, 'showInformationMessage').resolves(undefined);
     const tool = createAskUserTool();
     const result = await tool.execute({ question: 'Продолжить?', options: ['Да', 'Нет'] });
     assert.strictEqual(result, '(пропущено)');
   });
 
   test('AC-1.3: Закрытие InputBox → "(пропущено)"', async () => {
-    (sandbox.stub(vscode.window, 'showInputBox') as any).resolves(undefined);
+    sandbox.stub(vscode.window, 'showInputBox').resolves(undefined);
     const tool = createAskUserTool();
     const result = await tool.execute({ question: 'Введите значение' });
     assert.strictEqual(result, '(пропущено)');
   });
 
   test('Авто-Да/Нет: вопрос с «нужно» без options → модальное окно с Да/Нет', async () => {
-    (sandbox.stub(vscode.window, 'showInformationMessage') as any).resolves('Да');
+    sandbox.stub(vscode.window, 'showInformationMessage').resolves('Да' as any);
     const tool = createAskUserTool();
     const result = await tool.execute({ question: 'Нужно ли добавить обработку ошибок?' });
     assert.strictEqual(result, F('Нужно ли добавить обработку ошибок?', 'Да'));

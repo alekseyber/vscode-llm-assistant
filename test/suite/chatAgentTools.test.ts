@@ -7,6 +7,7 @@
 import 'mocha';
 import * as assert from 'assert';
 import * as vscode from 'vscode';
+import { mockInternals, resetSettings, setSetting } from '../support/vscode-harness';
 import * as fsNode from 'fs';
 import * as osNode from 'os';
 import * as pathNode from 'path';
@@ -18,7 +19,7 @@ import {
   setDelegateHandler,
 } from '../../src/modes/chat/ChatAgentTools';
 
-const fsMock = () => (vscode.workspace as any).__fs as { files: Map<string, Uint8Array>; dirs: Set<string> };
+const fsMock = () => mockInternals().fs;
 
 function putFile(relativePath: string, content: string): string {
   const full = `/fake/workspace/${relativePath}`;
@@ -45,8 +46,7 @@ suite('ChatAgentTools', () => {
   setup(() => {
     fsMock().files.clear();
     fsMock().dirs.clear();
-    const settings = (vscode.workspace as any).__settings as Record<string, unknown>;
-    for (const key of Object.keys(settings)) delete settings[key];
+    resetSettings();
   });
 
   test('CAT-1: read_file нумерует строки и сообщает диапазон', async () => {
@@ -130,8 +130,7 @@ suite('ChatAgentTools', () => {
   });
 
   test('CAT-11: allow-list скрывает инструменты из схем, но не из внутреннего списка', () => {
-    const allow = (vscode.workspace as any).__settings as Record<string, unknown>;
-    allow['llmAssistant.apply.allowedTools'] = ['read_file'];
+    setSetting('apply.allowedTools', ['read_file']);
     const schemas = getToolSchemas().map((schema: any) => schema.function.name);
     assert.deepStrictEqual(schemas, ['read_file'], `в схемах только разрешённый: ${JSON.stringify(schemas)}`);
     assert.strictEqual(getTool('write_file'), undefined, 'запрещённый инструмент не выдаётся агенту');
@@ -169,18 +168,18 @@ suite('ChatAgentTools', () => {
   test('CAT-14: search_files находит по содержимому и по имени, невалидный regex не роняет агента', async () => {
     const a = putFile('src/one.ts', 'const target = 1;\nconst other = 2;');
     const b = putFile('src/target-helper.ts', 'export const nothing = 0;');
-    (vscode.workspace as any).__findFilesResult = [a, b];
+    mockInternals().findFilesResult = [a, b];
 
     const byContent = await searchFiles().execute({ pattern: 'target' });
     assert.ok(byContent.includes('one.ts:1'), `строка с совпадением: ${byContent}`);
 
-    (vscode.workspace as any).__findFilesResult = [a, b];
+    mockInternals().findFilesResult = [a, b];
     const byName = await searchFiles().execute({ pattern: 'helper' });
     assert.ok(byName.includes('target-helper.ts'), `совпадение по имени файла: ${byName}`);
 
     const invalid = await searchFiles().execute({ pattern: '([' });
     assert.ok(invalid.includes('Ошибка'), `невалидный regex объяснён: ${invalid}`);
-    (vscode.workspace as any).__findFilesResult = [];
+    mockInternals().findFilesResult = [];
   });
 
   test('CAT-15: run_terminal возвращает текст команды, а не исключение', async () => {

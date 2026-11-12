@@ -8,6 +8,7 @@
 import 'mocha';
 import * as assert from 'assert';
 import * as vscode from 'vscode';
+import { mockInternals } from '../support/vscode-harness';
 import { ProposalContentProvider, PROPOSAL_SCHEME } from '../../src/modes/edit/ProposalContentProvider';
 import { ReviewPanel } from '../../src/modes/review/ReviewPanel';
 
@@ -19,7 +20,7 @@ type PanelMock = {
   __sendMessage: (message: any) => void;
 };
 
-const panels = () => (vscode.workspace as any).__webviewPanels as PanelMock[];
+const panels = () => mockInternals().webviewPanels as PanelMock[];
 const lastPanel = () => panels()[panels().length - 1];
 
 function makeContext(): vscode.ExtensionContext {

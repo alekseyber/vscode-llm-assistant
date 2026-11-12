@@ -8,18 +8,19 @@
 import 'mocha';
 import * as assert from 'assert';
 import * as vscode from 'vscode';
+import { mockInternals } from '../support/vscode-harness';
 
 suite('Мок vscode: события доставляются', () => {
   test('MOCK-1: onDidChangeConfiguration доходит до подписчика', () => {
     const seen: unknown[] = [];
     const sub = vscode.workspace.onDidChangeConfiguration((event) => seen.push(event));
 
-    (vscode.workspace as any).__fireDidChangeConfiguration({ affectsConfiguration: () => true });
+    mockInternals().fireConfigChange();
 
     assert.strictEqual(seen.length, 1, 'событие изменения настроек должно доходить до обработчика');
     sub.dispose();
 
-    (vscode.workspace as any).__fireDidChangeConfiguration({ affectsConfiguration: () => true });
+    mockInternals().fireConfigChange();
     assert.strictEqual(seen.length, 1, 'после dispose подписчик не вызывается');
   });
 

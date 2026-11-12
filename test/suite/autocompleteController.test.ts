@@ -7,6 +7,7 @@
 import 'mocha';
 import * as assert from 'assert';
 import * as vscode from 'vscode';
+import { mockInternals, resetSettings, setSetting } from '../support/vscode-harness';
 import { AutocompleteController } from '../../src/modes/autocomplete/AutocompleteController';
 
 type ChatCall = { messages: any[]; options: any; signal?: AbortSignal };
@@ -77,12 +78,11 @@ async function ask(provider: vscode.InlineCompletionItemProvider) {
 
 suite('AutocompleteController', () => {
   setup(() => {
-    const settings = (vscode.workspace as any).__settings as Record<string, unknown>;
-    for (const key of Object.keys(settings)) delete settings[key];
+    resetSettings();
   });
 
   test('ACL-1: выключенный в настройках автокомплит не зовёт модель', async () => {
-    (vscode.workspace as any).__settings['llmAssistant.autocomplete.enabled'] = false;
+    setSetting('autocomplete.enabled', false);
     const { provider, calls } = makeProvider('const a = 1;');
     const controller = makeController(provider);
     const result = await ask(lastInlineProvider());
@@ -96,7 +96,7 @@ suite('AutocompleteController', () => {
     const controller = makeController(provider);
     assert.ok(await ask(lastInlineProvider()), 'по умолчанию автокомплит включён');
 
-    (vscode.workspace as any).__settings['llmAssistant.autocomplete.enabled'] = false;
+    setSetting('autocomplete.enabled', false);
     (vscode.workspace as any).__fireDidChangeConfiguration({
       affectsConfiguration: (section: string) => section.startsWith('llmAssistant.autocomplete'),
     });
@@ -108,7 +108,7 @@ suite('AutocompleteController', () => {
   });
 
   test('ACL-3: модель из настроек, ответ очищен от обрамления', async () => {
-    (vscode.workspace as any).__settings['llmAssistant.defaultModel'] = 'gpt-4o';
+    setSetting('defaultModel', 'gpt-4o');
     const { provider, calls } = makeProvider('```ts\nconst answer = 42;\n```');
     const controller = makeController(provider);
     const result = await ask(lastInlineProvider());
@@ -125,7 +125,7 @@ suite('AutocompleteController', () => {
   });
 
   test('ACL-4: неизвестная модель заменяется на первую доступную у провайдера', async () => {
-    (vscode.workspace as any).__settings['llmAssistant.defaultModel'] = 'model-that-does-not-exist';
+    setSetting('defaultModel', 'model-that-does-not-exist');
     const { provider, calls } = makeProvider('ok();', { models: ['local-model'] });
     const controller = makeController(provider);
     await ask(lastInlineProvider());
@@ -171,15 +171,14 @@ suite('AutocompleteController', () => {
     assert.ok(await ask(lastInlineProvider()), 'до переключения подсказка есть');
 
     await controller.toggleAutocomplete();
-    const settings = (vscode.workspace as any).__settings as Record<string, unknown>;
-    assert.strictEqual(settings['llmAssistant.autocomplete.enabled'], false, 'настройка записана');
+    assert.strictEqual(mockInternals().settings['llmAssistant.autocomplete.enabled'], false, 'настройка записана');
 
     const before = calls.length;
     assert.strictEqual(await ask(lastInlineProvider()), null, 'после выключения подсказок нет');
     assert.strictEqual(calls.length, before, 'модель не вызывается');
 
     await controller.toggleAutocomplete();
-    assert.strictEqual(settings['llmAssistant.autocomplete.enabled'], true, 'второе нажатие включает обратно');
+    assert.strictEqual(mockInternals().settings['llmAssistant.autocomplete.enabled'], true, 'второе нажатие включает обратно');
     controller.dispose();
   });
 
