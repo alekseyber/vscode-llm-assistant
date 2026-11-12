@@ -23,7 +23,21 @@ const path = require('path');
 const ROOT = path.resolve(__dirname, '..');
 
 /** Маркеры, которые встречаются только в мутациях, а не в рабочем коде. */
-const MARKERS = [/\bif\s*\(\s*false\s*\)/g, /\bif\s*\(\s*false\s*&&/g, /\bwhile\s*\(\s*false\s*\)/g];
+const MARKERS = [
+  /\b(if|while|for)\s*\(\s*false\s*[)&|]/,
+  /\b(if|while)\s*\(\s*!\s*true\s*\)/,
+  /\b(if|while)\s*\(\s*0\s*\)/,
+];
+
+/** Убрать комментарии и строковые литералы: маркер в них — не мутация. */
+function stripNoise(content) {
+  return content
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .replace(/(^|[^:])\/\/.*$/gm, '$1 ')
+    .replace(/'(?:[^'\\]|\\.)*'/g, "''")
+    .replace(/"(?:[^"\\]|\\.)*"/g, '""')
+    .replace(/`(?:[^`\\]|\\.)*`/g, '``');
+}
 
 function walk(dir, out = []) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -41,8 +55,9 @@ function walk(dir, out = []) {
 /** Найти маркеры мутаций в тексте: возвращает номера строк. */
 function findMutationTraces(content) {
   const lines = [];
-  content.split('\n').forEach((line, index) => {
-    if (MARKERS.some((marker) => (marker.lastIndex = 0, marker.test(line)))) {
+  // Строки сохраняем по номерам: шум вырезаем построчно, чтобы номера не сдвигались
+  stripNoise(content).split('\n').forEach((line, index) => {
+    if (MARKERS.some((marker) => marker.test(line))) {
       lines.push({ line: index + 1, text: line.trim().slice(0, 120) });
     }
   });

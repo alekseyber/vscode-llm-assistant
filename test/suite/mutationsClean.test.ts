@@ -25,4 +25,14 @@ suite('mutationsClean', () => {
     const traces = findMutationTraces('if (enabled === false) { return null; }\nwhile (false) {}'.replace('while (false) {}', ''));
     assert.deepStrictEqual(traces, []);
   });
+
+  test('MC-4: комментарии и строки не считаются мутацией', () => {
+    const traces = findMutationTraces('/* if (false) */\nconst s = "if (false)";\n// if (false)\nconst ok = 1;');
+    assert.deepStrictEqual(traces, [], JSON.stringify(traces));
+  });
+
+  test('MC-5: эквивалентные формы — if (!true) и if (0)', () => {
+    const traces = findMutationTraces('if (!true) { a(); }\nif (0) { b(); }\nwhile (false) {}');
+    assert.strictEqual(traces.length, 3, JSON.stringify(traces));
+  });
 });

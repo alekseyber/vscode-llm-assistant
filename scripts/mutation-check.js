@@ -14,8 +14,39 @@
 'use strict';
 
 const { execFileSync } = require('child_process');
+
 const fs = require('fs');
 const path = require('path');
+
+const BACKUP_DIR = path.resolve(__dirname, '..', 'tmp', 'mutation-backup');
+
+/** Сохранить исходник до мутации: восстановление возможно даже после жёсткого убийства процесса. */
+function writeBackup(file, content) {
+  fs.mkdirSync(BACKUP_DIR, { recursive: true });
+  const rel = path.relative(path.resolve(__dirname, '..'), file).split(path.sep).join('__');
+  fs.writeFileSync(path.join(BACKUP_DIR, `${rel}.bak`), content, 'utf-8');
+}
+
+function clearBackup(file) {
+  const rel = path.relative(path.resolve(__dirname, '..'), file).split(path.sep).join('__');
+  const bak = path.join(BACKUP_DIR, `${rel}.bak`);
+  if (fs.existsSync(bak)) fs.unlinkSync(bak);
+}
+
+/** Восстановить всё, что осталось от прерванного прогона. Возвращает список файлов. */
+function restoreLeftovers() {
+  const restored = [];
+  if (!fs.existsSync(BACKUP_DIR)) return restored;
+  for (const name of fs.readdirSync(BACKUP_DIR)) {
+    if (!name.endsWith('.bak')) continue;
+    const target = path.join(path.resolve(__dirname, '..'), name.slice(0, -4).split('__').join(path.sep));
+    fs.writeFileSync(target, fs.readFileSync(path.join(BACKUP_DIR, name), 'utf-8'), 'utf-8');
+    fs.unlinkSync(path.join(BACKUP_DIR, name));
+    restored.push(path.relative(path.resolve(__dirname, '..'), target));
+  }
+  return restored;
+}
+
 
 const ROOT = path.resolve(__dirname, '..');
 const CONFIG = path.join(ROOT, 'test', 'mutations.json');
@@ -50,6 +81,16 @@ function unitTests() {
 }
 
 function main() {
+  if (process.argv.includes('--restore-only')) {
+    const left = restoreLeftovers();
+    console.log(left.length ? `[mutation] восстановлено: ${left.join(', ')}` : '[mutation] нечего восстанавливать');
+    process.exit(0);
+  }
+  // Обрыв прошлого прогона: возвращаем файлы из бэкапа, иначе мутация остаётся в дереве
+  const restored = restoreLeftovers();
+  if (restored.length) {
+    console.log(`[mutation] восстановлено после прерванного прогона: ${restored.join(', ')}`);
+  }
   const only = process.argv.find((arg) => arg.startsWith('--only='));
   const asJson = process.argv.includes('--json');
   const wanted = only ? new Set(only.slice('--only='.length).split(',').map((s) => s.trim())) : undefined;
@@ -75,6 +116,9 @@ function main() {
     let verdict;
     let detail = '';
     try {
+      // Бэкап на диск: если процесс убьют (перезагрузка гейтвея, таймаут), восстановление
+      // при следующем запуске вернёт файл — `finally` в убитом процессе не выполняется
+      writeBackup(file, original);
       fs.writeFileSync(file, original.replace(mutation.from, mutation.to), 'utf-8');
       const compiled = compile();
       if (compiled.code !== 0) {
@@ -87,6 +131,7 @@ function main() {
       }
     } finally {
       fs.writeFileSync(file, original, 'utf-8');
+      clearBackup(file);
     }
     results.push({ ...mutation, verdict, detail });
   }
