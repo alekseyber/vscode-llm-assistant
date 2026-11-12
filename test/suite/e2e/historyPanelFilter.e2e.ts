@@ -35,8 +35,11 @@ suite('E2E-25: панель истории — фильтр по статусу'
 
   test('25b: вставлен настоящий модуль фильтра, а не заглушка деградации', () => {
     const html = renderHtml();
-    assert.ok(html.includes('filterRuns: filterRuns'), 'модуль фильтра не вставлен');
-    assert.ok(html.includes('emptyStateText: emptyStateText'), 'нет функции пустого состояния');
-    assert.ok(!html.includes('История запусков пуста"; }, filterSuffix'), 'сработала заглушка — файл не найден');
+    // В модуле экспорт идёт сокращённой записью `{ filterRuns, emptyStateText, filterSuffix }`,
+    // поэтому ищем объявления функций, а не `имя: имя`
+    assert.ok(html.includes('function filterRuns(runs, filter)'), 'модуль фильтра не вставлен');
+    assert.ok(html.includes('function emptyStateText(filter)'), 'нет функции пустого состояния');
+    assert.ok(html.includes('window.HistoryFilters = api') || html.includes('root.HistoryFilters = api'), 'модуль не экспортирует HistoryFilters');
+    assert.ok(!html.includes('window.HistoryFilters = { filterRuns: function (runs) { return runs.slice(); }'), 'сработала заглушка деградации — файл не найден');
   });
 });
