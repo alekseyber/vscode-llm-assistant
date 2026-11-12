@@ -16,7 +16,7 @@ suite('Переопределения локальных настроек (provi
       has: () => false,
       inspect: () => undefined,
       update: () => Promise.resolve(),
-    } as any);
+    });
   }
 
   setup(() => {

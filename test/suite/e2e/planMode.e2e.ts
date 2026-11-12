@@ -44,7 +44,7 @@ suite('E2E-13: Plan Mode — план на диске и имплементац�
     const list = Object.values(os.networkInterfaces())
       .flat()
       .filter((e: any) => e && e.family === 'IPv4' && !e.internal);
-    const host = (list[0] as any)?.address ?? '127.0.0.1';
+    const host = (list[0])?.address ?? '127.0.0.1';
 
     stub = await startStub(
       (_req, res, body) => {

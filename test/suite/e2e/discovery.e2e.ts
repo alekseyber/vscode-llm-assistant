@@ -59,7 +59,7 @@ suite('E2E-9: discovery и checkLocalServer', () => {
 
     const original = vscode.window.showInformationMessage;
     const messages: string[] = [];
-    (vscode.window as any).showInformationMessage = async (msg: string) => {
+    (vscode.window).showInformationMessage = async (msg: string) => {
       messages.push(String(msg));
       return undefined;
     };
@@ -70,7 +70,7 @@ suite('E2E-9: discovery и checkLocalServer', () => {
       assert.match(report, /Ollama/i, 'в отчёте есть версия сервера');
       assert.match(report, /qwen3:8b/, 'в отчёте перечислены модели');
     } finally {
-      (vscode.window as any).showInformationMessage = original;
+      (vscode.window).showInformationMessage = original;
       await stub.close();
     }
   });
@@ -85,7 +85,7 @@ suite('E2E-9: discovery и checkLocalServer', () => {
 
     const original = vscode.window.showInformationMessage;
     const messages: string[] = [];
-    (vscode.window as any).showInformationMessage = async (msg: string) => {
+    (vscode.window).showInformationMessage = async (msg: string) => {
       messages.push(String(msg));
       return undefined;
     };
@@ -94,7 +94,7 @@ suite('E2E-9: discovery и checkLocalServer', () => {
       assert.ok(messages.length > 0, 'команда ответила сообщением, а не исключением');
       assert.match(messages.join('\n'), /Ollama|ollama|запущ/i, 'подсказка про сервер');
     } finally {
-      (vscode.window as any).showInformationMessage = original;
+      (vscode.window).showInformationMessage = original;
     }
   });
 });

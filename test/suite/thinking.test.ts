@@ -23,7 +23,7 @@ suite('thinking: два механизма гашения рассуждения
       inspect: () => undefined,
       update: () => Promise.resolve(),
     };
-    sandbox.stub(vscode.workspace, 'getConfiguration').returns(mockConfig as any);
+    sandbox.stub(vscode.workspace, 'getConfiguration').returns(mockConfig);
   }
 
   setup(() => {

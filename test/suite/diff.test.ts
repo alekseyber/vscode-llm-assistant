@@ -83,7 +83,7 @@ suite('applyDiffDecorations / clearDiffDecorations', () => {
         getTextInRange: () => lines.join('\n'),
       },
       setDecorations: (type: any, ranges: any[]) => sets.push({ type, ranges }),
-    } as any;
+    };
   }
 
   let sandbox: any;

@@ -19,7 +19,7 @@ suite('ModelRouter (P9)', () => {
       has: () => false,
       inspect: () => undefined,
       update: () => Promise.resolve(),
-    } as any);
+    });
   });
 
   teardown(() => sandbox.restore());

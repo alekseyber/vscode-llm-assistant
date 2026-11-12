@@ -111,7 +111,7 @@ suite('Streaming (SSE парсинг)', () => {
         },
       ],
     };
-    assert.strictEqual(extractDeltaContent(chunk as any), null);
+    assert.strictEqual(extractDeltaContent(chunk), null);
   });
 
   test('parseChatCompletionStream разбирает полный SSE-поток в токены', () => {

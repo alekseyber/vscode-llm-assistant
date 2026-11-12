@@ -202,7 +202,7 @@ suite('AgentOrchestrator', () => {
     const provider = {
       createWithTools: sinon.stub().callsFake(async (_messages: any[], _model: string, _tools: any[]) => {
         // Определяем роль по system prompt в первом сообщении
-        const sysMsg = (_messages as any[]).find((m: any) => m.role === 'system');
+        const sysMsg = (_messages).find((m: any) => m.role === 'system');
         const sysContent = sysMsg?.content || '';
         if (sysContent.includes('Сломайся')) {
           throw new Error('Воркер broken упал');

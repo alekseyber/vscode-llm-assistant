@@ -47,7 +47,7 @@ suite('PlanModeManager', () => {
     const pm = new PlanModeManager(tmpDir, 'session_plan', onEvent);
     await pm.generatePlan('задача', {}, 'model');
 
-    const worker = runStub.thisValues[0] as any;
+    const worker = runStub.thisValues[0];
     assert.strictEqual(worker.options.sessionId, 'session_plan');
     assert.strictEqual(worker.options.onEvent, onEvent);
   });

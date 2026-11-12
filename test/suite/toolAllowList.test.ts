@@ -195,7 +195,7 @@ suite('ToolAllowList — loadToolAllowListConfig (интеграция)', () => 
       inspect: sandbox.fake(() => undefined),
       update: sandbox.fake(() => Promise.resolve()),
     };
-    sandbox.stub(vscode.workspace, 'getConfiguration').returns(mockConfig as any);
+    sandbox.stub(vscode.workspace, 'getConfiguration').returns(mockConfig);
   }
 
   // ── AC-4.3: .vscode/llm-assistant.json переопределяет глобальные настройки ──
@@ -263,7 +263,7 @@ suite('ToolAllowList — loadToolAllowListConfig (интеграция)', () => 
       inspect: sandbox.fake(() => undefined),
       update: sandbox.fake(() => Promise.resolve()),
     };
-    sandbox.stub(vscode.workspace, 'getConfiguration').returns(mockConfig as any);
+    sandbox.stub(vscode.workspace, 'getConfiguration').returns(mockConfig);
 
     const config = loadToolAllowListConfig();
 
@@ -281,7 +281,7 @@ suite('ToolAllowList — loadToolAllowListConfig (интеграция)', () => 
       inspect: sandbox.fake(() => undefined),
       update: sandbox.fake(() => Promise.resolve()),
     };
-    sandbox.stub(vscode.workspace, 'getConfiguration').returns(mockConfig as any);
+    sandbox.stub(vscode.workspace, 'getConfiguration').returns(mockConfig);
 
     const config = loadToolAllowListConfig();
 
@@ -316,7 +316,7 @@ suite('ToolAllowList — loadToolAllowListConfig (интеграция)', () => 
 // ─────────── ALW-2: patch_file тоже требует подтверждения ───────────
 suite('isConfirmationRequired / patch_file', () => {
   test('ALW-2.1: по умолчанию patch_file в списке подтверждения (как write_file)', () => {
-    const cfg = { allowList: [], requireConfirmation: ['write_file', 'replace_in_file', 'patch_file', 'run_terminal'] } as any;
+    const cfg = { allowList: [], requireConfirmation: ['write_file', 'replace_in_file', 'patch_file', 'run_terminal'] };
     assert.strictEqual(isConfirmationRequired('patch_file', cfg), true);
     assert.strictEqual(isConfirmationRequired('read_file', cfg), false);
   });
@@ -337,7 +337,7 @@ suite('ToolAllowList / master switch', () => {
         if (key === 'apply.allowedTools') return undefined;
         return def;
       },
-    } as any);
+    });
     sandbox.stub(vscode.workspace, 'workspaceFolders').value([]);
   }
 

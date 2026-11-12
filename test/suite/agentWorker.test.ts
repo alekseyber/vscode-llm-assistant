@@ -195,7 +195,7 @@ suite('AgentWorker', () => {
 
     const calls = provider.createWithTools.getCalls();
     const tools = calls[0].args[2];
-    const toolNames = tools.map((t: any) => (t as any).function.name);
+    const toolNames = tools.map((t: any) => (t).function.name);
 
     assert.strictEqual(toolNames.length, 1, 'Должен быть только 1 инструмент');
     assert.strictEqual(toolNames[0], 'read_file', 'Должен быть только read_file');
@@ -214,7 +214,7 @@ suite('AgentWorker', () => {
 
     const calls = provider.createWithTools.getCalls();
     const tools = calls[0].args[2];
-    const toolNames = tools.map((t: any) => (t as any).function.name);
+    const toolNames = tools.map((t: any) => (t).function.name);
 
     assert.ok(toolNames.length >= 5, `Должно быть >=5 инструментов, получено ${toolNames.length}`);
     assert.ok(toolNames.includes('read_file'), 'read_file должен быть доступен');
@@ -387,7 +387,7 @@ suite('AgentWorker — локальный провайдер и extraBody', () =
       inspect: () => undefined,
       update: () => Promise.resolve(),
     };
-    sandbox.stub(vscode.workspace, 'getConfiguration').returns(mockConfig as any);
+    sandbox.stub(vscode.workspace, 'getConfiguration').returns(mockConfig);
   }
 
   setup(() => {
@@ -406,7 +406,7 @@ suite('AgentWorker — локальный провайдер и extraBody', () =
         usage: { prompt_tokens: 10, completion_tokens: 5 },
       }),
     };
-    const worker = new AgentWorker({ name: 't', systemPrompt: 'Тест' }, provider as any, { maxIterations: 2 });
+    const worker = new AgentWorker({ name: 't', systemPrompt: 'Тест' }, provider, { maxIterations: 2 });
 
     const result = await worker.run('задача');
 
@@ -421,7 +421,7 @@ suite('AgentWorker — локальный провайдер и extraBody', () =
     const provider = {
       createWithTools: sinon.stub().resolves({ choices: [{ message: { content: 'ок' } }], usage: {} }),
     };
-    const worker = new AgentWorker({ name: 't', systemPrompt: 'Тест' }, provider as any, { maxIterations: 2 });
+    const worker = new AgentWorker({ name: 't', systemPrompt: 'Тест' }, provider, { maxIterations: 2 });
 
     await worker.run('задача');
 
@@ -435,7 +435,7 @@ suite('AgentWorker — локальный провайдер и extraBody', () =
       createWithTools: sinon.stub().resolves({ choices: [{ message: { content: 'не должно случиться' } }], usage: {} }),
       models: sinon.stub().resolves([]),
     };
-    const worker = new AgentWorker({ name: 't', systemPrompt: 'Тест' }, provider as any, { maxIterations: 2 });
+    const worker = new AgentWorker({ name: 't', systemPrompt: 'Тест' }, provider, { maxIterations: 2 });
 
     const result = await worker.run('прочитай package.json');
 
@@ -451,7 +451,7 @@ suite('AgentWorker — локальный провайдер и extraBody', () =
       isLocal: true,
       createWithTools: sinon.stub().resolves({ choices: [{ message: { content: 'ответ локальной модели' } }], usage: {} }),
     };
-    const worker = new AgentWorker({ name: 't', systemPrompt: 'Тест' }, provider as any, { maxIterations: 2 });
+    const worker = new AgentWorker({ name: 't', systemPrompt: 'Тест' }, provider, { maxIterations: 2 });
 
     const result = await worker.run('задача');
 
@@ -468,7 +468,7 @@ suite('AgentWorker — локальный провайдер и extraBody', () =
         usage: { prompt_tokens: 768, completion_tokens: 40 },
       }),
     };
-    const worker = new AgentWorker({ name: 't', systemPrompt: 'Тест' }, provider as any, { maxIterations: 2 });
+    const worker = new AgentWorker({ name: 't', systemPrompt: 'Тест' }, provider, { maxIterations: 2 });
 
     const result = await worker.run('задача');
 
@@ -482,7 +482,7 @@ suite('AgentWorker — локальный провайдер и extraBody', () =
       isLocal: true,
       createWithTools: sinon.stub().resolves({ choices: [{ message: { content: 'ок' } }], usage: {} }),
     };
-    const worker = new AgentWorker({ name: 't', systemPrompt: 'Тест' }, provider as any, {
+    const worker = new AgentWorker({ name: 't', systemPrompt: 'Тест' }, provider, {
       maxIterations: 2,
       model: 'qwen3:8b',
     });
@@ -511,7 +511,7 @@ suite('AgentWorker / отказы пользователя', () => {
     const provider = createMockProvider([makeToolCall(), makeToolCall(), makeToolCall()]);
     const onConfirm = sinon.stub().resolves(false);
 
-    const worker = new AgentWorker(role, provider as any, { maxIterations: 5, onConfirm });
+    const worker = new AgentWorker(role, provider, { maxIterations: 5, onConfirm });
     const result = await worker.run('запиши файл');
 
     assert.strictEqual(onConfirm.callCount, 2, 'останавливаемся на втором отказе, а не крутимся');
@@ -531,7 +531,7 @@ suite('AgentWorker / лимит бюджета', () => {
     const provider = createMockProvider(responses);
     const capped = new AgentWorker(
       { name: 't', systemPrompt: 'Тест' },
-      provider as any,
+      provider,
       {
         maxIterations: 5,
         // Имитируем «деньги кончились» после первого шага
@@ -549,7 +549,7 @@ suite('AgentWorker / лимит бюджета', () => {
 
   test('BUD-2: без budgetStop прогон идёт обычным путём', async () => {
     const provider = createMockProvider([mockTextResponse('готово')]);
-    const worker = new AgentWorker({ name: 't', systemPrompt: 'Тест' }, provider as any, { maxIterations: 3 });
+    const worker = new AgentWorker({ name: 't', systemPrompt: 'Тест' }, provider, { maxIterations: 3 });
 
     const result = await worker.run('просто ответь');
 

@@ -45,13 +45,13 @@ suite('search_files / интеграция', () => {
       vscode.Uri.file(`${root}/node_modules/pkg/idx.js`),
       vscode.Uri.file(`${root}/src/cart.js`),
     ];
-    sb.stub(vscode.workspace, 'findFiles').resolves(files as any);
+    sb.stub(vscode.workspace, 'findFiles').resolves(files);
     sb.stub(vscode.workspace.fs, 'readFile').callsFake(async (uri: any) => {
       if (String(uri.fsPath).endsWith('.gitignore')) return new TextEncoder().encode('node_modules\n');
       if (String(uri.fsPath).includes('node_modules')) return new TextEncoder().encode('function totalPrice(){}\n');
       return new TextEncoder().encode('function totalPrice(items) {\n  return totalPrice;\n}\n');
     });
-    sb.stub(vscode.workspace.fs, 'stat').resolves({ size: 100 } as any);
+    sb.stub(vscode.workspace.fs, 'stat').resolves({ size: 100 });
 
     const tool = createTools().find((t) => t.name === 'search_files')!;
     const out = await tool.execute({ pattern: 'totalPrice' });
