@@ -279,6 +279,7 @@ strict@5 40%, MRR 0.60, P@1 50%; `keywordOr` — 78%, 33%, 0.33, 10%. То ес�
 | `.vscode/launch.json` | F5-dev запуск | `Run Extension` (preLaunch: compile), `Extension Tests` |
 | `AGENTS.md` | Инструкции для LLM | Ссылка на specs/, TEMPLATE, язык, SDD-процесс |
 | `.llma/` | Агенты для @orchestrate | `agents/*.md`: префиксы → цепочка, без → делегирование |
+| `test/support/{fakes,vscode-harness}.ts` | Обвязка тестов | Двойники доменных типов и типизированный доступ к моку `vscode`; бюджет `as any` — `scripts/test-any-count.js` |
 | `scripts/mutation-check.js` + `test/mutations.json` | Мутационная проверка тестов | Правит одну строку в `src`, гоняет юниты; зелёные тесты = поведение не покрыто; мутация без компиляции — «неприменима» |
 | `scripts/acceptance/` | Приёмка поиска | `queries.json` (эталон), `run.js` (замер трёх бэкендов), `check.js` (гейт CI) |
 | `scripts/copy-sqlite-assets.js` | Упаковка WASM | Кладёт `node.mjs`, `index.mjs`, `sqlite3.wasm` в `dist/sqlite` после webpack (`clean: true`) |

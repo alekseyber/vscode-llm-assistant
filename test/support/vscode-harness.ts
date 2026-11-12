@@ -10,7 +10,11 @@
 
 import * as vscode from 'vscode';
 
-/** Внутренние рычаги мока: единственное место с приведением типа. */
+/**
+ * Внутренние рычаги мока. Наружу отдаём снимки и явные операции, а не ссылки на структуры:
+ * иначе тест может незаметно поменять состояние мока в обход типизированных функций.
+ * `raw` — осознанная лазейка для редких случаев, помечена в коде и в правилах проекта.
+ */
 interface MockInternals {
   /** Настройки, которые видит расширение: `llmAssistant.<ключ>` */
   settings: Record<string, unknown>;
@@ -63,10 +67,22 @@ const windowMock = vscode.window as unknown as {
 
 export function mockInternals(): MockInternals {
   return {
-    settings: workspace.__settings,
-    fs: workspace.__fs,
-    webviewPanels: workspace.__webviewPanels,
-    inlineProviders: languages.__inlineProviders,
+    get settings() {
+      return { ...workspace.__settings };
+    },
+    set settings(value: Record<string, unknown>) {
+      for (const key of Object.keys(workspace.__settings)) delete workspace.__settings[key];
+      Object.assign(workspace.__settings, value);
+    },
+    get fs() {
+      return workspace.__fs;
+    },
+    get webviewPanels() {
+      return workspace.__webviewPanels;
+    },
+    get inlineProviders() {
+      return languages.__inlineProviders;
+    },
     get findFilesResult() {
       return workspace.__findFilesResult;
     },
@@ -145,6 +161,14 @@ export function stubDialogs(options: {
       windowMock.showInputBox = original.input;
     },
   };
+}
+
+/**
+ * Лазейка: прямые структуры мока. Использовать только когда нужен сам объект, а не снимок,
+ * и обязательно с комментарием, зачем. В новом коде — не нужно.
+ */
+export function rawMockInternals() {
+  return { settings: workspace.__settings, fs: workspace.__fs, panels: workspace.__webviewPanels, providers: languages.__inlineProviders };
 }
 
 /** Панель WebView, созданная последней. */

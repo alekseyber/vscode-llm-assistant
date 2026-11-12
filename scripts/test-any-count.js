@@ -64,12 +64,21 @@ function isPrivateKey(argument) {
 function analyseFile(full, rel) {
   const source = ts.createSourceFile(rel, fs.readFileSync(full, 'utf-8'), ts.ScriptTarget.Latest, true);
   let casts = 0;
+  let doubleCasts = 0;
   const internalAccess = [];
   const privateKeys = [];
   const lineOf = (node) => source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1;
 
   const visit = (node) => {
     if (ts.isAsExpression(node) && isAnyType(node.type)) casts += 1;
+    // `as unknown as X` — тот же обход типов, но незаметный для основного счётчика
+    if (
+      ts.isAsExpression(node) &&
+      ts.isAsExpression(node.expression) &&
+      node.expression.type.kind === ts.SyntaxKind.UnknownKeyword
+    ) {
+      doubleCasts += 1;
+    }
 
     if (ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) {
       const base = unwrap(node.expression);
@@ -84,21 +93,23 @@ function analyseFile(full, rel) {
   };
 
   ts.forEachChild(source, visit);
-  return { casts, internalAccess, privateKeys };
+  return { casts, doubleCasts, internalAccess, privateKeys };
 }
 
 function analyse() {
   const files = {};
   const internalAccess = [];
   const privateKeys = [];
+  let doubleCastsTotal = 0;
   for (const full of walk(TEST_DIR)) {
     const rel = path.relative(ROOT, full).split(path.sep).join('/');
     const result = analyseFile(full, rel);
     if (result.casts > 0) files[rel] = result.casts;
+    doubleCastsTotal += result.doubleCasts;
     internalAccess.push(...result.internalAccess);
     privateKeys.push(...result.privateKeys);
   }
-  return { files, internalAccess, privateKeys };
+  return { files, internalAccess, privateKeys, doubleCasts: doubleCastsTotal };
 }
 
 function readBudget() {
@@ -126,7 +137,7 @@ function main() {
   const asJson = process.argv.includes('--json');
   const reasonsInput = parseReasons(process.argv);
 
-  const { files, internalAccess, privateKeys } = analyse();
+  const { files, internalAccess, privateKeys, doubleCasts } = analyse();
   const total = Object.values(files).reduce((sum, n) => sum + n, 0);
   const budget = readBudget();
   const budgetFiles = budget.files || {};
@@ -207,6 +218,7 @@ function main() {
       for (const hit of privateKeys.slice(0, 5)) console.log(`    ${hit.file}:${hit.line} ${hit.snippet}`);
     }
     console.log(`[any] ⚠️ обращений к свойствам через приведение: ${internalAccess.length} (см. --json)`);
+    console.log(`[any] ⚠️ двойных приведений «as unknown as»: ${doubleCasts} — видимость, не гейт`);
     for (const hit of internalAccess.slice(0, 5)) console.log(`    ${hit.file}:${hit.line} ${hit.snippet}`);
   }
 

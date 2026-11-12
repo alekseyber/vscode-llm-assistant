@@ -497,6 +497,7 @@ npm run compile        # Сборка
 npm run lint           # Линтер
 npm run check:mutation # Мутации: правим строку в src, тесты обязаны упасть
 npm run check:test-any # Бюджет `as any` в тестах (ратчет по файлам)
+# тесты: двойники — test/support/fakes.ts, рычаги мока — test/support/vscode-harness.ts
 npm run test:mocked    # Тесты без VS Code (772 шт.)
 node scripts/spec-validate.js  # Проверка SDD
 ```

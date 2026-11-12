@@ -13,9 +13,14 @@ export interface ProviderFakeOptions {
   isLocal?: boolean;
   /** Что вернёт стрим: одна строка или функция от сообщений */
   response?: string | ((messages: readonly ChatMessage[]) => string);
+  /** Размер куска в потоке (по умолчанию 16 символов). Тест может задать 0 — ответ одним куском */
+  chunkSize?: number;
 }
 
 export interface ProviderFake extends LLMProvider {
+  // Внимание: объекты VS Code собираются через `as unknown as` — полный набор полей интерфейса
+  // не создаётся. Это осознанное исключение для внешних типов; счётчик приведений его видит
+  // отдельной строкой (`check:test-any` → «as unknown as»).
   /** Сообщения всех запросов — для проверки того, что ушло модели */
   calls: Array<{ messages: readonly ChatMessage[]; options: CompletionOptions }>;
 }
@@ -32,8 +37,13 @@ export function fakeProvider(options: ProviderFakeOptions = {}): ProviderFake {
       calls.push({ messages, options: chatOptions });
       const text =
         typeof options.response === 'function' ? options.response(messages) : options.response ?? 'ответ';
+      const size = options.chunkSize ?? 16;
       return (async function* () {
-        for (let i = 0; i < text.length; i += 16) yield text.slice(i, i + 16);
+        if (size <= 0) {
+          yield text;
+          return;
+        }
+        for (let i = 0; i < text.length; i += size) yield text.slice(i, i + size);
       })();
     },
   } as ProviderFake;
