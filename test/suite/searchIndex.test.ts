@@ -31,7 +31,7 @@ interface RawSqliteDb {
  * сломать версию схемы мимо публичного API.
  */
 function rawDb(store: SearchIndexStore): RawSqliteDb {
-  return (store as unknown as { db: RawSqliteDb }).db;
+  return (store as unknown as { db: RawSqliteDb }).db; // cast-ok: приватное поле индекса, иначе схему не сломать
 }
 
 /**

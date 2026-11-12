@@ -106,7 +106,7 @@ suite('E2E: Plan Mode — сессионная привязка', () => {
 
     // 1. Генерация плана в A (явно передаём sessionId=A, хотя активная — B)
     sandbox.stub(PlanModeManager.prototype, 'generatePlan').resolves({ planPath: '/tmp/plan.md', content: '# План', planId: 'abc' });
-    const internals = provider as unknown as ChatProviderInternals;
+    const internals = provider as unknown as ChatProviderInternals; // cast-ok: приватный путь плана, публичного API нет
     await internals.handlePlanMode('составь план', {}, 'test-model', idA);
 
     // План персистился в A
