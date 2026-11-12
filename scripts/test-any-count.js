@@ -1,25 +1,27 @@
 #!/usr/bin/env node
-// Бюджет `as any` в тестах: ратчет по файлам, а не по одному числу.
+// Бюджет `as any` в тестах: ратчет по файлам, счёт по AST TypeScript.
 //
-// Зачем: `as any` в тесте прячет расхождение между тестом и типом. Считать «сколько всего» —
-// бессмысленно (одно число ломается на любом слиянии и ничего не говорит о качестве тестов).
-// Поэтому бюджет — карта «файл → число»: сумма не растёт и ни один существующий файл не растёт.
-// Новый файл с `as any` требует обоснования в бюджете (`reason`), иначе CI красный.
+// Почему AST, а не регулярка: комментарии, строки и regex-литералы дают ложные срабатывания,
+// а `as any[]` и `(x as any[])[i]` — пропуски. AST считает ровно то, что видит компилятор.
 //
-// Запуск: node scripts/test-any-count.js [--update] [--json]
-//   --update  перезаписать бюджет текущими значениями (осознанное решение, видно в диффе)
+// Бюджет — карта «файл → число». Гейт валит сборку, если выросла сумма или любой существующий
+// файл. Новый файл или рост требуют причины: `--reason "путь.ts: почему"` (или общий `--reason`),
+// причина с датой пишется в `reasons` и печатается рядом с предупреждением.
+//
+// Запуск:
+//   node scripts/test-any-count.js
+//   node scripts/test-any-count.js --update [--reason "…"]
+//   node scripts/test-any-count.js --json
 
 'use strict';
 
 const fs = require('fs');
 const path = require('path');
+const ts = require('typescript');
 
 const ROOT = path.resolve(__dirname, '..');
 const TEST_DIR = path.join(ROOT, 'test');
 const BUDGET = path.join(TEST_DIR, 'any-budget.json');
-
-// Приватное состояние, к которому тест лезет по строковому ключу: obj['_cache'], obj["private"]
-const PRIVATE_ACCESS = /\w+\s*\[\s*['"](?:_|private|#)[\w]*['"]\s*\]/g;
 
 function walk(dir, out = []) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -29,23 +31,74 @@ function walk(dir, out = []) {
       walk(full, out);
       continue;
     }
-    if (entry.name.endsWith('.ts')) out.push(full);
+    if (entry.name.endsWith('.ts') && !entry.name.endsWith('.tmp.ts')) out.push(full);
   }
   return out;
 }
 
+/** Снять скобки: `(x as any).field` — expression это ParenthesizedExpression, не AsExpression. */
+function unwrap(node) {
+  let current = node;
+  while (current && ts.isParenthesizedExpression(current)) current = current.expression;
+  return current;
+}
+
+/** Тип `any`, включая `any[]` и `readonly any[]`. */
+function isAnyType(node) {
+  if (!node) return false;
+  if (node.kind === ts.SyntaxKind.AnyKeyword) return true;
+  if (ts.isArrayTypeNode(node)) return isAnyType(node.elementType);
+  if (ts.isTypeOperatorNode(node)) return isAnyType(node.type);
+  return false;
+}
+
+/** Ключ-строка, начинающаяся с `_`, `private` или `#`. */
+function isPrivateKey(argument) {
+  if (!argument) return false;
+  if (ts.isStringLiteral(argument) || ts.isNoSubstitutionTemplateLiteral(argument)) {
+    return /^(_|private|#)/.test(argument.text);
+  }
+  return false;
+}
+
+function analyseFile(full, rel) {
+  const source = ts.createSourceFile(rel, fs.readFileSync(full, 'utf-8'), ts.ScriptTarget.Latest, true);
+  let casts = 0;
+  const internalAccess = [];
+  const privateKeys = [];
+  const lineOf = (node) => source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1;
+
+  const visit = (node) => {
+    if (ts.isAsExpression(node) && isAnyType(node.type)) casts += 1;
+
+    if (ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) {
+      const base = unwrap(node.expression);
+      if (base && ts.isAsExpression(base) && isAnyType(base.type)) {
+        internalAccess.push({ file: rel, line: lineOf(node), snippet: node.getText().slice(0, 120) });
+      }
+    }
+    if (ts.isElementAccessExpression(node) && isPrivateKey(node.argumentExpression)) {
+      privateKeys.push({ file: rel, line: lineOf(node), snippet: node.getText().slice(0, 120) });
+    }
+    ts.forEachChild(node, visit);
+  };
+
+  ts.forEachChild(source, visit);
+  return { casts, internalAccess, privateKeys };
+}
+
 function analyse() {
   const files = {};
-  const privateAccess = [];
-  for (const full of walk(TEST_DIR).filter((p) => !p.includes('/node_modules/'))) {
+  const internalAccess = [];
+  const privateKeys = [];
+  for (const full of walk(TEST_DIR)) {
     const rel = path.relative(ROOT, full).split(path.sep).join('/');
-    const body = fs.readFileSync(full, 'utf-8');
-    const count = (body.match(/\bas\s+any\b/g) || []).length;
-    const privateHits = body.match(PRIVATE_ACCESS) || [];
-    if (count > 0) files[rel] = count;
-    for (const hit of privateHits) privateAccess.push({ file: rel, hit });
+    const result = analyseFile(full, rel);
+    if (result.casts > 0) files[rel] = result.casts;
+    internalAccess.push(...result.internalAccess);
+    privateKeys.push(...result.privateKeys);
   }
-  return { files, privateAccess };
+  return { files, internalAccess, privateKeys };
 }
 
 function readBudget() {
@@ -56,23 +109,65 @@ function readBudget() {
   }
 }
 
+/** `--reason "путь.ts: почему"` — на файл; `--reason "почему"` — общая причина. */
+function parseReasons(argv) {
+  const reasons = new Map();
+  const index = argv.indexOf('--reason');
+  if (index < 0) return reasons;
+  const value = argv[index + 1] || '';
+  const match = /^([^:]+\.ts)\s*:\s*(.+)$/.exec(value);
+  if (match) reasons.set(match[1].trim(), match[2].trim());
+  else reasons.set('*', value.trim());
+  return reasons;
+}
+
 function main() {
   const update = process.argv.includes('--update');
   const asJson = process.argv.includes('--json');
-  const { files, privateAccess } = analyse();
+  const reasonsInput = parseReasons(process.argv);
+
+  const { files, internalAccess, privateKeys } = analyse();
   const total = Object.values(files).reduce((sum, n) => sum + n, 0);
   const budget = readBudget();
+  const budgetFiles = budget.files || {};
+  const reasons = budget.reasons || {};
+  const budgetTotal = Object.values(budgetFiles).reduce((sum, n) => sum + n, 0);
+
+  const grown = Object.entries(files)
+    .filter(([file, count]) => file in budgetFiles && count > budgetFiles[file])
+    .map(([file, count]) => ({ file, from: budgetFiles[file], to: count }));
+  const added = Object.entries(files)
+    .filter(([file]) => !(file in budgetFiles))
+    .map(([file, count]) => ({ file, to: count }));
+  const reduced = Object.entries(budgetFiles)
+    .filter(([file, count]) => (files[file] || 0) < count)
+    .map(([file, count]) => ({ file, from: count, to: files[file] || 0 }));
 
   if (update) {
-    const reasons = budget.reasons || {};
+    const growth = [...grown, ...added];
+    const missing = growth.filter((item) => !reasonsInput.has(item.file) && !reasonsInput.has('*'));
+    if (missing.length > 0) {
+      console.error('[any] рост без причины. Формат: --reason "путь/к/файлу.ts: почему"');
+      for (const item of missing) console.error(`    ${item.file}: → ${item.to}`);
+      process.exit(1);
+    }
+    const nextReasons = { ...reasons };
+    const today = new Date().toISOString().slice(0, 10);
+    for (const item of growth) {
+      nextReasons[item.file] = {
+        reason: reasonsInput.get(item.file) || reasonsInput.get('*'),
+        date: today,
+      };
+    }
+    for (const item of reduced) delete nextReasons[item.file];
     fs.writeFileSync(
       BUDGET,
       `${JSON.stringify(
         {
-          note: 'Карта «файл → число as any». Растёт только с обоснованием в reasons.',
-          total,
+          note: 'Карта «файл → число as any» (счёт по AST). Рост — только с записью в reasons (причина + дата).',
+          updatedAt: today,
           files: Object.fromEntries(Object.entries(files).sort()),
-          reasons,
+          reasons: nextReasons,
         },
         null,
         2,
@@ -83,43 +178,40 @@ function main() {
     return;
   }
 
-  const budgetFiles = budget.files || {};
-  const budgetTotal = Object.values(budgetFiles).reduce((sum, n) => sum + n, 0);
-  const grown = [];
-  const added = [];
-  for (const [file, count] of Object.entries(files)) {
-    if (!(file in budgetFiles)) {
-      added.push({ file, count, reason: budget.reasons?.[file] });
-    } else if (count > budgetFiles[file]) {
-      grown.push({ file, from: budgetFiles[file], to: count });
-    }
-  }
-  const reduced = Object.entries(budgetFiles)
-    .filter(([file, count]) => (files[file] || 0) < count)
-    .map(([file, count]) => ({ file, from: count, to: files[file] || 0 }));
+  const unexplainedGrowth = [...grown, ...added].filter((item) => !reasons[item.file]);
+  const delta = total - budgetTotal;
 
   if (asJson) {
-    console.log(JSON.stringify({ total, budgetTotal, grown, added, reduced, privateAccess }, null, 2));
+    console.log(
+      JSON.stringify(
+        { total, budgetTotal, delta, grown, added, reduced, unexplainedGrowth, reasons, internalAccess, privateKeys },
+        null,
+        2,
+      ),
+    );
   } else {
-    console.log(`[any] сейчас ${total}, бюджет ${budgetTotal}`);
+    console.log(`[any] сейчас ${total}, бюджет ${budgetTotal} (дельта ${delta >= 0 ? '+' : ''}${delta})`);
     if (reduced.length > 0) {
       const saved = reduced.reduce((sum, r) => sum + r.from - r.to, 0);
       console.log(`[any] ✅ снижено на ${saved} в ${reduced.length} файлах`);
     }
-    for (const item of grown) console.log(`[any] ❌ ${item.file}: ${item.from} → ${item.to}`);
-    for (const item of added) {
-      const verdict = item.reason ? `новая запись с обоснованием: ${item.reason}` : 'новая запись без обоснования';
-      console.log(`[any] ${item.reason ? '⚠️' : '❌'} ${item.file}: +${item.count} (${verdict})`);
+    const describe = (text, file) => {
+      const entry = reasons[file];
+      const suffix = entry ? ` — причина: ${entry.reason} (${entry.date})` : '';
+      console.log(`[any] ${entry ? '⚠️' : '❌'} ${text}${suffix}`);
+    };
+    for (const item of grown) describe(`${item.file}: ${item.from} → ${item.to}`, item.file);
+    for (const item of added) describe(`${item.file}: новый файл, +${item.to}`, item.file);
+    if (privateKeys.length > 0) {
+      console.log(`[any] ⚠️ приватных ключей: ${privateKeys.length}`);
+      for (const hit of privateKeys.slice(0, 5)) console.log(`    ${hit.file}:${hit.line} ${hit.snippet}`);
     }
-    if (privateAccess.length > 0) {
-      console.log(`[any] ⚠️ доступ к приватному состоянию по ключу: ${privateAccess.length}`);
-      for (const hit of privateAccess.slice(0, 10)) console.log(`    ${hit.file}: ${hit.hit}`);
-    }
+    console.log(`[any] ⚠️ обращений к свойствам через приведение: ${internalAccess.length} (см. --json)`);
+    for (const hit of internalAccess.slice(0, 5)) console.log(`    ${hit.file}:${hit.line} ${hit.snippet}`);
   }
 
-  const failures = grown.length + added.filter((item) => !item.reason).length;
-  if (failures > 0) {
-    console.log('[any] бюджет превышен — обновите бюджет осознанно: npm run any:update');
+  if (unexplainedGrowth.length > 0) {
+    console.log('[any] бюджет превышен без обоснования: npm run any:update -- --reason "путь.ts: почему"');
     process.exit(1);
   }
 }

@@ -27,9 +27,28 @@ jobs:
       - run: npm run lint
       - run: npm run check:mock
       - run: npm run check:changelog
-      - name: Бюджет `as any` в тестах
-        # Пофайловый ратчет: сумма и отдельные файлы не растут; новый файл — только с обоснованием
+
+  # Бюджет `as any` в тестах — отдельная работа: при падении сразу видно, что дело в бюджете
+  check-any-budget:
+    runs-on: ubuntu-latest
+    needs: spec-validate
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Бюджет `as any` (пофайловый ратчет)
         run: node scripts/test-any-count.js
+      - name: Дифф бюджета в сводке
+        if: always()
+        run: |
+          {
+            echo '## Бюджет `as any`'
+            echo 'Рост допустим только с записью `reasons` (причина + дата). Снижение — приветствуется.'
+            echo '```'
+            git diff -- test/any-budget.json | head -60 || true
+            node scripts/test-any-count.js || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
   # Юнит-тесты с мок-vscode (npm run test:mocked) — быстрые, без реального VS Code
   test-unit:
