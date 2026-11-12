@@ -4,6 +4,8 @@
 import * as vscode from 'vscode';
 
 export interface FakeWebviewView {
+  /** Идентификатор вида из package.json (`views.llmAssistant[].id`) */
+  viewType: string;
   posted: any[];
   webview: {
     options: any;
@@ -40,6 +42,7 @@ export function createFakeWebviewView(): FakeWebviewView {
     },
   };
   return {
+    viewType: 'llmAssistant.chat',
     posted,
     webview,
     visible: true,

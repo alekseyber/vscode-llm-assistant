@@ -51,7 +51,11 @@ suite('E2E-7: провайдеры после правки настроек', ()
     manager = new ProviderManager();
     const provider = new ChatViewProvider(ctx, manager, conversation, history);
     view = createFakeWebviewView();
-    provider.resolveWebviewView(view as any, {} as any, { isCancellationRequested: false } as any);
+    provider.resolveWebviewView(
+      view,
+      { state: undefined },
+      { isCancellationRequested: false, onCancellationRequested: () => ({ dispose: () => undefined }) },
+    );
     // Настоящая панель на загрузке шлёт 'ready' — только после этого хост отдаёт список провайдеров
     view.send({ type: 'ready' });
   }

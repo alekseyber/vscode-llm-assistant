@@ -106,6 +106,25 @@ export function mockInternals(): MockInternals {
   };
 }
 
+/**
+ * Конфигурация, которую «видит» расширение: `read` отвечает за значение, остальное —
+ * то, что передал вызывающий код вторым аргументом `get`.
+ *
+ * Зачем: `vscode.WorkspaceConfiguration` — широкий интерфейс, и тесту нужен только `get`.
+ * Собирать его целиком бессмысленно, поэтому неполный объект приводится здесь один раз,
+ * а не `as any` в каждом тесте.
+ */
+export function fakeConfiguration(
+  read: (key: string, defaultValue?: unknown) => unknown,
+): vscode.WorkspaceConfiguration {
+  return {
+    get: read,
+    has: () => false,
+    inspect: () => undefined,
+    update: async () => undefined,
+  } as unknown as vscode.WorkspaceConfiguration;
+}
+
 /** Сбросить настройки между тестами. */
 export function resetSettings(): void {
   for (const key of Object.keys(workspace.__settings)) delete workspace.__settings[key];

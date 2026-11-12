@@ -7,6 +7,8 @@ import * as sinon from 'sinon';
 import * as vscode from 'vscode';
 import * as assert from 'assert';
 import * as http from 'http';
+import { AddressInfo } from 'net';
+import { fakeConfiguration } from '../support/vscode-harness';
 import { OpenAIProvider } from '../../src/providers/openai';
 
 suite('Фактический расход токенов у OpenAI-совместимого провайдера', () => {
@@ -18,12 +20,9 @@ suite('Фактический расход токенов у OpenAI-совмес
   setup((done) => {
     sandbox = sinon.createSandbox();
     // Настройки плагина в этих тестах не читаем: ретраи и таймауты — дефолты
-    sandbox.stub(vscode.workspace, 'getConfiguration').returns({
-      get: (_key: string, defaultValue?: unknown) => defaultValue,
-      has: () => false,
-      inspect: () => undefined,
-      update: () => Promise.resolve(),
-    } as any);
+    sandbox.stub(vscode.workspace, 'getConfiguration').returns(
+      fakeConfiguration((_key, defaultValue) => defaultValue),
+    );
 
     server = http.createServer((req, res) => {
       let raw = '';
@@ -42,7 +41,7 @@ suite('Фактический расход токенов у OpenAI-совмес
       });
     });
     server.listen(0, '127.0.0.1', () => {
-      baseUrl = `http://127.0.0.1:${(server.address() as any).port}/v1`;
+      baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`;
       done();
     });
   });
@@ -60,7 +59,7 @@ suite('Фактический расход токенов у OpenAI-совмес
       models: ['qwen3-8b'],
       isLocal,
       toolLoop: undefined,
-    } as any);
+    });
   }
 
   async function drain(p: OpenAIProvider): Promise<any> {

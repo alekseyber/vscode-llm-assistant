@@ -7,6 +7,8 @@ import * as sinon from 'sinon';
 import * as vscode from 'vscode';
 import * as assert from 'assert';
 import * as http from 'http';
+import { AddressInfo } from 'net';
+import { fakeConfiguration } from '../support/vscode-harness';
 import {
   OllamaProvider,
   fetchWithConnectTimeout,
@@ -26,22 +28,19 @@ suite('Таймаут соединения с Ollama (P20)', () => {
     sandbox = sinon.createSandbox();
     for (const key of Object.keys(localSettings)) delete localSettings[key];
     // Настройки: ретраи выключены — проверяем именно одну попытку соединения
-    sandbox.stub(vscode.workspace, 'getConfiguration').returns({
-      get: (key: string, defaultValue?: unknown) => {
+    sandbox.stub(vscode.workspace, 'getConfiguration').returns(
+      fakeConfiguration((key, defaultValue) => {
         if (key in localSettings) return localSettings[key];
         if (key === 'retry.enabled') return false;
         if (key === 'debug') return false;
         return defaultValue;
-      },
-      has: () => false,
-      inspect: () => undefined,
-      update: () => Promise.resolve(),
-    } as any);
+      }),
+    );
     __resetConnectTimeout();
 
     server = http.createServer((req, res) => onRequest(req, res));
     server.listen(0, '127.0.0.1', () => {
-      port = (server.address() as any).port;
+      port = (server.address() as AddressInfo).port;
       done();
     });
   });
