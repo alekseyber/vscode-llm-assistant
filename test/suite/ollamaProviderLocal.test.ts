@@ -7,6 +7,8 @@ import * as sinon from 'sinon';
 import * as vscode from 'vscode';
 import * as assert from 'assert';
 import * as http from 'http';
+import { AddressInfo } from 'net';
+import { fakeConfiguration } from '../support/vscode-harness';
 import {
   OllamaProvider,
   describeLocalServer,
@@ -52,7 +54,7 @@ suite('OllamaProvider (нативный /api/chat)', () => {
       inspect: () => undefined,
       update: () => Promise.resolve(),
     };
-    sandbox.stub(vscode.workspace, 'getConfiguration').returns(mockConfig as any);
+    sandbox.stub(vscode.workspace, 'getConfiguration').returns(fakeConfiguration(mockConfig.get));
   }
 
   setup((done) => {
@@ -86,7 +88,7 @@ suite('OllamaProvider (нативный /api/chat)', () => {
     });
 
     server.listen(0, '127.0.0.1', () => {
-      const address = server.address() as any;
+      const address = server.address() as AddressInfo;
       baseUrl = `http://127.0.0.1:${address.port}`;
       done();
     });
@@ -226,7 +228,7 @@ suite('OllamaProvider (нативный /api/chat)', () => {
     const probe = http.createServer(() => undefined);
     const port: number = await new Promise((resolve) => {
       probe.listen(0, '127.0.0.1', () => {
-        const address = probe.address() as any;
+        const address = probe.address() as AddressInfo;
         probe.close(() => resolve(address.port));
       });
     });
@@ -304,7 +306,7 @@ suite('OllamaProvider (нативный /api/chat)', () => {
     const probe = http.createServer(() => undefined);
     const port: number = await new Promise((resolve) => {
       probe.listen(0, '127.0.0.1', () => {
-        const address = probe.address() as any;
+        const address = probe.address() as AddressInfo;
         probe.close(() => resolve(address.port));
       });
     });
@@ -370,7 +372,7 @@ suite('OllamaProvider (нативный /api/chat)', () => {
     const probe = http.createServer(() => undefined);
     const port: number = await new Promise((resolve) => {
       probe.listen(0, '127.0.0.1', () => {
-        const address = probe.address() as any;
+        const address = probe.address() as AddressInfo;
         probe.close(() => resolve(address.port));
       });
     });

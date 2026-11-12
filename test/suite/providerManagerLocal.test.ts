@@ -10,6 +10,8 @@ import { ProviderManager, DEFAULT_OLLAMA_BASE_URL } from '../../src/providers/ma
 import { OllamaProvider } from '../../src/providers/ollama';
 import { OpenAIProvider } from '../../src/providers/openai';
 import { calculateCost } from '../../src/providers/types';
+import { providerInternals } from '../support/fakes';
+import { fakeConfiguration } from '../support/vscode-harness';
 
 suite('ProviderManager — локальный провайдер', () => {
   let sandbox: sinon.SinonSandbox;
@@ -33,7 +35,7 @@ suite('ProviderManager — локальный провайдер', () => {
       inspect: () => undefined,
       update: () => Promise.resolve(),
     };
-    sandbox.stub(vscode.workspace, 'getConfiguration').returns(mockConfig as any);
+    sandbox.stub(vscode.workspace, 'getConfiguration').returns(fakeConfiguration(mockConfig.get));
   }
 
   setup(() => {
@@ -65,7 +67,7 @@ suite('ProviderManager — локальный провайдер', () => {
     const provider = manager.getProvider('deepseek');
 
     assert.ok(provider instanceof OpenAIProvider, 'облачный провайдер остаётся OpenAIProvider');
-    assert.notStrictEqual((provider as any).isLocal, true);
+    assert.notStrictEqual(provider.isLocal, true);
   });
 
   test('PRM-1.3: type описан в конфиге; отсутствие baseUrl даёт адрес по умолчанию', () => {
@@ -75,7 +77,7 @@ suite('ProviderManager — локальный провайдер', () => {
     const provider = manager.getProvider('local') as OllamaProvider;
 
     assert.ok(provider, 'провайдер создан даже без baseUrl');
-    assert.strictEqual((provider as any).baseUrl, DEFAULT_OLLAMA_BASE_URL);
+    assert.strictEqual(providerInternals(provider).baseUrl, DEFAULT_OLLAMA_BASE_URL);
     assert.strictEqual(DEFAULT_OLLAMA_BASE_URL, 'http://127.0.0.1:11434');
   });
 
@@ -153,7 +155,7 @@ suite('ProviderManager — локальный провайдер', () => {
   });
 
   test('PRM-3.2: numCtx у локального openai-провайдера → предупреждение один раз', () => {
-    const warn = sinon.stub(vscode.window, 'showWarningMessage').resolves(undefined as any);
+    const warn = sinon.stub(vscode.window, 'showWarningMessage').resolves(undefined);
     const { __resetIgnoredSettingsWarnings } = require('../../src/providers/manager');
     __resetIgnoredSettingsWarnings();
     createMockVscodeConfig({
@@ -228,7 +230,7 @@ suite('ProviderManager — локальный провайдер', () => {
       inspect: () => undefined,
       update: () => Promise.resolve(),
     };
-    sandbox.stub(vscode.workspace, 'getConfiguration').returns(mockConfig as any);
+    sandbox.stub(vscode.workspace, 'getConfiguration').returns(fakeConfiguration(mockConfig.get));
 
     const manager = new ProviderManager();
     // Так делает ChatViewProvider после discovery: у провайдера models: [] в конфиге

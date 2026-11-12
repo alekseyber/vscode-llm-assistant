@@ -4,11 +4,13 @@ import 'mocha';
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 import { EditController } from '../../src/modes/edit/EditController';
+import { FakeProviderManager } from '../support/fakes';
+import { fakeConfiguration } from '../support/vscode-harness';
 
 suite('EditController / история и уведомление', () => {
   test('EDH-1: recordRun пишет режим edit с токенами и стоимостью', () => {
     const store: any = { recordRun: sinon.stub() };
-    const controller: any = new EditController({ getDefault: () => undefined } as any, store);
+    const controller: any = new EditController(new FakeProviderManager(), store);
 
     controller.recordRun(
       'function sum(a, b) {\n  return a + b;\n}',
@@ -32,7 +34,7 @@ suite('EditController / история и уведомление', () => {
   });
 
   test('EDH-2: без store запись не падает (store опционален)', () => {
-    const controller: any = new EditController({ getDefault: () => undefined } as any);
+    const controller: any = new EditController(new FakeProviderManager());
     assert.doesNotThrow(() => controller.recordRun('a', 'b', 'c', Date.now(), 'local', 'qwen3:8b'));
   });
 
@@ -186,9 +188,8 @@ suite('EditController / прерванная правка не оставляе�
 });
 
 suite('EditController / понятные сообщения об ошибках провайдера', () => {
-  function controllerInstance() {
-    const pm: any = { getChosen: () => undefined, getDefault: () => undefined, getProvider: () => undefined };
-    return new EditController(pm) as any;
+  function controllerInstance(): any {
+    return new EditController(new FakeProviderManager());
   }
 
   test('EER-1: 429 называет провайдера, модель и что делать', () => {
@@ -216,7 +217,7 @@ suite('EditController / понятные сообщения об ошибках 
 // ─────────── EDH-3: кнопки «Принять/Отклонить» прямо у кода ───────────
 suite('EditController / CodeLens над правкой', () => {
   test('EDH-3: при активной правке линзы содержат команды accept/reject и число строк', () => {
-    const controller: any = new EditController({ getDefault: () => undefined } as any);
+    const controller: any = new EditController(new FakeProviderManager());
     assert.deepStrictEqual(controller.getProposalLenses(), [], 'без сессии линз нет');
 
     controller.currentSession = {
@@ -241,7 +242,7 @@ suite('EditController / CodeLens над правкой', () => {
 // ─────────── EDH-4/5: текст уведомления и жизненный цикл CodeLens ───────────
 suite('EditController / уведомление о правке', () => {
   test('EDH-4: уведомление показывает диапазон, счётчики и первую непустую строку кода', () => {
-    const controller: any = new EditController({ getDefault: () => undefined } as any);
+    const controller: any = new EditController(new FakeProviderManager());
     const msg = controller.buildProposalMessage({ start: { line: 1 }, end: { line: 1 } }, 3, 1,
       '\n\n  return a + b;\n}');
 
@@ -252,7 +253,7 @@ suite('EditController / уведомление о правке', () => {
   });
 
   test('EDH-4.1: длинная первая строка обрезается до 80 символов', () => {
-    const controller: any = new EditController({ getDefault: () => undefined } as any);
+    const controller: any = new EditController(new FakeProviderManager());
     const long = 'x'.repeat(200);
     const msg = controller.buildProposalMessage({ start: { line: 0 }, end: { line: 0 } }, 1, 0, long);
     assert.strictEqual(msg.length < 160, true, `слишком длинное уведомление: ${msg.length}`);
@@ -260,14 +261,14 @@ suite('EditController / уведомление о правке', () => {
   });
 
   test('EDH-4.2: пустой новый текст — уведомление без превью', () => {
-    const controller: any = new EditController({ getDefault: () => undefined } as any);
+    const controller: any = new EditController(new FakeProviderManager());
     const msg = controller.buildProposalMessage({ start: { line: 4 }, end: { line: 4 } }, 0, 3, '');
     assert.ok(msg.includes('Строки 5–5'), msg);
     assert.ok(!msg.includes('Будет:'), msg);
   });
 
   test('EDH-5: после отклонения линзы исчезают', () => {
-    const controller: any = new EditController({ getDefault: () => undefined } as any);
+    const controller: any = new EditController(new FakeProviderManager());
     controller.currentSession = {
       editor: { document: { uri: { toString: () => 'file:///a.js' }, languageId: 'javascript' }, options: {} },
       selection: { start: { line: 0 }, end: { line: 0 } },
@@ -297,11 +298,11 @@ suite('EditController / diff-предпросмотр предложения', (
           return off + (pos.character || 0);
         },
       },
-    } as any;
+    };
   };
 
   test('EDH-6: правка открывается в diff — команда vscode.diff получает документы «до» и «после»', async () => {
-    const controller: any = new EditController({ getDefault: () => undefined } as any);
+    const controller: any = new EditController(new FakeProviderManager());
     const calls: any[] = [];
     const sinon = require('sinon');
     const stub = sinon.stub(require('vscode').commands, 'executeCommand').callsFake(async (...args: any[]) => { calls.push(args); });
@@ -322,13 +323,13 @@ suite('EditController / diff-предпросмотр предложения', (
   });
 
   test('EDH-7: настройка edit.showProposalDiff=false отключает предпросмотр', async () => {
-    const controller: any = new EditController({ getDefault: () => undefined } as any);
+    const controller: any = new EditController(new FakeProviderManager());
     const vscode = require('vscode');
     const sinon = require('sinon');
     const getConf = vscode.workspace.getConfiguration;
-    const stub = sinon.stub(vscode.workspace, 'getConfiguration').returns({
-      get: (key: string, def?: any) => (key === 'edit.showProposalDiff' ? false : def),
-    } as any);
+    const stub = sinon
+      .stub(vscode.workspace, 'getConfiguration')
+      .returns(fakeConfiguration((key, def) => (key === 'edit.showProposalDiff' ? false : def)));
 
     let ok = true;
     try {
@@ -349,11 +350,11 @@ suite('EditController / приём и уборка предпросмотра', 
     return {
       document: { uri: { toString: () => uriStr, scheme: 'file', path: '/a.js', fsPath: '/a.js' }, isClosed: closed, getText: () => '', save: () => Promise.resolve(true) },
       edit: (cb: any) => Promise.resolve(true),
-    } as any;
+    };
   }
 
   test('EDH-8: протухший редактор заменяется живым по тому же документу', () => {
-    const controller: any = new EditController({ getDefault: () => undefined } as any);
+    const controller: any = new EditController(new FakeProviderManager());
     const stale = editorFor('file:///a.js', true);
     const fresh = editorFor('file:///a.js', false);
 
@@ -365,13 +366,13 @@ suite('EditController / приём и уборка предпросмотра', 
   });
 
   test('EDH-8.1: живого редактора нет — resolveLiveEditor вернёт undefined', () => {
-    const controller: any = new EditController({ getDefault: () => undefined } as any);
+    const controller: any = new EditController(new FakeProviderManager());
     vscode.window.visibleTextEditors = [];
     assert.strictEqual(controller.resolveLiveEditor(editorFor('file:///b.js', true)), undefined);
   });
 
   test('EDH-9: closeProposalDiff закрывает только вкладки схемы llma-proposal', async () => {
-    const controller: any = new EditController({ getDefault: () => undefined } as any);
+    const controller: any = new EditController(new FakeProviderManager());
     const closed: any[] = [];
     const proposalTab = { input: { uri: { scheme: 'llma-proposal', toString: () => 'llma-proposal:/p-after.js' } } };
     const fileTab = { input: { uri: { scheme: 'file', toString: () => 'file:///a.js' } } };
@@ -392,7 +393,7 @@ suite('EditController / приём и уборка предпросмотра', 
   });
 
   test('EDH-9.1: diff-вкладка (original/modified) тоже закрывается', async () => {
-    const controller: any = new EditController({ getDefault: () => undefined } as any);
+    const controller: any = new EditController(new FakeProviderManager());
     const closed: any[] = [];
     // Реальная вкладка diff не имеет input.uri — только original/modified
     const diffTab = {
@@ -415,7 +416,7 @@ suite('EditController / приём и уборка предпросмотра', 
   });
 
   test('EDH-10: отклонение закрывает diff-окно и чистит сессию', () => {
-    const controller: any = new EditController({ getDefault: () => undefined } as any);
+    const controller: any = new EditController(new FakeProviderManager());
     const sinon = require('sinon');
     const closeSpy = sinon.stub(controller, 'closeProposalDiff').resolves();
     vscode.window.visibleTextEditors = [editorFor('file:///a.js', false)];
