@@ -5,10 +5,21 @@ import * as sinon from 'sinon';
 import * as assert from 'assert';
 import * as vscode from 'vscode';
 import { ConversationManager } from '../../src/modes/chat/ConversationManager';
+import { fakeProvider, ProviderFake } from '../support/fakes';
+
+/** Провайдер-двойник с подставным нестриминговым ответом (им пользуется summary). */
+interface SummaryProvider extends ProviderFake {
+  chatComplete: sinon.SinonStub;
+}
+
+function makeSummaryProvider(sandbox: sinon.SinonSandbox, summary: string): SummaryProvider {
+  return { ...fakeProvider(), chatComplete: sandbox.stub().resolves(summary) };
+}
 
 suite('Summary — интеграция с ConversationManager', () => {
   let sandbox: sinon.SinonSandbox;
   let storage: any;
+  let config: vscode.WorkspaceConfiguration;
 
   setup(() => {
     sandbox = sinon.createSandbox();
@@ -19,8 +30,8 @@ suite('Summary — интеграция с ConversationManager', () => {
       setKeysForSync: sandbox.stub(),
     };
     // Мок getConfiguration
-    sandbox.stub(vscode.workspace, 'getConfiguration').returns({
-      get: sandbox.stub().callsFake((key: string, defaultValue: any) => {
+    config = {
+      get: sandbox.stub().callsFake((key: string, defaultValue: unknown) => {
         if (key === 'chat.maxContextTokens') return 512;
         if (key === 'chat.summaryEnabled') return true;
         if (key === 'chat.summaryModel') return '';
@@ -32,13 +43,15 @@ suite('Summary — интеграция с ConversationManager', () => {
       }),
       has: sandbox.stub().returns(false),
       inspect: sandbox.stub().returns(undefined),
-    } as any);
+      update: sandbox.stub().returns(Promise.resolve()),
+    };
+    sandbox.stub(vscode.workspace, 'getConfiguration').returns(config);
     sandbox.stub(vscode.workspace, 'workspaceFolders').value([{
-      uri: { fsPath: '/tmp/test-workspace' },
+      uri: vscode.Uri.file('/tmp/test-workspace'),
       name: 'test',
       index: 0,
-    }] as any);
-    sandbox.stub(vscode.workspace, 'onDidChangeTextDocument').returns({ dispose: () => {} } as any);
+    }]);
+    sandbox.stub(vscode.workspace, 'onDidChangeTextDocument').returns({ dispose: () => {} });
   });
 
   teardown(() => sandbox.restore());
@@ -53,12 +66,9 @@ suite('Summary — интеграция с ConversationManager', () => {
     }
 
     // Мок-провайдер с chatComplete
-    const mockProvider = {
-      chat: sandbox.stub(),
-      chatComplete: sandbox.stub().resolves('Краткое содержание: пользователь спрашивал о тестах.'),
-    };
+    const mockProvider = makeSummaryProvider(sandbox, 'Краткое содержание: пользователь спрашивал о тестах.');
 
-    const messages = await cm.getMessagesForRequest(mockProvider as any);
+    const messages = await cm.getMessagesForRequest(mockProvider);
 
     // Проверяем что есть system-сообщение с summary
     const summaryMessage = messages.find(m =>
@@ -75,12 +85,9 @@ suite('Summary — интеграция с ConversationManager', () => {
     cm.addMessage({ role: 'user', content: 'Привет' });
     cm.addMessage({ role: 'assistant', content: 'Здравствуй' });
 
-    const mockProvider = {
-      chat: sandbox.stub(),
-      chatComplete: sandbox.stub().resolves('Не должно вызываться'),
-    };
+    const mockProvider = makeSummaryProvider(sandbox, 'Не должно вызываться');
 
-    const messages = await cm.getMessagesForRequest(mockProvider as any);
+    const messages = await cm.getMessagesForRequest(mockProvider);
 
     // Проверяем что НЕТ system-сообщения с summary
     const summaryMessage = messages.find(m =>
@@ -92,7 +99,7 @@ suite('Summary — интеграция с ConversationManager', () => {
 
   test('summaryEnabled=false → без summary даже при длинной истории', async () => {
     // Переопределяем конфиг
-    (vscode.workspace.getConfiguration as any)().get = sandbox.stub().callsFake((key: string, defaultValue: any) => {
+    config.get = sandbox.stub().callsFake((key: string, defaultValue: unknown) => {
       if (key === 'chat.summaryEnabled') return false;
       if (key === 'chat.maxContextTokens') return 100;
       if (key === 'chat.summaryTriggerTokens') return 256;
@@ -108,12 +115,9 @@ suite('Summary — интеграция с ConversationManager', () => {
       cm.addMessage({ role: 'assistant', content: `Ответ ${i}. `.repeat(10) });
     }
 
-    const mockProvider = {
-      chat: sandbox.stub(),
-      chatComplete: sandbox.stub().resolves('Не должно вызываться'),
-    };
+    const mockProvider = makeSummaryProvider(sandbox, 'Не должно вызываться');
 
-    const messages = await cm.getMessagesForRequest(mockProvider as any);
+    const messages = await cm.getMessagesForRequest(mockProvider);
 
     const summaryMessage = messages.find(m =>
       m.role === 'system' && m.content.includes('## Краткое содержание')

@@ -2,10 +2,12 @@
 
 import 'mocha';
 import * as sinon from 'sinon';
+import { DOMWindow, JSDOM } from 'jsdom';
 import * as vscode from 'vscode';
 import * as assert from 'assert';
 import { HistoryViewProvider } from '../../src/modes/history/HistoryViewProvider';
 import { RunHistoryStore, RunEntry, generateRunId } from '../../src/shared/RunHistoryStore';
+import { fakeWebviewView, WebviewViewFake, FAKE_RESOLVE_CONTEXT, FAKE_CANCELLATION_TOKEN } from '../support/fakes';
 
 function makeEntry(overrides: Partial<RunEntry> = {}): RunEntry {
   return {
@@ -31,7 +33,8 @@ suite('HistoryViewProvider', () => {
   let globalState: any;
   let store: RunHistoryStore;
   let provider: HistoryViewProvider;
-  let postMessageSpy: sinon.SinonSpy;
+  let webview: WebviewViewFake;
+  let warning: sinon.SinonStub;
 
   setup(() => {
     sandbox = sinon.createSandbox();
@@ -46,37 +49,30 @@ suite('HistoryViewProvider', () => {
     };
     store = new RunHistoryStore(globalState);
 
-    // Мок showWarningMessage (для clearHistory)
-    sandbox.stub(vscode.window, 'showWarningMessage').resolves('Да' as any);
+    // Мок showWarningMessage (для clearHistory): пользователь отвечает «Да»
+    warning = sandbox.stub(vscode.window, 'showWarningMessage');
+    warning.callsFake(async () => 'Да');
 
     provider = new HistoryViewProvider(store);
 
-    // Резолвим view с перехватом postMessage
-    postMessageSpy = sandbox.spy();
-    const webviewView: any = {
-      webview: {
-        options: {},
-        html: '',
-        postMessage: postMessageSpy,
-        onDidReceiveMessage: sandbox.stub(),
-      },
-      onDidDispose: () => ({ dispose: () => undefined }),
-    };
-    provider.resolveWebviewView(webviewView, {} as any, {} as any);
+    // Резолвим view: fakeWebviewView отдаёт html/postMessage и канал сообщений от WebView
+    webview = fakeWebviewView();
+    provider.resolveWebviewView(webview.view, FAKE_RESOLVE_CONTEXT, FAKE_CANCELLATION_TOKEN);
   });
 
   teardown(() => sandbox.restore());
 
-  /** Вызвать приватный handleMessage */
-  function handle(msg: any): Promise<void> {
-    return (provider as any).handleMessage(msg);
+  /** Доставить сообщение из WebView и дать провайдеру доработать асинхронно. */
+  async function receive(msg: unknown): Promise<void> {
+    webview.send(msg);
+    await new Promise((resolve) => setTimeout(resolve, 0));
   }
 
   test('openSession вызывает onOpenSession с sessionId (одиночный клик)', async () => {
     const onOpen = sandbox.spy();
     provider.onOpenSession = onOpen;
 
-    await handle({ type: 'openSession', sessionId: 'session-abc' });
+    await receive({ type: 'openSession', sessionId: 'session-abc' });
 
     assert.ok(onOpen.calledOnceWith('session-abc'));
   });
@@ -85,7 +81,7 @@ suite('HistoryViewProvider', () => {
     const onOpen = sandbox.spy();
     provider.onOpenSession = onOpen;
 
-    await handle({ type: 'openSession' });
+    await receive({ type: 'openSession' });
 
     assert.ok(onOpen.notCalled);
   });
@@ -93,20 +89,20 @@ suite('HistoryViewProvider', () => {
   test('getDetails отправляет runDetails с найденной записью', async () => {
     store.recordRun(makeEntry({ id: 'run-1', task: 'Найти меня' }));
 
-    await handle({ type: 'getDetails', runId: 'run-1' });
+    await receive({ type: 'getDetails', runId: 'run-1' });
 
-    const call = postMessageSpy.getCalls().find((c) => c.args[0]?.type === 'runDetails');
+    const call = webview.messages.find((m) => m.type === 'runDetails');
     assert.ok(call, 'должен быть postMessage runDetails');
-    assert.strictEqual(call.args[0].entry.id, 'run-1');
-    assert.strictEqual(call.args[0].entry.task, 'Найти меня');
+    assert.strictEqual(call.entry.id, 'run-1');
+    assert.strictEqual(call.entry.task, 'Найти меня');
   });
 
   test('getDetails с несуществующим id не отправляет runDetails', async () => {
     store.recordRun(makeEntry({ id: 'run-1' }));
 
-    await handle({ type: 'getDetails', runId: 'missing' });
+    await receive({ type: 'getDetails', runId: 'missing' });
 
-    const call = postMessageSpy.getCalls().find((c) => c.args[0]?.type === 'runDetails');
+    const call = webview.messages.find((m) => m.type === 'runDetails');
     assert.strictEqual(call, undefined);
   });
 
@@ -114,28 +110,28 @@ suite('HistoryViewProvider', () => {
     store.recordRun(makeEntry({ id: 'run-1' }));
     assert.strictEqual(store.getRuns().length, 1);
 
-    await handle({ type: 'clearHistory' });
+    await receive({ type: 'clearHistory' });
 
     assert.strictEqual(store.getRuns().length, 0);
   });
 
   test('clearHistory с отказом (undefined) НЕ очищает историю', async () => {
-    (vscode.window.showWarningMessage as sinon.SinonStub).resolves(undefined);
+    warning.resolves(undefined);
 
     store.recordRun(makeEntry({ id: 'run-1' }));
-    await handle({ type: 'clearHistory' });
+    await receive({ type: 'clearHistory' });
 
     assert.strictEqual(store.getRuns().length, 1);
   });
 
   test('HV-13: в деталях прогона видно вызовы инструментов (замер поиска)', () => {
-    const html = (provider as any).getHtmlContent();
+    const html = webview.view.webview.html;
     assert.match(html, /Инструменты:/, 'поле для замера рендерится в деталях');
     assert.match(html, /entry\.tools/, 'значение берётся из записи истории');
   });
 
   test('HV-14: прогноз и авто-выбор модели видны в истории', () => {
-    const html = (provider as any).getHtmlContent();
+    const html = webview.view.webview.html;
     assert.match(html, /forecastUsd/, 'прогноз стоимости рендерится в деталях');
     assert.match(html, /Прогноз \/ факт/, 'рядом с фактом видно, что было обещано');
     assert.match(html, /auto-badge/, 'пометка «авто» есть в разметке');
@@ -143,7 +139,7 @@ suite('HistoryViewProvider', () => {
   });
 
   test('getHtmlContent: детали — оверлей-дровер, не зарезервированная панель', () => {
-    const html = (provider as any).getHtmlContent();
+    const html = webview.view.webview.html;
     assert.ok(html.includes('detail-overlay'), 'оверлей деталей есть');
     assert.ok(html.includes('detail-backdrop'), 'подложка есть');
     assert.ok(html.includes('id="detail-close"'), 'кнопка ✕ есть');
@@ -151,17 +147,21 @@ suite('HistoryViewProvider', () => {
   });
 });
 
+/** HTML вкладки истории: тот же путь, что у VS Code — через resolveWebviewView. */
+function historyHtml(store: RunHistoryStore): string {
+  const provider = new HistoryViewProvider(store);
+  const fake = fakeWebviewView();
+  provider.resolveWebviewView(fake.view, FAKE_RESOLVE_CONTEXT, FAKE_CANCELLATION_TOKEN);
+  return fake.view.webview.html;
+}
+
 // ─────────── HV-8: фильтр по режиму реально фильтрует строки ───────────
 suite('HistoryViewProvider / WebView: фильтр по режиму', () => {
-  const { JSDOM } = require('jsdom');
-
-  function buildDom(): any {
+  function buildDom(): JSDOM {
     const store: any = { getRuns: () => [], onDidChange: () => ({ dispose() {} }) };
-    const provider: any = new HistoryViewProvider(store);
-    const html = provider.getHtmlContent();
-    return new JSDOM(html, {
+    return new JSDOM(historyHtml(store), {
       runScripts: 'dangerously',
-      beforeParse(window: any) {
+      beforeParse(window: DOMWindow) {
         window.acquireVsCodeApi = () => ({ postMessage() {}, getState() {}, setState() {} });
       },
     });
@@ -182,19 +182,18 @@ suite('HistoryViewProvider / WebView: фильтр по режиму', () => {
     const rows = () => doc.querySelectorAll('#table-body tr').length;
     assert.strictEqual(rows(), 3, 'без фильтра видны все три');
 
-    const select = doc.getElementById('mode-filter') as any;
+    const select = doc.querySelector<HTMLSelectElement>('#mode-filter')!;
     select.value = 'edit';
     select.dispatchEvent(new window.Event('change'));
 
     assert.strictEqual(rows(), 1, 'после фильтра остаётся одна строка');
-    const statsText = (doc.getElementById('stats-line') as any).textContent;
+    const statsText = doc.getElementById('stats-line')!.textContent ?? '';
     assert.ok(statsText.includes('фильтр показал 1 из 3'), `нет пометки фильтра: ${statsText}`);
   });
 });
 
 // ─────────── HV-9..12: поведение фильтра по режиму ───────────
 suite('HistoryViewProvider / WebView: фильтр по режиму, крайние случаи', () => {
-  const { JSDOM } = require('jsdom');
 
   function run(id: string, mode: string, extra: any = {}) {
     return Object.assign({
@@ -205,10 +204,9 @@ suite('HistoryViewProvider / WebView: фильтр по режиму, крайн
 
   function mount(runs: any[], statsLine = 'x') {
     const store: any = { getRuns: () => [], onDidChange: () => ({ dispose() {} }) };
-    const provider: any = new HistoryViewProvider(store);
-    const dom = new JSDOM(provider.getHtmlContent(), {
+    const dom = new JSDOM(historyHtml(store), {
       runScripts: 'dangerously',
-      beforeParse(window: any) {
+      beforeParse(window: DOMWindow) {
         window.acquireVsCodeApi = () => ({ postMessage() {}, getState() {}, setState() {} });
       },
     });
@@ -218,13 +216,13 @@ suite('HistoryViewProvider / WebView: фильтр по режиму, крайн
     );
     refresh(runs);
     const select = (value: string) => {
-      const el: any = window.document.getElementById('mode-filter');
+      const el = window.document.querySelector<HTMLSelectElement>('#mode-filter')!;
       el.value = value;
       el.dispatchEvent(new window.Event('change'));
     };
     const rows = () => window.document.querySelectorAll('#table-body tr').length;
-    const stats = () => (window.document.getElementById('stats-line') as any).textContent;
-    const empty = () => window.document.getElementById('empty-state') as any;
+    const stats = () => window.document.getElementById('stats-line')!.textContent ?? '';
+    const empty = () => window.document.getElementById('empty-state')!;
     return { window, refresh, select, rows, stats, empty };
   }
 
