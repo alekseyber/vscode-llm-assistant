@@ -16,20 +16,10 @@ import { HistoryViewProvider } from '../../../src/modes/history/HistoryViewProvi
 import { RunEntry, RunHistoryStore } from '../../../src/shared/RunHistoryStore';
 import { createFakeWebviewView, messagesOfType } from './helpers/webview';
 import { fakeCancellationToken } from '../../support/vscode-harness';
+import { fakeMemento } from '../../support/fakes';
 import { waitFor } from './helpers/wait';
 
-/** Memento в памяти: настоящий интерфейс, без записи на диск между прогонами. */
-function memoryMemento(): vscode.Memento {
-  const data = new Map<string, unknown>();
-  return {
-    get: <T>(key: string, fallback?: T) => (data.has(key) ? (data.get(key) as T) : (fallback as T)),
-    update: async (key: string, value: unknown) => {
-      data.set(key, value);
-    },
-    keys: () => Array.from(data.keys()),
-    setKeysForSync: () => undefined,
-  } as unknown as vscode.Memento;
-}
+// Memento в памяти: берём общий двойник из test/support, а не свою копию
 
 function entry(id: string, status: RunEntry['status'], task: string): RunEntry {
   return {
@@ -53,7 +43,7 @@ suite('E2E-14: вкладка «История»', () => {
   // Честное имя: тест проверяет ДОСТАВКУ сообщения в панель, а не перерисовку таблицы —
   // рендер живёт в скрипте webview, который в Extension Host не исполняется.
   test('14a: при записи прогона провайдер отправляет обновление в открытую панель', async () => {
-    const store = new RunHistoryStore(memoryMemento());
+    const store = new RunHistoryStore(fakeMemento());
     const provider = new HistoryViewProvider(store);
     const view = createFakeWebviewView();
 
@@ -77,7 +67,7 @@ suite('E2E-14: вкладка «История»', () => {
   });
 
   test('14b: детали прогона приходят по запросу панели и содержат причину ошибки', async () => {
-    const store = new RunHistoryStore(memoryMemento());
+    const store = new RunHistoryStore(fakeMemento());
     const provider = new HistoryViewProvider(store);
     const view = createFakeWebviewView();
     provider.resolveWebviewView(view, { state: undefined }, fakeCancellationToken());
@@ -111,7 +101,7 @@ suite('E2E-14: вкладка «История»', () => {
   });
 
   test('14c: пустая история не ломает вкладку', async () => {
-    const store = new RunHistoryStore(memoryMemento());
+    const store = new RunHistoryStore(fakeMemento());
     const provider = new HistoryViewProvider(store);
     const view = createFakeWebviewView();
     provider.resolveWebviewView(view, { state: undefined }, fakeCancellationToken());

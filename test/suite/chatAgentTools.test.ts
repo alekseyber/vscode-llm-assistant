@@ -36,7 +36,7 @@ interface FunctionCallSchema extends Record<string, unknown> {
  * Снять обработчик делегирования: поле в ChatAgentTools допускает `null`, а сеттер
  * принимает только функцию — «не настроено» выражается отсутствием значения.
  */
-const NO_DELEGATE_HANDLER = undefined as unknown as (role: string, task: string) => Promise<string>;
+const NO_DELEGATE_HANDLER = undefined as unknown as (role: string, task: string) => Promise<string>; // cast-ok: сеттер принимает функцию, «не настроено» = отсутствие значения, публичного сброса нет
 
 const fsMock = () => mockInternals().fs;
 
