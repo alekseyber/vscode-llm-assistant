@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.23.3 (2026-11-12)
+
+### P14: скиллы как код — проверка в CI
+
+Правка `.md` у агента меняла поведение молча: ни версии, ни структуры, ни защиты от дублей.
+
+- `src/shared/SkillManifest.ts`: `validateSkillContent`, `parseSkillFrontmatter`,
+  `findDuplicateNames`. Обязательны `name` и `description`; `version` (`x.y.z`) и
+  `updated` (`YYYY-MM-DD`) необязательны — чтобы не заводить второй формат вопреки P7;
+  лимит 256 КБ; дубли имён без учёта регистра.
+- `scripts/check-skills.js` + `npm run check:skills`: обход `.llma/skills/*.md` и
+  `.claude/skills/*/SKILL.md`, код выхода 1 при ошибках. Если скиллов нет — проверка проходит.
+- CI: шаг «Проверка скиллов» в job `test-unit` (после `tsc`: модуль берётся из `out/`).
+- **Правки ревью:** лимит вынесен в `skillLimits.ts` (CLI не тянет `vscode`), имя скилла
+  сверяется с файлом/каталогом, многострочный и вложенный frontmatter отклоняются явной ошибкой.
+- Спека `SkillManifest` 0.1.1; тесты `SKM-1..12`. Тестов 772 → **784**.
+
 ## 0.23.2 (2026-11-12)
 
 ### P26: в тестах не осталось `as any`

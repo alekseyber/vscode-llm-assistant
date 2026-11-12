@@ -61,6 +61,8 @@ jobs:
         with: { node-version: 22 }
       - run: npm ci
       - run: npx tsc -p tsconfig.test.json
+      - name: Проверка скиллов (манифест и версии)
+        run: node scripts/check-skills.js
       - name: Приёмка поиска (индекс против grep)
         # Пороги из ревью Pro: recall@5 ≥ 70%, strict@5 ≥ 45%, MRR ≥ 0.45, P@1 ≥ 30%,
         # на негативных запросах — ни одного уверенного совпадения

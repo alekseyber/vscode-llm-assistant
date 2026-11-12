@@ -1,0 +1,77 @@
+#!/usr/bin/env node
+// Проверка скиллов в CI: манифест, формат версий, дубли имён.
+//
+// Зачем: скилл — инструкция агенту. Правка `.md` без версии и без структуры меняет поведение
+// молча, и заметить это можно только по диффу. Проверка делает правку видимой: версия,
+// дата, обязательные поля, отсутствие дублей.
+//
+// Запуск: node scripts/check-skills.js [--dir <путь>] [--json]
+// По умолчанию проверяются `.llma/skills/*.md` и `.claude/skills/*/SKILL.md` в корне репозитория.
+// Если скиллов нет — проверка проходит (в репозитории расширения их может не быть).
+// Код выхода 1 — есть ошибки.
+
+'use strict';
+
+const fs = require('fs');
+const path = require('path');
+
+const ROOT = path.resolve(__dirname, '..');
+
+function collect(dir) {
+  const files = [];
+  if (!fs.existsSync(dir)) return files;
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      // Формат Claude Code: <имя>/SKILL.md
+      const skill = path.join(full, 'SKILL.md');
+      if (fs.existsSync(skill)) files.push(skill);
+      continue;
+    }
+    if (entry.name.endsWith('.md')) files.push(full);
+  }
+  return files;
+}
+
+async function main() {
+  const dirIndex = process.argv.indexOf('--dir');
+  const asJson = process.argv.includes('--json');
+  const targets =
+    dirIndex >= 0
+      ? [path.resolve(process.argv[dirIndex + 1])]
+      : [path.join(ROOT, '.llma', 'skills'), path.join(ROOT, '.claude', 'skills')];
+
+  // Модуль на TypeScript — берём скомпилированный tsc (out/), не webpack-бандл
+  const modulePath = path.join(ROOT, 'out', 'src', 'shared', 'SkillManifest.js');
+  if (!fs.existsSync(modulePath)) {
+    console.error('[skills] нет out/src/shared/SkillManifest.js — сначала tsc -p tsconfig.test.json');
+    process.exit(2);
+  }
+  const { validateSkillContent, findDuplicateNames } = require(modulePath);
+
+  const entries = [];
+  const errors = [];
+  for (const dir of targets) {
+    for (const file of collect(dir)) {
+      const rel = path.relative(ROOT, file).split(path.sep).join('/');
+      const content = fs.readFileSync(file, 'utf-8');
+      const result = validateSkillContent(content, rel);
+      errors.push(...result.errors);
+      if (result.name) entries.push({ name: result.name, filePath: rel });
+    }
+  }
+  errors.push(...findDuplicateNames(entries));
+
+  if (asJson) {
+    console.log(JSON.stringify({ checked: entries.length, errors }, null, 2));
+  } else if (entries.length === 0 && errors.length === 0) {
+    console.log('[skills] скиллов не найдено — проверять нечего');
+  } else {
+    console.log(`[skills] проверено ${entries.length}, ошибок ${errors.length}`);
+    for (const error of errors) console.log(`  ❌ ${error}`);
+  }
+
+  process.exit(errors.length > 0 ? 1 : 0);
+}
+
+main();

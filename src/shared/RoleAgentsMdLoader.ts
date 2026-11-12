@@ -88,7 +88,8 @@ export interface SkillInfo {
 }
 
 /** Скил-файл больше этого не читаем: это не инструкция, а свалка. */
-const MAX_SKILL_FILE_BYTES = 256 * 1024;
+export { MAX_SKILL_FILE_BYTES } from './skillLimits';
+import { MAX_SKILL_FILE_BYTES as MAX_SKILL_FILE_BYTES_VALUE } from './skillLimits';
 
 /** Лимит на таблицу каталога в промпте: каталог не должен съедать контекст. */
 const MAX_CATALOG_CHARS = 6_000;
@@ -197,7 +198,7 @@ function isSkippableSkillFile(filePath: string): boolean {
   try {
     const stat = fs.lstatSync(filePath);
     if (stat.isSymbolicLink()) return true;
-    return stat.size > MAX_SKILL_FILE_BYTES;
+    return stat.size  > MAX_SKILL_FILE_BYTES_VALUE;
   } catch {
     return true;
   }

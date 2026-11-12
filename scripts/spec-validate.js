@@ -25,7 +25,7 @@ const META_SPECS = new Set(['ARCHITECTURE.md', 'TRACEABILITY.md', 'TEMPLATE.md']
 const SRC_EXEMPT = new Set([
   'index', 'types', 'extension', 'registerCommands',
   'base', 'diff', 'ContextBuilder', 'ChatPanel',
-  'cleanLlmResponse',
+  'cleanLlmResponse', 'skillLimits',
 ]);
 
 const SRC_TO_SPEC = {
