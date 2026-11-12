@@ -117,7 +117,7 @@ export function injectOpenAIClient(provider: OpenAIProvider, create: sinon.Sinon
 /** Документ с настоящим `getText(range)`: по нему собирается контекст. */
 export function fakeDocument(
   text: string,
-  options: { scheme?: string; uri?: string; languageId?: string } = {},
+  options: { scheme?: string; uri?: string; fsPath?: string; languageId?: string } = {},
 ): vscode.TextDocument {
   const lines = text.split('\n');
   const offsets: number[] = [];
@@ -131,7 +131,7 @@ export function fakeDocument(
   return {
     uri: {
       scheme: options.scheme ?? 'file',
-      fsPath: '/fake/workspace/src/example.ts',
+      fsPath: options.fsPath ?? '/fake/workspace/src/example.ts',
       toString: () => options.uri ?? 'file:///fake/workspace/src/example.ts',
     },
     languageId: options.languageId ?? 'typescript',
@@ -170,7 +170,23 @@ export const FAKE_CANCELLATION_TOKEN: vscode.CancellationToken = {
 };
 
 /** Снимок того, что расширение показало в webview, + канал «WebView → расширение». */
-export interface WebviewViewFake {
+/** Редактор с документом и курсором в позиции (без выделенного текста). */
+export function fakeEditor(document: vscode.TextDocument, position: vscode.Position): vscode.TextEditor {
+  return {
+    document,
+    selection: {
+      active: position,
+      anchor: position,
+      start: position,
+      end: position,
+      isEmpty: true,
+      isReversed: false,
+    },
+    selections: [],
+  } as unknown as vscode.TextEditor;
+}
+
+/** Снимок того, что расширение показало в webview. */export interface WebviewViewFake {
   view: vscode.WebviewView;
   messages: any[];
   /** Доставить сообщение из WebView в расширение — как это делает VS Code */

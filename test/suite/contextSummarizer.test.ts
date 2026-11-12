@@ -10,6 +10,7 @@ import * as assert from 'assert';
 import { ContextSummarizer } from '../../src/shared/ContextSummarizer';
 import { ConversationManager, ContextMessage, CodeContext } from '../../src/modes/chat/ConversationManager';
 import { ChatMessage, LLMProvider, CompletionOptions } from '../../src/providers/types';
+import { fakeConfiguration } from '../support/vscode-harness';
 
 /** Создаёт AsyncIterable из массива строк (для mock provider.chat) */
 async function* mockChatStream(chunks: string[], signal?: AbortSignal): AsyncIterable<string> {
@@ -40,14 +41,13 @@ function createMockStorage(sandbox: sinon.SinonSandbox): vscode.Memento {
     get: sandbox.stub().returns([]),
     update: sandbox.stub().returns(Promise.resolve()),
     keys: sandbox.stub().returns([]),
-    setKeysForSync: sandbox.stub(),
-  } as any;
+  };
 }
 
 /** Настроить mock vscode.workspace.getConfiguration */
 function setupMockConfig(sandbox: sinon.SinonSandbox, overrides: Record<string, unknown> = {}): void {
-  const mockConfig = {
-    get: sandbox.fake((key: string, defaultValue?: unknown) => {
+  sandbox.stub(vscode.workspace, 'getConfiguration').returns(
+    fakeConfiguration((key, defaultValue) => {
       if (key in overrides) return overrides[key];
       // Значения по умолчанию
       if (key === 'chat.maxContextTokens') return 4096;
@@ -58,11 +58,7 @@ function setupMockConfig(sandbox: sinon.SinonSandbox, overrides: Record<string, 
       if (key === 'defaultModel') return 'gpt-4o';
       return defaultValue;
     }),
-    has: sandbox.fake(() => false),
-    inspect: sandbox.fake(() => undefined),
-    update: sandbox.fake(() => Promise.resolve()),
-  };
-  sandbox.stub(vscode.workspace, 'getConfiguration').returns(mockConfig as any);
+  );
 }
 
 suite('ContextSummarizer', () => {

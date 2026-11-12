@@ -13,6 +13,7 @@ import * as fs from 'fs/promises';
 import { loadAgentsMd, invalidateCache, buildRulesReport } from '../../src/shared/AgentsMdLoader';
 import { ConversationManager } from '../../src/modes/chat/ConversationManager';
 import { ChatMessage } from '../../src/providers/types';
+import { fakeConfiguration, fakeMementoStubs } from '../support/vscode-harness';
 
 suite('AgentsMdLoader', () => {
   let sandbox: sinon.SinonSandbox;
@@ -47,17 +48,13 @@ suite('AgentsMdLoader', () => {
     ]);
 
     // Мокаем getConfiguration
-    const mockConfig = {
-      get: sandbox.fake((key: string, defaultValue?: unknown) => {
+    sandbox.stub(vscode.workspace, 'getConfiguration').returns(
+      fakeConfiguration((key, defaultValue) => {
         if (key === 'agentsMd.enabled') return agentsMdEnabled;
         if (key === 'chat.maxContextTokens') return 4096;
         return defaultValue;
       }),
-      has: sandbox.fake(() => false),
-      inspect: sandbox.fake(() => undefined),
-      update: sandbox.fake(() => Promise.resolve()),
-    };
-    sandbox.stub(vscode.workspace, 'getConfiguration').returns(mockConfig as any);
+    );
   }
 
   // ── AC-1.1: loadAgentsMd() возвращает содержимое AGENTS.md ──
@@ -151,12 +148,11 @@ suite('AgentsMdLoader', () => {
     sandbox.restore();
     sandbox = sinon.createSandbox();
     sandbox.stub(vscode.workspace, 'workspaceFolders').value([{ uri: vscode.Uri.file(tempDir), name: 'test', index: 0 }]);
-    sandbox.stub(vscode.workspace, 'getConfiguration').returns({
-      get: (key: string, def?: unknown) => (key === 'agentsMd.maxChars' ? 200 : key === 'agentsMd.enabled' ? true : def),
-      has: () => false,
-      inspect: () => undefined,
-      update: () => Promise.resolve(),
-    } as any);
+    sandbox
+      .stub(vscode.workspace, 'getConfiguration')
+      .returns(
+        fakeConfiguration((key, def) => (key === 'agentsMd.maxChars' ? 200 : key === 'agentsMd.enabled' ? true : def)),
+      );
     invalidateCache();
 
     const result = await loadAgentsMd();
@@ -170,12 +166,11 @@ suite('AgentsMdLoader', () => {
     sandbox.restore();
     sandbox = sinon.createSandbox();
     sandbox.stub(vscode.workspace, 'workspaceFolders').value([{ uri: vscode.Uri.file(tempDir), name: 'test', index: 0 }]);
-    sandbox.stub(vscode.workspace, 'getConfiguration').returns({
-      get: (key: string, def?: unknown) => (key === 'agentsMd.maxChars' ? false : key === 'agentsMd.enabled' ? true : def),
-      has: () => false,
-      inspect: () => undefined,
-      update: () => Promise.resolve(),
-    } as any);
+    sandbox
+      .stub(vscode.workspace, 'getConfiguration')
+      .returns(
+        fakeConfiguration((key, def) => (key === 'agentsMd.maxChars' ? false : key === 'agentsMd.enabled' ? true : def)),
+      );
     invalidateCache();
 
     const result = await loadAgentsMd();
@@ -185,12 +180,11 @@ suite('AgentsMdLoader', () => {
   test('AGM-5: смена maxChars пересобирает склейку без перезапуска', async () => {
     await fs.writeFile(path.join(tempDir, 'AGENTS.md'), 'А'.repeat(400), 'utf-8');
     let limit = 200;
-    sandbox.stub(vscode.workspace, 'getConfiguration').returns({
-      get: (key: string, def?: unknown) => (key === 'agentsMd.maxChars' ? limit : key === 'agentsMd.enabled' ? true : def),
-      has: () => false,
-      inspect: () => undefined,
-      update: () => Promise.resolve(),
-    } as any);
+    sandbox
+      .stub(vscode.workspace, 'getConfiguration')
+      .returns(
+        fakeConfiguration((key, def) => (key === 'agentsMd.maxChars' ? limit : key === 'agentsMd.enabled' ? true : def)),
+      );
     sandbox.stub(vscode.workspace, 'workspaceFolders').value([{ uri: vscode.Uri.file(tempDir), name: 'test', index: 0 }]);
     invalidateCache();
 
@@ -206,12 +200,11 @@ suite('AgentsMdLoader', () => {
   test('AGM-6: обрезка идёт по границе строки, а не посреди слова', async () => {
     const text = 'первая строка правила\nвторая строка правила\nтретья строка правила';
     await fs.writeFile(path.join(tempDir, 'AGENTS.md'), text, 'utf-8');
-    sandbox.stub(vscode.workspace, 'getConfiguration').returns({
-      get: (key: string, def?: unknown) => (key === 'agentsMd.maxChars' ? 40 : key === 'agentsMd.enabled' ? true : def),
-      has: () => false,
-      inspect: () => undefined,
-      update: () => Promise.resolve(),
-    } as any);
+    sandbox
+      .stub(vscode.workspace, 'getConfiguration')
+      .returns(
+        fakeConfiguration((key, def) => (key === 'agentsMd.maxChars' ? 40 : key === 'agentsMd.enabled' ? true : def)),
+      );
     sandbox.stub(vscode.workspace, 'workspaceFolders').value([{ uri: vscode.Uri.file(tempDir), name: 'test', index: 0 }]);
     invalidateCache();
 
@@ -258,13 +251,9 @@ suite('AgentsMdLoader', () => {
     // Не мокаем workspaceFolders — оно undefined
     sandbox.stub(vscode.workspace, 'workspaceFolders').value(undefined);
 
-    const mockConfig = {
-      get: sandbox.fake((_key: string, defaultValue?: unknown) => defaultValue),
-      has: sandbox.fake(() => false),
-      inspect: sandbox.fake(() => undefined),
-      update: sandbox.fake(() => Promise.resolve()),
-    };
-    sandbox.stub(vscode.workspace, 'getConfiguration').returns(mockConfig as any);
+    sandbox
+      .stub(vscode.workspace, 'getConfiguration')
+      .returns(fakeConfiguration((_key, defaultValue) => defaultValue));
 
     const result = await loadAgentsMd();
     assert.strictEqual(result, null);
@@ -302,25 +291,17 @@ suite('AgentsMd Integration — ConversationManager и system prompt', () => {
     ]);
 
     // Мокаем getConfiguration
-    const mockConfig = {
-      get: sandbox.fake((key: string, defaultValue?: unknown) => {
+    sandbox.stub(vscode.workspace, 'getConfiguration').returns(
+      fakeConfiguration((key, defaultValue) => {
         if (key === 'agentsMd.enabled') return agentsMdEnabled;
         if (key === 'chat.maxContextTokens') return 4096;
         return defaultValue;
       }),
-      has: sandbox.fake(() => false),
-      inspect: sandbox.fake(() => undefined),
-      update: sandbox.fake(() => Promise.resolve()),
-    };
-    sandbox.stub(vscode.workspace, 'getConfiguration').returns(mockConfig as any);
+    );
 
     // Мокаем Memento для ConversationManager
-    const storage: sinon.SinonStubbedInstance<vscode.Memento> = {
-      get: sandbox.stub().returns([]),
-      update: sandbox.stub(),
-      keys: sandbox.stub().returns([]),
-      setKeysForSync: sandbox.stub(),
-    } as any;
+    const storage = fakeMementoStubs(sandbox);
+    storage.get.returns([]);
 
     return storage;
   }

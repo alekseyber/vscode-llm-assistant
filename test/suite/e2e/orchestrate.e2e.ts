@@ -21,6 +21,7 @@ import { SessionLog } from '../../../src/shared/SessionLog';
 import { applySettings, SettingsSnapshot } from './helpers/settings';
 import { startStub, json } from './helpers/net';
 import { createFakeWebviewView, messagesOfType } from './helpers/webview';
+import { fakeCancellationToken } from '../../support/vscode-harness';
 import { waitFor } from './helpers/wait';
 
 const REPO_ROOT = path.resolve(__dirname, '../../../..');
@@ -129,7 +130,7 @@ suite('E2E-15: @orchestrate', function () {
 
     orchView = createFakeWebviewView();
     const orchestrator = new OrchestratorViewProvider();
-    orchestrator.resolveWebviewView(orchView as any, {} as any, { isCancellationRequested: false } as any);
+    orchestrator.resolveWebviewView(orchView, { state: undefined }, fakeCancellationToken());
 
     chatView = createFakeWebviewView();
     const provider = new ChatViewProvider(
@@ -141,7 +142,7 @@ suite('E2E-15: @orchestrate', function () {
       orchestrator,
       sessionLog,
     );
-    provider.resolveWebviewView(chatView as any, {} as any, { isCancellationRequested: false } as any);
+    provider.resolveWebviewView(chatView, { state: undefined }, fakeCancellationToken());
   });
 
   teardown(async () => {

@@ -77,12 +77,18 @@ suite('SearchRouter / S3', () => {
     });
 
     function stubExactSearch(root: string): void {
-      sb.stub(vscode.workspace, 'findFiles').resolves([vscode.Uri.file(`${root}/src/cost.ts`)] as any);
-      sb.stub(vscode.workspace.fs, 'readFile').callsFake(async (uri: any) => {
-        if (String(uri.fsPath).endsWith('.gitignore')) return new TextEncoder().encode('');
+      sb.stub(vscode.workspace, 'findFiles').resolves([vscode.Uri.file(`${root}/src/cost.ts`)]);
+      sb.stub(vscode.workspace.fs, 'readFile').callsFake(async (uri: vscode.Uri) => {
+        if (uri.fsPath.endsWith('.gitignore')) return new TextEncoder().encode('');
         return new TextEncoder().encode('export function calculateCost() { return 0; }\n');
       });
-      sb.stub(vscode.workspace.fs, 'stat').resolves({ size: 100 } as any);
+      // FileStat целиком: индекс читает size и mtime, остальные поля для интерфейса
+      sb.stub(vscode.workspace.fs, 'stat').resolves({
+        type: vscode.FileType.File,
+        ctime: 0,
+        mtime: 0,
+        size: 100,
+      });
     }
 
     test('IDX-9: запрос языком берёт выдачу из индекса, идентификатор — нет', async () => {

@@ -7,8 +7,10 @@
 import 'mocha';
 import * as assert from 'assert';
 import * as vscode from 'vscode';
-import { mockInternals, resetSettings, setSetting } from '../support/vscode-harness';
+import { lastInlineProvider, mockInternals, resetSettings, setSetting } from '../support/vscode-harness';
 import { AutocompleteController } from '../../src/modes/autocomplete/AutocompleteController';
+import { ProviderManager } from '../../src/providers/manager';
+import { LLMProvider } from '../../src/providers/types';
 import { fakeDocument, fakeProvider } from '../support/fakes';
 
 function makeProvider(response: string | (() => string), options: { models?: string[]; isLocal?: boolean } = {}) {
@@ -20,17 +22,11 @@ function makeProvider(response: string | (() => string), options: { models?: str
   return { provider, calls: provider.calls };
 }
 
-function makeController(provider: any) {
-  const manager = { getDefault: () => provider, getAll: () => (provider ? [provider] : []) };
-  const controller = new AutocompleteController(manager as any);
-  return controller;
-}
-
-/** Провайдер inline-завершений, зарегистрированный последним. */
-function lastInlineProvider(): vscode.InlineCompletionItemProvider {
-  const providers = (vscode as any).__inlineProviders as vscode.InlineCompletionItemProvider[];
-  assert.ok(providers.length > 0, 'провайдер inline-завершений не зарегистрирован');
-  return providers[providers.length - 1];
+/** Менеджер провайдеров с подменённым выбором по умолчанию: остальное ему не нужно. */
+function makeController(provider: LLMProvider | undefined): AutocompleteController {
+  const manager = new ProviderManager();
+  manager.getDefault = () => provider;
+  return new AutocompleteController(manager);
 }
 
 const makeDocument = (text = 'function main() {\n  \n}\n') => fakeDocument(text);
@@ -151,11 +147,11 @@ suite('AutocompleteController', () => {
 
   test('ACL-9: dispose снимает регистрацию провайдера', () => {
     const { provider } = makeProvider('const a = 1;');
-    const before = ((vscode as any).__inlineProviders as unknown[]).length;
+    const before = mockInternals().inlineProviders.length;
     const controller = makeController(provider);
-    assert.strictEqual(((vscode as any).__inlineProviders as unknown[]).length, before + 1, 'провайдер зарегистрирован');
+    assert.strictEqual(mockInternals().inlineProviders.length, before + 1, 'провайдер зарегистрирован');
     controller.dispose();
-    assert.strictEqual(((vscode as any).__inlineProviders as unknown[]).length, before, 'после dispose регистрация снята');
+    assert.strictEqual(mockInternals().inlineProviders.length, before, 'после dispose регистрация снята');
   });
 
   test('ACL-10: обрезка не разрывает суррогатную пару', async () => {

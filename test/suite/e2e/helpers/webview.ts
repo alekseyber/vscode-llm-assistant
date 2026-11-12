@@ -1,33 +1,23 @@
 // Фейковая WebviewView для e2e: журнал исходящих сообщений и инжектор входящих.
 // Ровно тот минимум, который дёргает ChatViewProvider.resolveWebviewView.
+//
+// Вид структурно совпадает с `vscode.WebviewView`, поэтому провайдеру его можно отдать
+// без приведения: если в интерфейсе появится обязательное поле, сборка тестов упадёт.
 
 import * as vscode from 'vscode';
 
-export interface FakeWebviewView {
+export interface FakeWebviewView extends vscode.WebviewView {
   /** Идентификатор вида из package.json (`views.llmAssistant[].id`) */
   viewType: string;
   posted: any[];
-  webview: {
-    options: any;
-    html: string;
-    cspSource: string;
-    asWebviewUri: (uri: vscode.Uri) => vscode.Uri;
-    postMessage: (message: any) => Promise<boolean>;
-    onDidReceiveMessage: (cb: (message: any) => void) => { dispose: () => void };
-  };
-  visible: boolean;
-  show: () => void;
-  dispose: () => void;
-  onDidDispose: () => { dispose: () => void };
-  onDidChangeVisibility: () => { dispose: () => void };
   /** Отправить сообщение «из панели» в провайдер. */
-  send: (message: any) => void;
+  send(message: any): void;
 }
 
 export function createFakeWebviewView(): FakeWebviewView {
   const posted: any[] = [];
   let listener: ((message: any) => void) | undefined;
-  const webview = {
+  const webview: vscode.Webview = {
     options: {},
     html: '',
     cspSource: 'vscode-resource:',
@@ -47,7 +37,6 @@ export function createFakeWebviewView(): FakeWebviewView {
     webview,
     visible: true,
     show: () => undefined,
-    dispose: () => undefined,
     onDidDispose: () => ({ dispose: () => undefined }),
     onDidChangeVisibility: () => ({ dispose: () => undefined }),
     send: (message: any) => listener?.(message),
