@@ -1,6 +1,6 @@
 ---
 component: SkillManifest
-version: 0.1.1
+version: 0.1.2
 status: beta
 since: 0.23.3
 ---
@@ -15,6 +15,7 @@ since: 0.23.3
 
 ```ts
 validateSkillContent(content: string, filePath?: string): SkillManifestResult;
+validateChangedSkill(filePath: string, before: string, after: string): string[];
 parseSkillFrontmatter(content: string): Record<string, string>;
 findDuplicateNames(skills: Array<{ name: string; filePath: string }>): string[];
 ```
@@ -47,5 +48,6 @@ findDuplicateNames(skills: Array<{ name: string; filePath: string }>): string[];
 
 | Версия | Дата | Изменения |
 |--------|------|-----------|
+| 0.1.2 | 2026-11-12 | `validateChangedSkill`: изменённый файл скилла обязан менять `version` или `updated`. CLI-флаг `--since <ref>` (CI передаёт `HEAD~1`), новый файл не считается правкой без отметки; тесты `SKM-13..15` |
 | 0.1.1 | 2026-11-12 | Правки ревью: общий лимит вынесен в `src/shared/skillLimits.ts` (модуль без зависимостей, чтобы CLI не тянул `vscode`); проверка совпадения `name` с именем файла/каталога; многострочный и вложенный frontmatter отклоняется явной ошибкой, а не разбирается молча; тесты `SKM-11..12` |
 | 0.1.0 | 2026-11-12 | Первая версия: проверка frontmatter, форматов, размера и дублей; `SKM-1..10` |

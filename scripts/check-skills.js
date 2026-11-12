@@ -35,6 +35,8 @@ function collect(dir) {
 
 async function main() {
   const dirIndex = process.argv.indexOf('--dir');
+  const sinceIndex = process.argv.indexOf('--since');
+  const since = sinceIndex >= 0 ? process.argv[sinceIndex + 1] : undefined;
   const asJson = process.argv.includes('--json');
   const targets =
     dirIndex >= 0
@@ -47,7 +49,7 @@ async function main() {
     console.error('[skills] нет out/src/shared/SkillManifest.js — сначала tsc -p tsconfig.test.json');
     process.exit(2);
   }
-  const { validateSkillContent, findDuplicateNames } = require(modulePath);
+  const { validateSkillContent, findDuplicateNames, validateChangedSkill } = require(modulePath);
 
   const entries = [];
   const errors = [];
@@ -61,6 +63,31 @@ async function main() {
     }
   }
   errors.push(...findDuplicateNames(entries));
+
+  // Правка без отметки: файл изменился, а version/updated — нет
+  if (since) {
+    const { execFileSync } = require('child_process');
+    const changed = execFileSync('git', ['diff', '--name-only', since, '--', '.llma', '.claude'], {
+      cwd: ROOT,
+      encoding: 'utf-8',
+    })
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line.endsWith('.md'));
+
+    for (const rel of changed) {
+      const full = path.join(ROOT, rel);
+      if (!fs.existsSync(full)) continue; // файл удалён — это не «правка без отметки»
+      let before = '';
+      try {
+        before = execFileSync('git', ['show', `${since}:${rel}`], { cwd: ROOT, encoding: 'utf-8' });
+      } catch {
+        continue; // файла не было в базовой ревизии — это новый скилл, а не правка без отметки
+      }
+      errors.push(...validateChangedSkill(rel, before, fs.readFileSync(full, 'utf-8')));
+    }
+    if (changed.length === 0) console.log('[skills] изменённых скиллов нет');
+  }
 
   if (asJson) {
     console.log(JSON.stringify({ checked: entries.length, errors }, null, 2));

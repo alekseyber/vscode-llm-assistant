@@ -110,3 +110,17 @@ export function findDuplicateNames(skills: Array<{ name: string; filePath: strin
   }
   return errors;
 }
+
+/**
+ * Проверка «правка помечена»: если файл скилла изменился, у него обязаны измениться
+ * `version` или `updated`. Иначе правка инструкции проходит незаметно — ровно тот случай,
+ * ради которого гейт и заводился.
+ */
+export function validateChangedSkill(filePath: string, before: string, after: string): string[] {
+  const previous = parseSkillFrontmatter(before);
+  const current = parseSkillFrontmatter(after);
+  const versionChanged = (previous.version ?? '') !== (current.version ?? '');
+  const updatedChanged = (previous.updated ?? '') !== (current.updated ?? '');
+  if (versionChanged || updatedChanged) return [];
+  return [`${filePath}: файл изменён, но version и updated те же — отметьте правку (version или updated)`];
+}

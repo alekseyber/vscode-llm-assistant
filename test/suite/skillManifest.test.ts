@@ -6,6 +6,7 @@
 import 'mocha';
 import * as assert from 'assert';
 import {
+  validateChangedSkill,
   validateSkillContent,
   findDuplicateNames,
   parseSkillFrontmatter,
@@ -99,5 +100,24 @@ suite('SkillManifest', () => {
       'coder.md',
     );
     assert.ok(result.errors.some((e) => e.includes('не поддерживается')), result.errors.join('; '));
+  });
+
+  test('SKM-13: правка без изменения version/updated отклоняется', () => {
+    const before = '---\nname: coder\ndescription: x\nversion: 1.0.0\nupdated: 2026-11-01\n---\nтело\n';
+    const errors = validateChangedSkill('.llma/skills/coder.md', before, before.replace('тело', 'другое тело'));
+    assert.strictEqual(errors.length, 1, errors.join('; '));
+    assert.ok(errors[0].includes('отметьте правку'), errors[0]);
+  });
+
+  test('SKM-14: рост версии или смена даты снимают замечание', () => {
+    const base = '---\nname: coder\ndescription: x\nversion: 1.0.0\nupdated: 2026-11-01\n---\n';
+    assert.deepStrictEqual(validateChangedSkill('coder.md', base, base.replace('1.0.0', '1.0.1')), []);
+    assert.deepStrictEqual(validateChangedSkill('coder.md', base, base.replace('2026-11-01', '2026-11-12')), []);
+  });
+
+  test('SKM-15: правка файла без полей версии тоже требует отметки', () => {
+    const before = '---\nname: coder\ndescription: x\n---\nтело\n';
+    const errors = validateChangedSkill('coder.md', before, before.replace('тело', 'тело2'));
+    assert.strictEqual(errors.length, 1, errors.join('; '));
   });
 });
