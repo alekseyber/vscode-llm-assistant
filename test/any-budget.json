@@ -9,7 +9,6 @@
     "test/suite/askUserTool.test.ts": 3,
     "test/suite/autocompleteController.test.ts": 5,
     "test/suite/chatAgentTools.test.ts": 7,
-    "test/suite/chatViewProvider.test.ts": 45,
     "test/suite/chatWebview.test.ts": 13,
     "test/suite/context.test.ts": 3,
     "test/suite/contextBuilder.test.ts": 1,

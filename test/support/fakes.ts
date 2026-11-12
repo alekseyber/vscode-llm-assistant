@@ -6,6 +6,8 @@
 
 import * as vscode from 'vscode';
 import { ChatMessage, CompletionOptions, LLMProvider } from '../../src/providers/types';
+import { MultiAgentResult, WorkerTaskResult } from '../../src/modes/apply/AgentOrchestrator';
+import { WorkerResult } from '../../src/modes/apply/AgentWorker';
 
 export interface ProviderFakeOptions {
   name?: string;
@@ -123,5 +125,148 @@ export function fakeWebviewView(): WebviewViewFake {
       const listeners = (view.webview as unknown as { __listeners?: Array<(m: unknown) => void> }).__listeners;
       for (const listener of listeners ?? []) listener(message);
     },
+  };
+}
+
+/** Конфигурация с заданным `get`; остальные методы пустые — тесту нужен только ответ настроек. */
+export function fakeConfiguration(
+  get: (key: string, defaultValue?: unknown) => unknown,
+): vscode.WorkspaceConfiguration {
+  return {
+    get<T>(key: string, defaultValue?: T): T | undefined {
+      return get(key, defaultValue) as T | undefined;
+    },
+    has: () => false,
+    inspect: () => undefined,
+    update: async () => undefined,
+  };
+}
+
+export interface MementoFakeOptions {
+  /**
+   * Хранить записанное. `false` — «пустое» хранилище: `get` всегда отдаёт `defaultValue`,
+   * как у расширения, которое ещё ничего не сохраняло.
+   */
+  persist?: boolean;
+}
+
+/** `vscode.Memento` в памяти — рабочее или пустое хранилище. */
+export function fakeMemento(options: MementoFakeOptions = {}): vscode.Memento {
+  const persist = options.persist ?? true;
+  const store = new Map<string, unknown>();
+  return {
+    get<T>(key: string, defaultValue?: T): T | undefined {
+      if (persist && store.has(key)) return store.get(key) as T;
+      return defaultValue;
+    },
+    update<T>(key: string, value: T): Thenable<void> {
+      if (persist) store.set(key, value);
+      return Promise.resolve();
+    },
+    keys(): readonly string[] {
+      return persist ? [...store.keys()] : [];
+    },
+  };
+}
+
+/**
+ * Канал вывода, который ничего не печатает.
+ * Возвращаем `LogOutputChannel` — его отдаёт перегрузка `createOutputChannel`, которую
+ * выбирает компилятор, и он же подходит везде, где ждут обычный `OutputChannel`.
+ */
+export function fakeOutputChannel(name = 'test'): vscode.LogOutputChannel {
+  return {
+    name,
+    append: () => undefined,
+    appendLine: () => undefined,
+    replace: () => undefined,
+    clear: () => undefined,
+    show: () => undefined,
+    hide: () => undefined,
+    dispose: () => undefined,
+    logLevel: vscode.LogLevel.Info,
+    onDidChangeLogLevel: () => ({ dispose: () => undefined }),
+    trace: () => undefined,
+    debug: () => undefined,
+    info: () => undefined,
+    warn: () => undefined,
+    error: () => undefined,
+  };
+}
+
+/** Рабочая папка `workspaceFolders` с реальным `uri.fsPath`. */
+export function fakeWorkspaceFolder(fsPath: string): vscode.WorkspaceFolder {
+  return {
+    uri: vscode.Uri.file(fsPath),
+    name: fsPath.split(/[\\/]/).filter(Boolean).pop() ?? fsPath,
+    index: 0,
+  };
+}
+
+/** Контекст, у которого `extensionUri` можно подменить: тесты html читают ресурсы из корня репо. */
+export interface MutableExtensionContext extends vscode.ExtensionContext {
+  extensionUri: vscode.Uri;
+}
+
+/**
+ * Контекст расширения с подставленными хранилищами.
+ *
+ * `as unknown as` здесь — то же исключение, что и у `fakeDocument`/`fakeWebviewView`: полный
+ * набор полей `ExtensionContext` (secrets, environmentVariableCollection, storageUri, …)
+ * тестам не нужен, а расширение читает только subscriptions/globalState/workspaceState/extensionUri.
+ */
+export function fakeExtensionContext(
+  options: {
+    extensionUri?: vscode.Uri;
+    workspaceState?: vscode.Memento;
+    globalState?: vscode.Memento;
+  } = {},
+): MutableExtensionContext {
+  const extensionUri = options.extensionUri ?? vscode.Uri.file('/tmp');
+  return {
+    subscriptions: [],
+    extensionUri,
+    extensionPath: extensionUri.fsPath,
+    workspaceState: options.workspaceState ?? fakeMemento({ persist: false }),
+    globalState: options.globalState ?? fakeMemento(),
+    asAbsolutePath: (relativePath: string) => `${extensionUri.fsPath}/${relativePath}`,
+  } as unknown as MutableExtensionContext;
+}
+
+export interface WorkerFakeOptions {
+  roleName: string;
+  /** Поля результата воркера, которые важны тесту; остальные — осмысленные умолчания */
+  result?: Partial<WorkerResult>;
+}
+
+/**
+ * Сводный результат оркестрации: тесту интересны один-два воркера и итог, а не весь отчёт.
+ * Суммы считаются по воркерам — как у настоящего оркестратора.
+ */
+export function fakeMultiAgentResult(
+  options: { workers?: WorkerFakeOptions[]; success?: boolean; summary?: string } = {},
+): MultiAgentResult {
+  const workers: WorkerTaskResult[] = (options.workers ?? []).map((worker) => ({
+    roleName: worker.roleName,
+    result: {
+      answer: '',
+      steps: [],
+      iterations: 1,
+      inputTokens: 0,
+      outputTokens: 0,
+      cost: 0,
+      ...worker.result,
+    },
+  }));
+  return {
+    taskId: 'orch_test',
+    strategy: 'sequential',
+    workers,
+    totalInputTokens: workers.reduce((sum, w) => sum + w.result.inputTokens, 0),
+    totalOutputTokens: workers.reduce((sum, w) => sum + w.result.outputTokens, 0),
+    totalCost: workers.reduce((sum, w) => sum + w.result.cost, 0),
+    costPerWorker: Object.fromEntries(workers.map((w) => [w.roleName, w.result.cost])),
+    success: options.success ?? true,
+    summary: options.summary ?? workers.map((w) => w.result.answer).join('\n'),
   };
 }
