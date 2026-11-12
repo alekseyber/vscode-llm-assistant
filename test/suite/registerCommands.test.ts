@@ -5,17 +5,23 @@ import * as sinon from 'sinon';
 import * as vscode from 'vscode';
 import * as assert from 'assert';
 import { registerCommands } from '../../src/activation/registerCommands';
+import { DialogStubs, stubDialogs } from '../support/vscode-harness';
 
 suite('registerCommands', () => {
   let sandbox: sinon.SinonSandbox;
   let registerSpy: sinon.SinonSpy;
+  let dialogs: DialogStubs | undefined;
 
   setup(() => {
     sandbox = sinon.createSandbox();
     registerSpy = sandbox.spy(vscode.commands, 'registerCommand');
   });
 
-  teardown(() => sandbox.restore());
+  teardown(() => {
+    dialogs?.restore();
+    dialogs = undefined;
+    sandbox.restore();
+  });
 
   function makeDeps(): any {
     const context: any = {
@@ -108,7 +114,7 @@ suite('registerCommands', () => {
   test('clearAllSessions: подтверждение → clearAll + refresh', async () => {
     const deps = makeDeps();
     registerCommands(deps);
-    sandbox.stub(vscode.window, 'showWarningMessage').resolves('Удалить всё' as any);
+    dialogs = stubDialogs({ warning: () => 'Удалить всё' });
 
     const handler = registerSpy.getCalls().find(c => c.args[0] === 'llmAssistant.clearAllSessions')?.args[1];
     assert.ok(handler, 'clearAllSessions зарегистрирован');
@@ -122,7 +128,7 @@ suite('registerCommands', () => {
   test('clearAllSessions: отмена не вызывает clearAll', async () => {
     const deps = makeDeps();
     registerCommands(deps);
-    sandbox.stub(vscode.window, 'showWarningMessage').resolves(undefined as any);
+    dialogs = stubDialogs({ warning: () => undefined });
 
     const handler = registerSpy.getCalls().find(c => c.args[0] === 'llmAssistant.clearAllSessions')?.args[1];
     await handler();
@@ -165,7 +171,7 @@ suite('registerCommands', () => {
 suite('package.json / id команд и view', () => {
   test('CMD-1: ни одна наша команда не совпадает с <viewId>.focus', () => {
     const pkg = require('../../../package.json');
-    const views = Object.values(pkg.contributes.views ?? {}).flat() as any[];
+    const views = Object.values(pkg.contributes.views ?? {}).flat() as Array<{ id: string }>;
     const viewIds = views.map((v) => v.id);
     const reserved = viewIds.map((id) => `${id}.focus`);
 

@@ -6,6 +6,7 @@ import * as assert from 'assert';
 import * as sinon from 'sinon';
 import * as vscode from 'vscode';
 import { debugLog, setDebugSink, isDebugEnabled } from '../../src/shared/logger';
+import { fakeConfiguration } from '../support/vscode-harness';
 
 suite('DEBUG-лог и канал вывода', () => {
   let sandbox: sinon.SinonSandbox;
@@ -15,12 +16,9 @@ suite('DEBUG-лог и канал вывода', () => {
   setup(() => {
     sandbox = sinon.createSandbox();
     settings = {};
-    const mockConfig = {
-      get: (key: string, fallback?: unknown) => (key in settings ? settings[key] : fallback),
-      has: () => false,
-      update: async () => undefined,
-    };
-    sandbox.stub(vscode.workspace, 'getConfiguration').returns(mockConfig as any);
+    sandbox
+      .stub(vscode.workspace, 'getConfiguration')
+      .returns(fakeConfiguration((key, fallback) => (key in settings ? settings[key] : fallback)));
     consoleSpy = sandbox.stub(console, 'log');
   });
 

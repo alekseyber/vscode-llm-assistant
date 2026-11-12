@@ -53,7 +53,7 @@ export function fakeProvider(options: ProviderFakeOptions = {}): ProviderFake {
 /** Документ с настоящим `getText(range)`: по нему собирается контекст. */
 export function fakeDocument(
   text: string,
-  options: { scheme?: string; uri?: string; languageId?: string } = {},
+  options: { scheme?: string; uri?: string; fsPath?: string; languageId?: string } = {},
 ): vscode.TextDocument {
   const lines = text.split('\n');
   const offsets: number[] = [];
@@ -67,7 +67,7 @@ export function fakeDocument(
   return {
     uri: {
       scheme: options.scheme ?? 'file',
-      fsPath: '/fake/workspace/src/example.ts',
+      fsPath: options.fsPath ?? '/fake/workspace/src/example.ts',
       toString: () => options.uri ?? 'file:///fake/workspace/src/example.ts',
     },
     languageId: options.languageId ?? 'typescript',
@@ -86,6 +86,25 @@ export function fakeTextEditor(text: string, selectionText = ''): vscode.TextEdi
   return {
     document,
     selection: { isEmpty: selectionText.length === 0 },
+    selections: [],
+  } as unknown as vscode.TextEditor;
+}
+
+/**
+ * Редактор с документом и курсором в позиции (без выделенного текста).
+ * Нужен там, где расширение читает `editor.selection.active`.
+ */
+export function fakeEditor(document: vscode.TextDocument, position: vscode.Position): vscode.TextEditor {
+  return {
+    document,
+    selection: {
+      active: position,
+      anchor: position,
+      start: position,
+      end: position,
+      isEmpty: true,
+      isReversed: false,
+    },
     selections: [],
   } as unknown as vscode.TextEditor;
 }

@@ -3,51 +3,47 @@
 
 import 'mocha';
 import * as assert from 'assert';
-import * as sinon from 'sinon';
-import * as vscode from 'vscode';
 import { createAskUserTool } from '../../../src/modes/chat/AskUserTool';
+import { DialogStubs, stubDialogs } from '../../support/vscode-harness';
 
 suite('E2E: ask_user', () => {
-  let sandbox: sinon.SinonSandbox;
-
-  setup(() => {
-    sandbox = sinon.createSandbox();
-  });
+  let dialogs: DialogStubs | undefined;
 
   teardown(() => {
-    sandbox.restore();
+    dialogs?.restore();
+    dialogs = undefined;
   });
 
   test('3+ опций → showQuickPick, возвращает выбранный вариант', async () => {
-    const qp = sandbox.stub(vscode.window, 'showQuickPick').resolves('sumArray' as any);
+    dialogs = stubDialogs({ quickPick: () => 'sumArray' });
 
     const result = await createAskUserTool().execute({ question: 'Какое имя?', options: ['sum', 'sumArray', 'sumAll'] });
 
-    assert.ok(qp.calledOnce, 'showQuickPick вызван');
+    assert.strictEqual(dialogs.calls.quickPick, 1, 'showQuickPick вызван');
     assert.ok(result.includes('sumArray'), 'возвращён выбранный вариант');
     assert.ok(result.includes('[ВОПРОС ЗАКРЫТ]'), 'ответ помечен как закрытый');
   });
 
   test('1-2 опции → showInformationMessage с кнопками', async () => {
-    const im = sandbox.stub(vscode.window, 'showInformationMessage').resolves('Да' as any);
+    dialogs = stubDialogs({ information: () => 'Да' });
 
     const result = await createAskUserTool().execute({ question: 'Нужно ли добавить обработку ошибок?', options: ['Да', 'Нет'] });
 
-    assert.ok(im.calledOnce, 'showInformationMessage вызван');
+    assert.strictEqual(dialogs.calls.information, 1, 'showInformationMessage вызван');
     assert.ok(result.includes('Да'));
   });
 
   test('без опций → showInputBox с открытым вводом', async () => {
-    const ib = sandbox.stub(vscode.window, 'showInputBox').resolves('0.75' as any);
+    dialogs = stubDialogs({ inputBox: () => '0.75' });
 
     const result = await createAskUserTool().execute({ question: 'Какой порог использовать?' });
 
-    assert.ok(ib.calledOnce, 'showInputBox вызван');
+    assert.strictEqual(dialogs.calls.inputBox, 1, 'showInputBox вызван');
     assert.ok(result.includes('0.75'));
   });
 
   test('Escape/закрытие → «(пропущено)»', async () => {
-    sandbox.stub(vscode.window, 'showQuickPick').resolves(undefined as any);
+    dialogs = stubDialogs({ quickPick: () => undefined });
 
     const result = await createAskUserTool().execute({ question: 'Какое имя?', options: ['a', 'b', 'c'] });
 
@@ -55,12 +51,14 @@ suite('E2E: ask_user', () => {
   });
 
   test('пустой вопрос → ошибка, UI не вызывается', async () => {
-    const qp = sandbox.stub(vscode.window, 'showQuickPick').resolves(undefined as any);
-    const ib = sandbox.stub(vscode.window, 'showInputBox').resolves(undefined as any);
+    dialogs = stubDialogs({ quickPick: () => undefined, inputBox: () => undefined });
 
     const result = await createAskUserTool().execute({ question: '   ' });
 
     assert.ok(result.includes('Ошибка'), 'возвращена ошибка');
-    assert.ok(qp.notCalled && ib.notCalled, 'UI не вызывался');
+    assert.ok(
+      dialogs.calls.quickPick === 0 && dialogs.calls.inputBox === 0,
+      'UI не вызывался',
+    );
   });
 });

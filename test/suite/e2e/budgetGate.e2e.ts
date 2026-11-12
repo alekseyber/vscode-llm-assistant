@@ -15,6 +15,7 @@ import { SessionLog } from '../../../src/shared/SessionLog';
 import { applySettings, getSetting, SettingsSnapshot } from './helpers/settings';
 import { startStub, json } from './helpers/net';
 import { createFakeWebviewView, messagesOfType } from './helpers/webview';
+import { DialogStubs, fakeCancellationToken, stubDialogs } from '../../support/vscode-harness';
 import { waitFor } from './helpers/wait';
 
 function memoryMemento(): any {
@@ -49,7 +50,7 @@ suite('E2E-11: лимит бюджета отменяет прогон до за
   let view: ReturnType<typeof createFakeWebviewView>;
   let history: RunHistoryStore;
   const dialogs: string[] = [];
-  const originalWarning = vscode.window.showWarningMessage;
+  let dialogStubs: DialogStubs;
 
   async function buildPanel(baseUrl: string, extra: Record<string, unknown> = {}): Promise<void> {
     snap = await applySettings({
@@ -77,7 +78,7 @@ suite('E2E-11: лимит бюджета отменяет прогон до за
     history = new RunHistoryStore(ctx.globalState);
     const provider = new ChatViewProvider(ctx, new ProviderManager(), conversation, history, undefined, undefined, sessionLog);
     view = createFakeWebviewView();
-    provider.resolveWebviewView(view as any, {} as any, { isCancellationRequested: false } as any);
+    provider.resolveWebviewView(view, { state: undefined }, fakeCancellationToken());
   }
 
   setup(async function () {
@@ -85,15 +86,17 @@ suite('E2E-11: лимит бюджета отменяет прогон до за
     if (!host) this.skip();
     dialogs.length = 0;
     // Отказ пользователя: модальный диалог вернул «ничего»
-    (vscode.window as any).showWarningMessage = async (msg: string) => {
-      dialogs.push(String(msg));
-      return undefined;
-    };
+    dialogStubs = stubDialogs({
+      warning: (msg) => {
+        dialogs.push(String(msg));
+        return undefined;
+      },
+    });
     stub = await startStub((_req, res) => json(res, { error: 'до сюда доходить не должно' }, 500), 0, host!);
   });
 
   teardown(async () => {
-    (vscode.window as any).showWarningMessage = originalWarning;
+    dialogStubs?.restore();
     await snap?.restore();
     snap = undefined;
     await stub.close();

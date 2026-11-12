@@ -13,6 +13,7 @@ import { SessionLog } from '../../../src/shared/SessionLog';
 import { applySettings, SettingsSnapshot } from './helpers/settings';
 import { startStub, ndjson } from './helpers/net';
 import { createFakeWebviewView, messagesOfType, streamedText } from './helpers/webview';
+import { fakeCancellationToken, stubDialogs } from '../../support/vscode-harness';
 import { waitFor } from './helpers/wait';
 
 /** Мини-Memento: хранит значения в памяти, как globalState/workspaceState. */
@@ -73,7 +74,7 @@ suite('E2E-3: панель чата на живом NDJSON', () => {
     provider = new ChatViewProvider(ctx, pm, conversation, history, undefined, undefined, sessionLog);
 
     view = createFakeWebviewView();
-    provider.resolveWebviewView(view as any, {} as any, { isCancellationRequested: false } as any);
+    provider.resolveWebviewView(view, { state: undefined }, fakeCancellationToken());
   }
 
   teardown(async () => {
@@ -116,11 +117,12 @@ suite('E2E-3: панель чата на живом NDJSON', () => {
     this.timeout(30000);
     const stub = await liveOllama(4096);
     const warnings: string[] = [];
-    const original = vscode.window.showWarningMessage;
-    (vscode.window as any).showWarningMessage = async (msg: string) => {
-      warnings.push(String(msg));
-      return undefined;
-    };
+    const dialogs = stubDialogs({
+      warning: (msg) => {
+        warnings.push(String(msg));
+        return undefined;
+      },
+    });
     try {
       await buildPanel(stub.url);
       view.send({ type: 'sendMessage', text: 'раз', mode: 'chat', provider: 'local', model: 'qwen3:8b' });
@@ -132,7 +134,7 @@ suite('E2E-3: панель чата на живом NDJSON', () => {
       const truncation = warnings.filter((w) => /вероятно, обрезан/.test(w));
       assert.strictEqual(truncation.length, 1, `предупреждение ровно одно, получено: ${truncation.length}`);
     } finally {
-      (vscode.window as any).showWarningMessage = original;
+      dialogs.restore();
       await stub.close();
     }
   });

@@ -15,6 +15,7 @@ import * as vscode from 'vscode';
 import { HistoryViewProvider } from '../../../src/modes/history/HistoryViewProvider';
 import { RunEntry, RunHistoryStore } from '../../../src/shared/RunHistoryStore';
 import { createFakeWebviewView, messagesOfType } from './helpers/webview';
+import { fakeCancellationToken } from '../../support/vscode-harness';
 import { waitFor } from './helpers/wait';
 
 /** Memento в памяти: настоящий интерфейс, без записи на диск между прогонами. */
@@ -56,7 +57,7 @@ suite('E2E-14: вкладка «История»', () => {
     const provider = new HistoryViewProvider(store);
     const view = createFakeWebviewView();
 
-    provider.resolveWebviewView(view as any, {} as any, { isCancellationRequested: false } as any);
+    provider.resolveWebviewView(view, { state: undefined }, fakeCancellationToken());
     assert.ok(view.webview.html.includes('История'), 'панель отрисована');
     const initial = messagesOfType(view, 'refresh').length;
 
@@ -79,7 +80,7 @@ suite('E2E-14: вкладка «История»', () => {
     const store = new RunHistoryStore(memoryMemento());
     const provider = new HistoryViewProvider(store);
     const view = createFakeWebviewView();
-    provider.resolveWebviewView(view as any, {} as any, { isCancellationRequested: false } as any);
+    provider.resolveWebviewView(view, { state: undefined }, fakeCancellationToken());
 
     store.recordRun(entry('run_e2e_2', 'error', 'правка функции расчёта'));
     await waitFor(() => messagesOfType(view, 'refresh').length > 0, 3000);
@@ -113,7 +114,7 @@ suite('E2E-14: вкладка «История»', () => {
     const store = new RunHistoryStore(memoryMemento());
     const provider = new HistoryViewProvider(store);
     const view = createFakeWebviewView();
-    provider.resolveWebviewView(view as any, {} as any, { isCancellationRequested: false } as any);
+    provider.resolveWebviewView(view, { state: undefined }, fakeCancellationToken());
 
     // Провайдер вправе не отправлять refresh до первого изменения — важно, что отрисовка есть
     assert.ok(view.webview.html.includes('История'), 'вкладка отрисована на пустой истории');

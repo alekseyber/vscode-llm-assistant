@@ -7,7 +7,7 @@
 import 'mocha';
 import * as assert from 'assert';
 import * as vscode from 'vscode';
-import { mockInternals, resetSettings, setSetting } from '../support/vscode-harness';
+import { mockInternals, resetSettings, setSetting, setWorkspaceRoot } from '../support/vscode-harness';
 import * as fsNode from 'fs';
 import * as osNode from 'os';
 import * as pathNode from 'path';
@@ -18,6 +18,25 @@ import {
   getToolUnfiltered,
   setDelegateHandler,
 } from '../../src/modes/chat/ChatAgentTools';
+
+/**
+ * Форма схемы function calling, которую отдают getToolSchemas()/getToolSchemasUnfiltered().
+ * `Record<string, unknown>` в базе — чтобы сужение с этой формы оставалось прямым приведением.
+ */
+interface FunctionCallSchema extends Record<string, unknown> {
+  type: 'function';
+  function: {
+    name: string;
+    description: string;
+    parameters: { type?: string; properties?: Record<string, unknown>; required?: string[] };
+  };
+}
+
+/**
+ * Снять обработчик делегирования: поле в ChatAgentTools допускает `null`, а сеттер
+ * принимает только функцию — «не настроено» выражается отсутствием значения.
+ */
+const NO_DELEGATE_HANDLER = undefined as unknown as (role: string, task: string) => Promise<string>;
 
 const fsMock = () => mockInternals().fs;
 
@@ -103,7 +122,7 @@ suite('ChatAgentTools', () => {
   });
 
   test('CAT-8: delegate_to_agent без настроенного обработчика объясняет причину', async () => {
-    setDelegateHandler(undefined as any);
+    setDelegateHandler(NO_DELEGATE_HANDLER);
     const result = await delegate().execute({ role: 'coder', task: 'сделай' });
     assert.ok(result.includes('делегирование не настроено'), `причина названа: ${result}`);
   });
@@ -126,12 +145,12 @@ suite('ChatAgentTools', () => {
     const result = await delegate().execute({ role: 'ghost', task: 'ничего' });
     assert.ok(result.includes('Ошибка делегирования'), result);
     assert.ok(result.includes('роль не найдена'), result);
-    setDelegateHandler(undefined as any);
+    setDelegateHandler(NO_DELEGATE_HANDLER);
   });
 
   test('CAT-11: allow-list скрывает инструменты из схем, но не из внутреннего списка', () => {
     setSetting('apply.allowedTools', ['read_file']);
-    const schemas = getToolSchemas().map((schema: any) => schema.function.name);
+    const schemas = (getToolSchemas() as FunctionCallSchema[]).map((schema) => schema.function.name);
     assert.deepStrictEqual(schemas, ['read_file'], `в схемах только разрешённый: ${JSON.stringify(schemas)}`);
     assert.strictEqual(getTool('write_file'), undefined, 'запрещённый инструмент не выдаётся агенту');
     assert.ok(getToolUnfiltered('write_file'), 'внутренний список не тронут');
@@ -139,7 +158,7 @@ suite('ChatAgentTools', () => {
   });
 
   test('CAT-12: схема инструмента пригодна для function calling', async () => {
-    for (const schema of getToolSchemasUnfiltered() as any[]) {
+    for (const schema of getToolSchemasUnfiltered() as FunctionCallSchema[]) {
       assert.strictEqual(schema.type, 'function');
       assert.ok(schema.function.name, 'у инструмента есть имя');
       assert.strictEqual(schema.function.parameters.type, 'object', `${schema.function.name}: параметры — объект`);
@@ -185,7 +204,7 @@ suite('ChatAgentTools', () => {
   test('CAT-15: run_terminal возвращает текст команды, а не исключение', async () => {
     // Корень workspace в тестах виртуальный; команда запускается в настоящем каталоге
     const realRoot = fsNode.mkdtempSync(pathNode.join(osNode.tmpdir(), 'tools-'));
-    (vscode.workspace as any).workspaceFolders[0].uri.fsPath = realRoot;
+    setWorkspaceRoot(realRoot);
     try {
       const result = await runTerminal().execute({
         command: `${process.execPath} -e "console.log('hello from tool')"`,
@@ -194,21 +213,18 @@ suite('ChatAgentTools', () => {
       assert.ok(typeof result === 'string' && result.length > 0, 'результат — непустая строка');
       assert.ok(result.includes('hello from tool'), `вывод команды попал в результат: ${result}`);
     } finally {
-      (vscode.workspace as any).workspaceFolders[0].uri.fsPath = '/fake/workspace';
+      setWorkspaceRoot('/fake/workspace');
       fsNode.rmSync(realRoot, { recursive: true, force: true });
     }
   });
 
   test('CAT-16: web_fetch извлекает текст страницы и выбрасывает разметку', async () => {
     const originalFetch = global.fetch;
-    global.fetch = (async () => ({
-      ok: true,
-      status: 200,
-      statusText: 'OK',
-      headers: { get: () => 'text/html; charset=utf-8' },
-      text: async () =>
+    global.fetch = async () =>
+      new Response(
         '<html><body><nav>меню</nav><script>alert(1)</script><p>Полезный текст страницы</p></body></html>',
-    })) as any;
+        { status: 200, headers: { 'content-type': 'text/html; charset=utf-8' } },
+      );
     try {
       const result = await webFetch().execute({ url: 'https://example.com/page' });
       assert.ok(result.includes('Полезный текст страницы'), `текст извлечён: ${result}`);
@@ -222,13 +238,12 @@ suite('ChatAgentTools', () => {
 
   test('CAT-17: HTTP-ошибка web_fetch возвращается как текст, а не как страница', async () => {
     const originalFetch = global.fetch;
-    global.fetch = (async () => ({
-      ok: false,
-      status: 403,
-      statusText: 'Forbidden',
-      headers: { get: () => 'text/html' },
-      text: async () => '<html><body>доступ закрыт</body></html>',
-    })) as any;
+    global.fetch = async () =>
+      new Response('<html><body>доступ закрыт</body></html>', {
+        status: 403,
+        statusText: 'Forbidden',
+        headers: { 'content-type': 'text/html' },
+      });
     try {
       const result = await webFetch().execute({ url: 'https://example.com/private' });
       assert.ok(result.includes('403'), `код ошибки виден: ${result}`);

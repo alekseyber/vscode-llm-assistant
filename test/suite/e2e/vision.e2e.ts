@@ -17,6 +17,7 @@ import { SessionLog } from '../../../src/shared/SessionLog';
 import { applySettings, SettingsSnapshot } from './helpers/settings';
 import { startStub, ndjson, json } from './helpers/net';
 import { createFakeWebviewView, messagesOfType } from './helpers/webview';
+import { fakeCancellationToken } from '../../support/vscode-harness';
 import { waitFor } from './helpers/wait';
 
 const REPO_ROOT = path.resolve(__dirname, '../../../..');
@@ -79,7 +80,7 @@ suite('E2E-16: Vision', function () {
     const provider = new ChatViewProvider(ctx, new ProviderManager(), conversation, history, undefined, undefined, sessionLog);
 
     view = createFakeWebviewView();
-    provider.resolveWebviewView(view as any, {} as any, { isCancellationRequested: false } as any);
+    provider.resolveWebviewView(view, { state: undefined }, fakeCancellationToken());
   }
 
   teardown(async () => {

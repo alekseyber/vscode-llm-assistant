@@ -15,6 +15,7 @@ import { SessionLog } from '../../../src/shared/SessionLog';
 import { applySettings, SettingsSnapshot } from './helpers/settings';
 import { startStub, ndjson } from './helpers/net';
 import { createFakeWebviewView, messagesOfType, streamedText } from './helpers/webview';
+import { fakeCancellationToken } from '../../support/vscode-harness';
 import { waitFor } from './helpers/wait';
 
 const REPO_ROOT = path.resolve(__dirname, '../../../..');
@@ -95,7 +96,7 @@ suite('E2E-4: гейт подтверждения и отказ', () => {
     history = new RunHistoryStore(ctx.globalState);
     const provider = new ChatViewProvider(ctx, new ProviderManager(), conversation, history, undefined, undefined, sessionLog);
     view = createFakeWebviewView();
-    provider.resolveWebviewView(view as any, {} as any, { isCancellationRequested: false } as any);
+    provider.resolveWebviewView(view, { state: undefined }, fakeCancellationToken());
     view.send({ type: 'ready' });
   }
 

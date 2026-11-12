@@ -44,13 +44,13 @@ suite('E2E: локальные движки в реальном Extension Host',
     await cfg().update('local.numCtx', 2048, vscode.ConfigurationTarget.Global);
 
     const manager = new ProviderManager();
-    const local = manager.getProvider('local') as OllamaProvider;
-    const llamacpp = manager.getProvider('local-llamacpp') as any;
+    const local = manager.getProvider('local') as OllamaProvider | undefined;
+    const llamacpp = manager.getProvider('local-llamacpp');
 
     assert.ok(local, 'провайдер Ollama создан из настоящего конфига');
     assert.ok(llamacpp, 'провайдер llama.cpp (type: openai) создан из настоящего конфига');
-    assert.strictEqual(local.isLocal, true);
-    assert.strictEqual(llamacpp.isLocal, true, 'локальность по адресу loopback');
+    assert.strictEqual(local?.isLocal, true);
+    assert.strictEqual(llamacpp?.isLocal, true, 'локальность по адресу loopback');
     assert.deepStrictEqual(manager.pricingMap.get('qwen3-8b'), { input: 0, output: 0 }, 'цена локального движка 0');
     assert.strictEqual(
       readOllamaLocalSettings().numCtx,
@@ -83,7 +83,9 @@ suite('E2E: локальные движки в реальном Extension Host',
       });
     });
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', () => resolve()));
-    const port = (server.address() as any).port;
+    const address = server.address();
+    if (!address || typeof address === 'string') throw new Error('сервер не слушает TCP-порт');
+    const port = address.port;
 
     try {
       const provider = new OllamaProvider({

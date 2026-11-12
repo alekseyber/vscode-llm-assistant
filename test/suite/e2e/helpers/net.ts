@@ -3,6 +3,16 @@
 import * as http from 'http';
 import * as net from 'net';
 
+/**
+ * Порт, на котором слушает сервер. `server.address()` отдаёт строку для unix-сокета,
+ * поэтому проверяем тип — вместо приведения к `any`.
+ */
+function boundPort(server: net.Server): number {
+  const address = server.address();
+  if (!address || typeof address === 'string') throw new Error('сервер не слушает TCP-порт');
+  return address.port;
+}
+
 export interface StubServer {
   url: string;
   hits: Record<string, number>;
@@ -39,9 +49,9 @@ export async function startStub(handler: StubHandler, port = 0, host = '127.0.0.
     });
   });
   await new Promise<void>((resolve) => server.listen(port, host, () => resolve()));
-  const boundPort = (server.address() as any).port;
+  const listeningPort = boundPort(server);
   return {
-    url: `http://${host === '0.0.0.0' ? '127.0.0.1' : host}:${boundPort}`,
+    url: `http://${host === '0.0.0.0' ? '127.0.0.1' : host}:${listeningPort}`,
     hits,
     bodies,
     close: () => new Promise<void>((resolve) => server.close(() => resolve())),
@@ -58,9 +68,8 @@ export async function startBlackhole(): Promise<{ url: string; close: () => Prom
     socket.on('error', () => undefined);
   });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', () => resolve()));
-  const port = (server.address() as any).port;
   return {
-    url: `http://127.0.0.1:${port}`,
+    url: `http://127.0.0.1:${boundPort(server)}`,
     close: () =>
       new Promise<void>((resolve) => {
         for (const socket of sockets) socket.destroy();
@@ -73,7 +82,7 @@ export async function startBlackhole(): Promise<{ url: string; close: () => Prom
 export async function closedPortUrl(): Promise<string> {
   const server = net.createServer();
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', () => resolve()));
-  const port = (server.address() as any).port;
+  const port = boundPort(server);
   await new Promise<void>((resolve) => server.close(() => resolve()));
   return `http://127.0.0.1:${port}`;
 }
