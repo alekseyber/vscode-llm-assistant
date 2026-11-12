@@ -26,6 +26,8 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run check:mock
+      - name: Следы мутаций в src
+        run: node scripts/check-mutations-clean.js
       - run: npm run check:changelog
 
   # Бюджет `as any` в тестах — отдельная работа: при падении сразу видно, что дело в бюджете

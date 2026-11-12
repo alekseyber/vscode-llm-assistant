@@ -420,7 +420,8 @@
     "check:mutation": "node scripts/mutation-check.js",
     "check:test-any": "node scripts/test-any-count.js",
     "any:update": "node scripts/test-any-count.js --update",
-    "check:skills": "node scripts/check-skills.js"
+    "check:skills": "node scripts/check-skills.js",
+    "check:mutations-clean": "node scripts/check-mutations-clean.js"
   },
   "devDependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",
