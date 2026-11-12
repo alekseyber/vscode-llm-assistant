@@ -121,9 +121,13 @@ export class HistoryViewProvider implements vscode.WebviewViewProvider {
       path.join(__dirname, '..', 'media', 'history-filters.js'),
     ];
     for (const candidate of candidates) {
-      if (fs.existsSync(candidate)) return fs.readFileSync(candidate, 'utf-8');
+      if (!fs.existsSync(candidate)) continue;
+      // `</script>` внутри файла закрыл бы тег и сломал разметку — экранируем
+      return fs.readFileSync(candidate, 'utf-8').replace(/<\/script/gi, '<\\/script');
     }
-    throw new Error('media/history-filters.js не найден — фильтр истории не загрузится');
+    // Панель истории важнее фильтра: без файла таблица работает, фильтр отключён
+    console.error('[LLM Assistant] media/history-filters.js не найден — фильтр истории отключён');
+    return 'window.HistoryFilters = { filterRuns: function (runs) { return runs.slice(); }, emptyStateText: function () { return "История запусков пуста"; }, filterSuffix: function () { return ""; } };';
   }
 
   private getHtmlContent(): string {
