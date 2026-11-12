@@ -6,3 +6,5 @@ out/
 reports/task-*-before.json
 reports/task-*-after.json
 .DS_Store
+# рабочий мусор прогонов (бэкапы мутаций и т.п.)
+/tmp/
