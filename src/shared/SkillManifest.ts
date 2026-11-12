@@ -29,7 +29,8 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 /** Разобрать frontmatter между `---`; значения — плоские строки, как в загрузчике ролей. */
 export function parseSkillFrontmatter(content: string): Record<string, string> {
-  const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+  // BOM в начале файла ломает якорь `^---`: снимаем, иначе манифест «не найден»
+  const match = content.replace(/^\uFEFF/, '').match(/^---\r?\n([\s\S]*?)\r?\n---/);
   if (!match) return {};
   const result: Record<string, string> = {};
   for (const line of match[1].split(/\r?\n/)) {
@@ -58,7 +59,7 @@ export function validateSkillContent(content: string, filePath = 'SKILL.md'): Sk
 
   // Поддерживаем только плоский frontmatter. Многострочные и вложенные значения
   // не разбираем: молча пропустить их значило бы врать про результат проверки.
-  const raw = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+  const raw = content.replace(/^\uFEFF/, '').match(/^---\r?\n([\s\S]*?)\r?\n---/);
   if (raw && /^\s*(\||>)/m.test(raw[1])) {
     errors.push(`${filePath}: многострочное значение в frontmatter не поддерживается (| или >)`);
   }
@@ -89,6 +90,12 @@ export function validateSkillContent(content: string, filePath = 'SKILL.md'): Sk
   }
   if (updated && !DATE_RE.test(updated)) {
     errors.push(`${filePath}: updated «${updated}» — ожидается YYYY-MM-DD`);
+  }
+
+  // Тело без содержания: файл с одним frontmatter бесполезен как инструкция
+  const body = content.replace(/^\uFEFF/, '').replace(/^---\r?\n[\s\S]*?\r?\n---/, '').trim();
+  if (name && body.length === 0) {
+    errors.push(`${filePath}: пустое тело — скилл без инструкций`);
   }
 
   return { name, description, version: version || undefined, updated: updated || undefined, errors };

@@ -75,7 +75,7 @@ suite('SkillManifest', () => {
   });
 
   test('SKM-9: frontmatter без версии и даты допустим — поля опциональны', () => {
-    const result = validateSkillContent('---\nname: plain\ndescription: без версии\n---\n', 'plain.md');
+    const result = validateSkillContent('---\nname: plain\ndescription: без версии\n---\nтело скилла\n', 'plain.md');
     assert.deepStrictEqual(result.errors, []);
     assert.strictEqual(result.version, undefined);
   });
@@ -119,5 +119,15 @@ suite('SkillManifest', () => {
     const before = '---\nname: coder\ndescription: x\n---\nтело\n';
     const errors = validateChangedSkill('coder.md', before, before.replace('тело', 'тело2'));
     assert.strictEqual(errors.length, 1, errors.join('; '));
+  });
+
+  test('SKM-16: скилл с одним frontmatter без тела отклоняется', () => {
+    const result = validateSkillContent('---\nname: empty\ndescription: без тела\n---\n', 'empty.md');
+    assert.ok(result.errors.some((e) => e.includes('пустое тело')), result.errors.join('; '));
+  });
+
+  test('SKM-17: тело из одних пробелов тоже считается пустым', () => {
+    const result = validateSkillContent('---\nname: blank\ndescription: x\n---\n   \n\t\n', 'blank.md');
+    assert.ok(result.errors.some((e) => e.includes('пустое тело')), result.errors.join('; '));
   });
 });

@@ -168,6 +168,30 @@
       "to": "      await sleep(0);",
       "label": "пауза между попытками убрана (бэкофф)",
       "expect": "must-fail"
+    },
+    {
+      "id": "SKM-NO-DUPLICATES",
+      "file": "src/shared/SkillManifest.ts",
+      "from": "    if (previous) {",
+      "to": "    if (false) {",
+      "label": "дубли имён скиллов не ловятся",
+      "expect": "must-fail"
+    },
+    {
+      "id": "SKM-NO-SIZE",
+      "file": "src/shared/SkillManifest.ts",
+      "from": "  if (bytes > MAX_SKILL_BYTES) {",
+      "to": "  if (false) {",
+      "label": "лимит размера скилла не проверяется",
+      "expect": "must-fail"
+    },
+    {
+      "id": "SKM-NO-NAME-PATH",
+      "file": "src/shared/SkillManifest.ts",
+      "from": "  if (name && expected && name.toLowerCase() !== expected) {",
+      "to": "  if (false) {",
+      "label": "имя скилла не сверяется с файлом",
+      "expect": "must-fail"
     }
   ]
 }

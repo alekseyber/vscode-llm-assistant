@@ -17,15 +17,16 @@ const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..');
 
-function collect(dir) {
+function collect(dir, depth = 3) {
   const files = [];
-  if (!fs.existsSync(dir)) return files;
+  if (!fs.existsSync(dir) || depth < 0) return files;
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
-      // Формат Claude Code: <имя>/SKILL.md
+      // Формат Claude Code: <имя>/SKILL.md; вложенность до depth уровней
       const skill = path.join(full, 'SKILL.md');
       if (fs.existsSync(skill)) files.push(skill);
+      files.push(...collect(full, depth - 1));
       continue;
     }
     if (entry.name.endsWith('.md')) files.push(full);
