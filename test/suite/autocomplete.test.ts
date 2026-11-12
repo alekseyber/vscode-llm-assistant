@@ -9,39 +9,11 @@ import * as assert from 'assert';
 import * as vscode from 'vscode';
 import { GhostTextManager } from '../../src/modes/autocomplete/GhostTextManager';
 import { AutocompleteContext } from '../../src/modes/autocomplete/ContextBuilder';
+import { fakeDocument } from '../support/fakes';
 
 /** Документ с настоящим `getText(range)`: провайдер собирает по нему контекст. */
-function makeDocument(
-  text: string,
-  options: { scheme?: string; uri?: string } = {},
-): vscode.TextDocument {
-  const lines = text.split('\n');
-  const offsets: number[] = [];
-  let offset = 0;
-  for (const line of lines) {
-    offsets.push(offset);
-    offset += line.length + 1;
-  }
-  const toOffset = (line: number, character: number) =>
-    (offsets[Math.min(line, lines.length - 1)] ?? 0) + character;
-
-  return {
-    uri: {
-      scheme: options.scheme ?? 'file',
-      fsPath: '/fake/workspace/src/example.ts',
-      toString: () => options.uri ?? 'file:///fake/workspace/src/example.ts',
-    },
-    languageId: 'typescript',
-    lineCount: lines.length,
-    lineAt: (line: number) => ({ text: lines[line] ?? '' }),
-    getText: (range?: any) => {
-      if (!range) return text;
-      const start = toOffset(range.start.line, range.start.character);
-      const end = toOffset(range.end.line, range.end.character);
-      return text.slice(start, end);
-    },
-  } as unknown as vscode.TextDocument;
-}
+const makeDocument = (text: string, options: { scheme?: string; uri?: string } = {}) =>
+  fakeDocument(text, options);
 
 function makeManager(options: {
   response?: string | null | (() => Promise<string | null>);

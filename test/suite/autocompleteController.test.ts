@@ -9,28 +9,15 @@ import * as assert from 'assert';
 import * as vscode from 'vscode';
 import { mockInternals, resetSettings, setSetting } from '../support/vscode-harness';
 import { AutocompleteController } from '../../src/modes/autocomplete/AutocompleteController';
+import { fakeDocument, fakeProvider } from '../support/fakes';
 
-type ChatCall = { messages: any[]; options: any; signal?: AbortSignal };
-
-/** Провайдер-двойник: отдаёт заранее заданный ответ потоком, как настоящий. */
 function makeProvider(response: string | (() => string), options: { models?: string[]; isLocal?: boolean } = {}) {
-  const calls: ChatCall[] = [];
-  const provider = {
-    name: 'stub',
-    isLocal: options.isLocal ?? false,
-    models: async () => options.models ?? ['gpt-4o'],
-    chat: (messages: any[], opts: any, signal?: AbortSignal) => {
-      calls.push({ messages, options: opts, signal });
-      const text = typeof response === 'function' ? response() : response;
-      // Отдаём кусками, как настоящий стрим
-      return (async function* () {
-        for (let i = 0; i < text.length; i += 7) {
-          yield text.slice(i, i + 7);
-        }
-      })();
-    },
-  };
-  return { provider, calls };
+  const provider = fakeProvider({
+    models: options.models ?? ['gpt-4o'],
+    isLocal: options.isLocal,
+    response: () => (typeof response === 'function' ? response() : response),
+  });
+  return { provider, calls: provider.calls };
 }
 
 function makeController(provider: any) {
@@ -46,25 +33,7 @@ function lastInlineProvider(): vscode.InlineCompletionItemProvider {
   return providers[providers.length - 1];
 }
 
-function makeDocument(text = 'function main() {\n  \n}\n'): vscode.TextDocument {
-  const lines = text.split('\n');
-  const offsets: number[] = [];
-  let offset = 0;
-  for (const line of lines) {
-    offsets.push(offset);
-    offset += line.length + 1;
-  }
-  const toOffset = (line: number, character: number) =>
-    (offsets[Math.min(line, lines.length - 1)] ?? 0) + character;
-  return {
-    uri: { scheme: 'file', fsPath: '/fake/workspace/src/example.ts', toString: () => 'file:///fake/workspace/src/example.ts' },
-    languageId: 'typescript',
-    lineCount: lines.length,
-    lineAt: (line: number) => ({ text: lines[line] ?? '' }),
-    getText: (range?: any) =>
-      range ? text.slice(toOffset(range.start.line, range.start.character), toOffset(range.end.line, range.end.character)) : text,
-  } as unknown as vscode.TextDocument;
-}
+const makeDocument = (text = 'function main() {\n  \n}\n') => fakeDocument(text);
 
 async function ask(provider: vscode.InlineCompletionItemProvider) {
   const source = new vscode.CancellationTokenSource();
@@ -97,9 +66,7 @@ suite('AutocompleteController', () => {
     assert.ok(await ask(lastInlineProvider()), 'по умолчанию автокомплит включён');
 
     setSetting('autocomplete.enabled', false);
-    (vscode.workspace as any).__fireDidChangeConfiguration({
-      affectsConfiguration: (section: string) => section.startsWith('llmAssistant.autocomplete'),
-    });
+    mockInternals().fireConfigChange('llmAssistant.autocomplete');
 
     const before = calls.length;
     assert.strictEqual(await ask(lastInlineProvider()), null, 'после отключения подсказок нет');

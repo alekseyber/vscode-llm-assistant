@@ -237,4 +237,20 @@ suite('ChatAgentTools', () => {
       global.fetch = originalFetch;
     }
   });
+
+  test('CAT-18: таймаут web_fetch возвращается как ошибка, а не как пустая страница', async () => {
+    const originalFetch = global.fetch;
+    global.fetch = (async () => {
+      const error = new Error('The operation was aborted due to timeout');
+      error.name = 'TimeoutError';
+      throw error;
+    }) as typeof fetch;
+    try {
+      const result = await webFetch().execute({ url: 'https://example.com/slow' });
+      assert.ok(result.includes('Ошибка'), `таймаут объяснён: ${result}`);
+      assert.ok(result.includes('timeout') || result.includes('aborted'), `причина названа: ${result}`);
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
 });
