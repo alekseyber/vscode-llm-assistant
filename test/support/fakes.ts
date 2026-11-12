@@ -154,20 +154,40 @@ export function fakeTextEditor(text: string, selectionText = ''): vscode.TextEdi
   } as unknown as vscode.TextEditor;
 }
 
-/** Снимок того, что расширение показало в webview. */
+/**
+ * Контекст расширения для панелей и команд: тесты используют только `subscriptions`
+ * (панель кладёт туда подписки) и `extensionUri` (от него считается путь к marked.min.js).
+ * Остальные поля VS Code-интерфейса расширение не читает, поэтому не создаются —
+ * тот же осознанный `as unknown as`, что и у остальных внешних типов (см. выше).
+ */
+/** Заглушка контекста resolveWebviewView: провайдеры его не читают. */
+export const FAKE_RESOLVE_CONTEXT: vscode.WebviewViewResolveContext = { state: undefined };
+
+/** Заглушка CancellationToken: отмена в этих тестах не запрашивается. */
+export const FAKE_CANCELLATION_TOKEN: vscode.CancellationToken = {
+  isCancellationRequested: false,
+  onCancellationRequested: () => ({ dispose() {} }),
+};
+
+/** Снимок того, что расширение показало в webview, + канал «WebView → расширение». */
 export interface WebviewViewFake {
   view: vscode.WebviewView;
   messages: any[];
+  /** Доставить сообщение из WebView в расширение — как это делает VS Code */
   send(message: unknown): void;
 }
 
 export function fakeWebviewView(): WebviewViewFake {
   const messages: any[] = [];
+  const listeners: Array<(message: any) => void> = [];
   const view = {
     webview: {
       html: '',
       options: {},
-      onDidReceiveMessage: () => ({ dispose() {} }),
+      onDidReceiveMessage: (listener: (message: any) => void) => {
+        listeners.push(listener);
+        return { dispose() {} };
+      },
       postMessage: async (message: unknown) => {
         messages.push(message);
         return true;
@@ -184,8 +204,7 @@ export function fakeWebviewView(): WebviewViewFake {
     view,
     messages,
     send(message: unknown) {
-      const listeners = (view.webview as unknown as { __listeners?: Array<(m: unknown) => void> }).__listeners;
-      for (const listener of listeners ?? []) listener(message);
+      for (const listener of listeners) listener(message);
     },
   };
 }
@@ -278,12 +297,9 @@ export interface MutableExtensionContext extends vscode.ExtensionContext {
  * тестам не нужен, а расширение читает только subscriptions/globalState/workspaceState/extensionUri.
  */
 export function fakeExtensionContext(
-  options: {
-    extensionUri?: vscode.Uri;
-    workspaceState?: vscode.Memento;
-    globalState?: vscode.Memento;
-  } = {},
+  options: string | { extensionUri?: vscode.Uri; workspaceState?: vscode.Memento; globalState?: vscode.Memento } = {},
 ): MutableExtensionContext {
+  if (typeof options === 'string') options = { extensionUri: vscode.Uri.parse(options) };
   const extensionUri = options.extensionUri ?? vscode.Uri.file('/tmp');
   return {
     subscriptions: [],

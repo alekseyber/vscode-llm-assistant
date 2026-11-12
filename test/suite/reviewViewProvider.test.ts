@@ -5,6 +5,7 @@ import * as assert from 'assert';
 import * as sinon from 'sinon';
 import { JSDOM } from 'jsdom';
 import { ReviewViewProvider } from '../../src/modes/review/ReviewViewProvider';
+import { fakeWebviewView, FAKE_RESOLVE_CONTEXT, FAKE_CANCELLATION_TOKEN } from '../support/fakes';
 
 suite('ReviewViewProvider', () => {
   let sandbox: sinon.SinonSandbox;
@@ -17,42 +18,29 @@ suite('ReviewViewProvider', () => {
 
   teardown(() => sandbox.restore());
 
-  function makeView(postMessageStub: sinon.SinonStub): any {
-    return {
-      webview: {
-        options: {},
-        html: '',
-        postMessage: postMessageStub,
-        onDidReceiveMessage: sandbox.stub(),
-      },
-    };
-  }
-
   test('showReview отправляет компактную сводку (reviewSummary)', async () => {
-    const post = sandbox.stub();
-    provider.resolveWebviewView(makeView(post), {} as any, {} as any);
+    const fake = fakeWebviewView();
+    provider.resolveWebviewView(fake.view, FAKE_RESOLVE_CONTEXT, FAKE_CANCELLATION_TOKEN);
 
     provider.showReview('/tmp/a.ts', '# Полный отчёт', 0.0001);
     await new Promise((r) => setTimeout(r, 0)); // flush executeCommand().then
 
-    assert.ok(post.calledOnce, 'postMessage вызван');
-    const msg = post.firstCall.args[0];
+    assert.strictEqual(fake.messages.length, 1, 'postMessage вызван один раз');
+    const msg = fake.messages[0];
     assert.strictEqual(msg.type, 'reviewSummary');
     assert.strictEqual(msg.filePath, '/tmp/a.ts');
     assert.strictEqual(msg.cost, 0.0001);
   });
 
   test('openReview → onOpen с сохранённым полным отчётом', () => {
-    const view = makeView(sandbox.stub());
-    let onMsg: (m: any) => void = () => {};
-    view.webview.onDidReceiveMessage = (cb: any) => { onMsg = cb; };
-    provider.resolveWebviewView(view, {} as any, {} as any);
+    const fake = fakeWebviewView();
+    provider.resolveWebviewView(fake.view, FAKE_RESOLVE_CONTEXT, FAKE_CANCELLATION_TOKEN);
 
     provider.showReview('/tmp/a.ts', '# Полный отчёт', 0.0002); // сохранит currentFile/Report/Cost
 
     const onOpen = sandbox.stub();
     provider.onOpen = onOpen;
-    onMsg({ type: 'openReview' });
+    fake.send({ type: 'openReview' });
 
     assert.ok(onOpen.calledOnce, 'onOpen вызван');
     assert.strictEqual(onOpen.firstCall.args[0], '/tmp/a.ts');
@@ -61,17 +49,17 @@ suite('ReviewViewProvider', () => {
   });
 
   test('jsdom: сводка рендерится, клик шлёт openReview', () => {
-    const view = makeView(sandbox.stub());
-    provider.resolveWebviewView(view, {} as any, {} as any);
-    const html = view.webview.html;
+    const fake = fakeWebviewView();
+    provider.resolveWebviewView(fake.view, FAKE_RESOLVE_CONTEXT, FAKE_CANCELLATION_TOKEN);
+    const html = fake.view.webview.html;
 
     const dom = new JSDOM(html, { runScripts: 'outside-only', url: 'http://localhost/' });
-    const window = dom.window as any;
-    const posted: any[] = [];
-    window.acquireVsCodeApi = () => ({ postMessage: (m: any) => posted.push(m) });
+    const window = dom.window;
+    const posted: Array<{ type?: string }> = [];
+    window.acquireVsCodeApi = () => ({ postMessage: (message: { type?: string }) => posted.push(message) });
 
     // Выполняем скрипт (один)
-    const scripts = Array.from(dom.window.document.querySelectorAll('script')).map((s: any) => s.textContent || '');
+    const scripts = Array.from(dom.window.document.querySelectorAll('script')).map((s) => s.textContent ?? '');
     window.eval(scripts[0]);
 
     // extension → WebView: компактная сводка

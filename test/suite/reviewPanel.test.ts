@@ -9,22 +9,15 @@ import 'mocha';
 import * as assert from 'assert';
 import * as vscode from 'vscode';
 import { mockInternals } from '../support/vscode-harness';
+import { fakeExtensionContext } from '../support/fakes';
 import { ProposalContentProvider, PROPOSAL_SCHEME } from '../../src/modes/edit/ProposalContentProvider';
 import { ReviewPanel } from '../../src/modes/review/ReviewPanel';
 
-type PanelMock = {
-  webview: { html: string; postMessage: (message: any) => Promise<boolean> };
-  messages: any[];
-  revealed: number;
-  disposed: boolean;
-  __sendMessage: (message: any) => void;
-};
-
-const panels = () => mockInternals().webviewPanels as PanelMock[];
+const panels = () => mockInternals().webviewPanels;
 const lastPanel = () => panels()[panels().length - 1];
 
 function makeContext(): vscode.ExtensionContext {
-  return new (vscode as any).ExtensionContext();
+  return fakeExtensionContext();
 }
 
 suite('ProposalContentProvider', () => {
@@ -70,7 +63,7 @@ suite('ReviewPanel', () => {
     const before = panels().length;
     ReviewPanel.createOrShow(makeContext(), 'src/a.ts', '# Отчёт <script>alert(1)</script>', 0.01);
     assert.strictEqual(panels().length, before + 1, 'панель создана');
-    const panel = lastPanel() as any;
+    const panel = lastPanel();
     assert.ok(panel.webview.html.includes('Ревью'), 'в HTML есть заголовок окна');
     // Отчёт приходит сообщением, а не вставляется в HTML — значит HTML не зависит от данных
     assert.ok(panel.webview.html.includes('showReview'), 'в HTML есть обработчик сообщения showReview');
@@ -104,7 +97,7 @@ suite('ReviewPanel', () => {
 
   test('RP-4: после dispose панель создаётся заново', () => {
     ReviewPanel.createOrShow(makeContext(), 'src/a.ts', 'первый', 0);
-    const first = lastPanel() as any;
+    const first = lastPanel();
     // Закрытие панели как в редакторе: dispose панели дёргает onDidDispose расширения
     first.dispose();
     assert.strictEqual(ReviewPanel.currentPanel, undefined, 'расширение забыло закрытую панель');
