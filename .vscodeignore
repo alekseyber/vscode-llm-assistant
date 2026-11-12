@@ -26,3 +26,8 @@ tmp_probe_why.js
 # Служебные каталоги стендов: sqlite-индекс из live-search уезжал в пакет
 tmp/
 *.sqlite
+
+# Ревью и планы — не для пакета
+reviews/
+notes/
+qa/
