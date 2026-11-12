@@ -485,7 +485,7 @@ ollama pull gemma3:4b        # ~3.4 ГБ, работает и с картинк�
 ## Разработка
 
 - **Стек:** TypeScript, VS Code Extension API, WebView, Webpack
-- **Тесты:** Mocha + Sinon (**805** mocked-тестов), E2E в реальном Extension Host (**64** тестов: сокеты, панель, настройки, гейт подтверждения, tools-цикл, бюджет, Plan Mode, workspace-контекст, правила проекта, история прогонов, `@orchestrate`, Vision, MCP и слэш-команды), GitHub Actions CI (юниты и e2e идут параллельно)
+- **Тесты:** Mocha + Sinon (**808** mocked-тестов), E2E в реальном Extension Host (**66** тестов: сокеты, панель, настройки, гейт подтверждения, tools-цикл, бюджет, Plan Mode, workspace-контекст, правила проекта, история прогонов, `@orchestrate`, Vision, MCP и слэш-команды), GitHub Actions CI (юниты и e2e идут параллельно)
 - **SDD:** 41 spec-файлов (`specs/`), валидатор, pre-commit + CI
 - **Репозиторий:** github.com/alekseyber/vscode-llm-assistant
 - **Спецификации:** [specs/](https://github.com/alekseyber/vscode-llm-assistant/tree/main/specs) — 38 компонентов (+3 мета-документа), интерфейсы, контракты, AC
@@ -498,7 +498,7 @@ npm run lint           # Линтер
 npm run check:mutation # Мутации: правим строку в src, тесты обязаны упасть
 npm run check:test-any # Бюджет `as any` в тестах (ратчет по файлам)
 # тесты: двойники — test/support/fakes.ts, рычаги мока — test/support/vscode-harness.ts
-npm run test:mocked    # Тесты без VS Code (805 шт.)
+npm run test:mocked    # Тесты без VS Code (808 шт.)
 node scripts/spec-validate.js  # Проверка SDD
 ```
 

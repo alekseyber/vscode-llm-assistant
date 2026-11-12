@@ -5,6 +5,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
+import { escapeInlineScript } from '../../shared/inlineScript';
 import { RunHistoryStore, RunEntry } from '../../shared/RunHistoryStore';
 import { computeRunStats, formatStatsLine } from '../../shared/runStats';
 
@@ -123,7 +124,7 @@ export class HistoryViewProvider implements vscode.WebviewViewProvider {
     for (const candidate of candidates) {
       if (!fs.existsSync(candidate)) continue;
       // `</script>` внутри файла закрыл бы тег и сломал разметку — экранируем
-      return fs.readFileSync(candidate, 'utf-8').replace(/<\/script/gi, '<\\/script');
+      return escapeInlineScript(fs.readFileSync(candidate, 'utf-8'));
     }
     // Панель истории важнее фильтра: без файла таблица работает, фильтр отключён
     console.error('[LLM Assistant] media/history-filters.js не найден — фильтр истории отключён');

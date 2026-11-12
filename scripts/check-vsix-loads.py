@@ -206,6 +206,13 @@ def main() -> int:
                   '(node_modules не пакуются): соберите webpack-бандл через npm run compile.',
                   file=sys.stderr)
             return 1
+    # Фильтр панели истории: файл обязан быть в пакете, иначе панель молча теряет фильтр
+    with zipfile.ZipFile(vsix) as archive:
+        packed = archive.namelist()
+    if 'extension/media/history-filters.js' not in packed:
+        print('[VSIX] ❌ в пакете нет media/history-filters.js — фильтр истории отключится', file=sys.stderr)
+        return 1
+
 
     print(f'[VSIX] ✅ {vsix.name}: версия {manifest.get("version")}, бандл загружается без node_modules, '
           f'sqlite-wasm с FTS5 поднимается из пакета, бандл создаёт индекс при активации')
