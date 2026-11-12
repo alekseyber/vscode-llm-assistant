@@ -1,6 +1,8 @@
 // Тесты HistoryViewProvider — одиночный клик (openSession → onOpenSession), двойной клик (getDetails), clearHistory
 
 import 'mocha';
+import * as fs from 'fs';
+import * as path from 'path';
 import * as sinon from 'sinon';
 import { DOMWindow, JSDOM } from 'jsdom';
 import * as vscode from 'vscode';
@@ -53,7 +55,7 @@ suite('HistoryViewProvider', () => {
     warning = sandbox.stub(vscode.window, 'showWarningMessage');
     warning.callsFake(async () => 'Да');
 
-    provider = new HistoryViewProvider(store);
+    provider = new HistoryViewProvider(store, vscode.Uri.file("/ext"));
 
     // Резолвим view: fakeWebviewView отдаёт html/postMessage и канал сообщений от WebView
     webview = fakeWebviewView();
@@ -149,7 +151,7 @@ suite('HistoryViewProvider', () => {
 
 /** HTML вкладки истории: тот же путь, что у VS Code — через resolveWebviewView. */
 function historyHtml(store: RunHistoryStore): string {
-  const provider = new HistoryViewProvider(store);
+  const provider = new HistoryViewProvider(store, vscode.Uri.file("/ext"));
   const fake = fakeWebviewView();
   provider.resolveWebviewView(fake.view, FAKE_RESOLVE_CONTEXT, FAKE_CANCELLATION_TOKEN);
   return fake.view.webview.html;

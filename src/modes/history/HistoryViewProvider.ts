@@ -3,6 +3,8 @@
 // с фильтром по режиму и кнопкой очистки
 
 import * as vscode from 'vscode';
+import * as fs from 'fs';
+import * as path from 'path';
 import { RunHistoryStore, RunEntry } from '../../shared/RunHistoryStore';
 import { computeRunStats, formatStatsLine } from '../../shared/runStats';
 
@@ -16,12 +18,15 @@ export const HISTORY_VIEW_TYPE = 'llmAssistant.history';
 export class HistoryViewProvider implements vscode.WebviewViewProvider {
   private view?: vscode.WebviewView;
   private readonly store: RunHistoryStore;
+  /** Корень расширения: от него строится путь к media/history-filters.js */
+  private readonly extensionUri: vscode.Uri;
 
   /** Колбэк перехода к сессии чата (одиночный клик по строке истории) */
   onOpenSession?: (sessionId: string) => void;
 
-  constructor(store: RunHistoryStore) {
+  constructor(store: RunHistoryStore, extensionUri: vscode.Uri) {
     this.store = store;
+    this.extensionUri = extensionUri;
   }
 
   resolveWebviewView(
@@ -105,6 +110,22 @@ export class HistoryViewProvider implements vscode.WebviewViewProvider {
   }
 
   /** HTML-контент для WebView истории */
+  /**
+   * Исходник фильтра из `media/history-filters.js` — вставляем в разметку, чтобы module
+   * оставался отдельным файлом (его проверяют тесты), а webview не зависел от загрузки ресурсов.
+   */
+  private filtersSource(): string {
+    const candidates = [
+      path.join(this.extensionUri.fsPath, 'media', 'history-filters.js'),
+      path.join(__dirname, '..', '..', '..', '..', 'media', 'history-filters.js'),
+      path.join(__dirname, '..', 'media', 'history-filters.js'),
+    ];
+    for (const candidate of candidates) {
+      if (fs.existsSync(candidate)) return fs.readFileSync(candidate, 'utf-8');
+    }
+    throw new Error('media/history-filters.js не найден — фильтр истории не загрузится');
+  }
+
   private getHtmlContent(): string {
     return `<!DOCTYPE html>
 <html lang="ru">
@@ -326,6 +347,15 @@ export class HistoryViewProvider implements vscode.WebviewViewProvider {
       <option value="agent">🤖 Агент</option>
       <option value="edit">✏️ Edit</option>
     </select>
+    <label style="font-size:11px;color:var(--text-secondary)">Статус:</label>
+    <select id="status-filter">
+      <option value="all">Все</option>
+      <option value="success">✅ Успех</option>
+      <option value="error">❌ Ошибка</option>
+      <option value="cancelled">⏹ Отменён</option>
+      <option value="limit_exceeded">⚠️ Лимит</option>
+      <option value="running">🔄 Идёт</option>
+    </select>
     <button id="btn-clear" class="clear-btn" title="Очистить историю">🗑 Очистить</button>
   </div>
   <div class="stats-line" id="stats-line" title="Сводка по всем запускам: стоимость и доля ошибок">—</div>
@@ -356,11 +386,13 @@ export class HistoryViewProvider implements vscode.WebviewViewProvider {
     </div>
   </div>
 
+  <script>${this.filtersSource()}</script>
   <script>
     (function() {
       const vscode = acquireVsCodeApi();
       let allRuns = [];
       let currentFilter = 'all';
+      let currentStatus = 'all';
 
       const table = document.getElementById('history-table');
       const tableBody = document.getElementById('table-body');
@@ -383,6 +415,16 @@ export class HistoryViewProvider implements vscode.WebviewViewProvider {
         updateFilterSuffix();
       });
 
+      /** Фильтр по статусу: логика в media/history-filters.js, здесь только состояние и перерисовка. */
+      const statusFilter = document.getElementById('status-filter');
+      if (statusFilter) {
+        statusFilter.addEventListener('change', function() {
+          currentStatus = this.value;
+          renderTable();
+          updateFilterSuffix();
+        });
+      }
+
       // --- Очистка истории ---
       btnClear.addEventListener('click', function() {
         post({ type: 'clearHistory' });
@@ -402,26 +444,20 @@ export class HistoryViewProvider implements vscode.WebviewViewProvider {
         const el = document.getElementById('stats-line');
         if (!el) return;
         let text = lastStatsLine;
-        if (currentFilter !== 'all') {
-          const shown = allRuns.filter(function(r) { return r.mode === currentFilter; }).length;
-          text += ' · фильтр показал ' + shown + ' из ' + allRuns.length;
-        }
+        const shown = HistoryFilters.filterRuns(allRuns, { mode: currentFilter, status: currentStatus }).length;
+        text += HistoryFilters.filterSuffix(shown, allRuns.length, { mode: currentFilter, status: currentStatus });
         el.textContent = text;
         el.title = 'Сводка по всей истории: суммарная стоимость, средняя стоимость, доля ошибок';
       }
 
       function renderTable() {
-        const filtered = currentFilter === 'all'
-          ? allRuns
-          : allRuns.filter(function(r) { return r.mode === currentFilter; });
+        const filtered = HistoryFilters.filterRuns(allRuns, { mode: currentFilter, status: currentStatus });
 
         tableBody.innerHTML = '';
         if (filtered.length === 0) {
           table.style.display = 'none';
           emptyState.style.display = 'flex';
-          emptyState.textContent = currentFilter === 'all'
-            ? 'История запусков пуста'
-            : 'Нет записей с выбранным фильтром';
+          emptyState.textContent = HistoryFilters.emptyStateText({ mode: currentFilter, status: currentStatus });
         } else {
           table.style.display = '';
           emptyState.style.display = 'none';

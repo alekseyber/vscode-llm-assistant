@@ -80,7 +80,7 @@ export function activate(context: vscode.ExtensionContext) {
     autocompleteController = new AutocompleteController(providerManager);
 
     // Регистрация провайдера вкладки «История» (Activity Bar) — ДО ChatViewProvider
-    historyViewProvider = new HistoryViewProvider(runHistoryStore);
+    historyViewProvider = new HistoryViewProvider(runHistoryStore, context.extensionUri);
     context.subscriptions.push(
         vscode.window.registerWebviewViewProvider(HISTORY_VIEW_TYPE, historyViewProvider)
     );

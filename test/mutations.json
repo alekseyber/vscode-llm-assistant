@@ -192,6 +192,14 @@
       "to": "  if (false) {",
       "label": "имя скилла не сверяется с файлом",
       "expect": "must-fail"
+    },
+    {
+      "id": "HIST-NO-STATUS-FILTER",
+      "file": "media/history-filters.js",
+      "from": "      if (status && run.status !== status) return false;",
+      "to": "      if (false) return false;",
+      "label": "фильтр по статусу не применяется",
+      "expect": "must-fail"
     }
   ]
 }

@@ -44,7 +44,7 @@ suite('E2E-14: вкладка «История»', () => {
   // рендер живёт в скрипте webview, который в Extension Host не исполняется.
   test('14a: при записи прогона провайдер отправляет обновление в открытую панель', async () => {
     const store = new RunHistoryStore(fakeMemento());
-    const provider = new HistoryViewProvider(store);
+    const provider = new HistoryViewProvider(store, vscode.Uri.file("/ext"));
     const view = createFakeWebviewView();
 
     provider.resolveWebviewView(view, { state: undefined }, fakeCancellationToken());
@@ -68,7 +68,7 @@ suite('E2E-14: вкладка «История»', () => {
 
   test('14b: детали прогона приходят по запросу панели и содержат причину ошибки', async () => {
     const store = new RunHistoryStore(fakeMemento());
-    const provider = new HistoryViewProvider(store);
+    const provider = new HistoryViewProvider(store, vscode.Uri.file("/ext"));
     const view = createFakeWebviewView();
     provider.resolveWebviewView(view, { state: undefined }, fakeCancellationToken());
 
@@ -102,7 +102,7 @@ suite('E2E-14: вкладка «История»', () => {
 
   test('14c: пустая история не ломает вкладку', async () => {
     const store = new RunHistoryStore(fakeMemento());
-    const provider = new HistoryViewProvider(store);
+    const provider = new HistoryViewProvider(store, vscode.Uri.file("/ext"));
     const view = createFakeWebviewView();
     provider.resolveWebviewView(view, { state: undefined }, fakeCancellationToken());
 

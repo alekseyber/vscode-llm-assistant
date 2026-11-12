@@ -1,6 +1,6 @@
 ---
 component: HistoryViewProvider
-version: 0.14.40
+version: 0.14.41
 status: stable
 since: 0.7.0
 ---
@@ -58,6 +58,10 @@ WebView-вкладка «📊 История» в Activity Bar. Отобража
   не проверяет реальный `onDidChangeViewState`.
 
 ## История изменений
+
+| Версия | Дата | Изменения |
+|--------|------|-----------|
+| 0.14.41 | 2026-11-12 | Фильтр по статусу (`success`/`error`/`cancelled`/`limit_exceeded`/`running`), работает вместе с фильтром режима. Логика вынесена из inline-скрипта в `media/history-filters.js` и покрыта `HF-1..4`; мутация `HIST-NO-STATUS-FILTER` |
 
 | Версия | Дата | Изменения |
 |--------|------|-----------|
