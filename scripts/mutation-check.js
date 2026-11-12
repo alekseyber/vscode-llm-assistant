@@ -21,15 +21,20 @@ const path = require('path');
 const BACKUP_DIR = path.resolve(__dirname, '..', 'tmp', 'mutation-backup');
 
 /** Сохранить исходник до мутации: восстановление возможно даже после жёсткого убийства процесса. */
+function backupPath(file) {
+  // Повторяем структуру каталогов: никаких склеек имён и коллизий вида `a__b` vs `a/b`
+  const rel = path.relative(path.resolve(__dirname, '..'), file);
+  return path.join(BACKUP_DIR, `${rel}.bak`);
+}
+
 function writeBackup(file, content) {
-  fs.mkdirSync(BACKUP_DIR, { recursive: true });
-  const rel = path.relative(path.resolve(__dirname, '..'), file).split(path.sep).join('__');
-  fs.writeFileSync(path.join(BACKUP_DIR, `${rel}.bak`), content, 'utf-8');
+  const target = backupPath(file);
+  fs.mkdirSync(path.dirname(target), { recursive: true });
+  fs.writeFileSync(target, content, 'utf-8');
 }
 
 function clearBackup(file) {
-  const rel = path.relative(path.resolve(__dirname, '..'), file).split(path.sep).join('__');
-  const bak = path.join(BACKUP_DIR, `${rel}.bak`);
+  const bak = backupPath(file);
   if (fs.existsSync(bak)) fs.unlinkSync(bak);
 }
 
@@ -37,13 +42,18 @@ function clearBackup(file) {
 function restoreLeftovers() {
   const restored = [];
   if (!fs.existsSync(BACKUP_DIR)) return restored;
-  for (const name of fs.readdirSync(BACKUP_DIR)) {
-    if (!name.endsWith('.bak')) continue;
-    const target = path.join(path.resolve(__dirname, '..'), name.slice(0, -4).split('__').join(path.sep));
-    fs.writeFileSync(target, fs.readFileSync(path.join(BACKUP_DIR, name), 'utf-8'), 'utf-8');
-    fs.unlinkSync(path.join(BACKUP_DIR, name));
-    restored.push(path.relative(path.resolve(__dirname, '..'), target));
-  }
+  const walk = (dir) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) { walk(full); continue; }
+      if (!entry.name.endsWith('.bak')) continue;
+      const target = path.join(path.resolve(__dirname, '..'), path.relative(BACKUP_DIR, full).slice(0, -4));
+      fs.writeFileSync(target, fs.readFileSync(full, 'utf-8'), 'utf-8');
+      fs.unlinkSync(full);
+      restored.push(path.relative(path.resolve(__dirname, '..'), target));
+    }
+  };
+  walk(BACKUP_DIR);
   return restored;
 }
 
