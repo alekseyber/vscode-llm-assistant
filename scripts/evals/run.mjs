@@ -38,17 +38,17 @@ function loadEnv() {
     POLZA_AI_API_KEY: process.env.POLZA_AI_API_KEY,
     OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY,
   };
-  if (Object.values(fromProcess).some(Boolean)) return fromProcess;
+  const defined = Object.fromEntries(Object.entries(fromProcess).filter(([, v]) => Boolean(v)));
   const envPath = process.env.EVALS_ENV_FILE || path.join(ROOT, '..', '..', '.env');
-  if (!fs.existsSync(envPath)) return fromProcess;
+  // Файл читаем ВСЕГДА, если он есть: в окружении могут быть только часть ключей
+  // (например, POLZA задана, DEEPSEEK — нет), и ранний возврат оставлял ключ пустым.
+  if (!fs.existsSync(envPath)) return defined;
   const fileEnv = Object.fromEntries(
     fs.readFileSync(envPath, 'utf-8')
       .split('\n')
       .filter((l) => l.includes('=') && !l.startsWith('#'))
       .map((l) => [l.slice(0, l.indexOf('=')), l.slice(l.indexOf('=') + 1).trim()]),
   );
-  // Только реально заданные значения: спред объекта с undefined затёр бы ключи из файла
-  const defined = Object.fromEntries(Object.entries(fromProcess).filter(([, v]) => Boolean(v)));
   return { ...fileEnv, ...defined };
 }
 
