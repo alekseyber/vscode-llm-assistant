@@ -44,7 +44,8 @@ suite('contextWindow', () => {
 
   test('CW-6: резерв под ответ растёт с окном, но не съедает всё', () => {
     assert.strictEqual(reserveForAnswer(4096), 614);
-    assert.strictEqual(reserveForAnswer(128_000), 4096, 'больше 4096 не резервируем');
+    assert.strictEqual(reserveForAnswer(128_000), 19_200, '15% окна — reasoning-моделям нужно больше 4096');
+    assert.strictEqual(reserveForAnswer(1_048_576), 32_768, 'верхняя граница резерва — 32k');
     assert.ok(reserveForAnswer(8192) >= 512);
   });
 
