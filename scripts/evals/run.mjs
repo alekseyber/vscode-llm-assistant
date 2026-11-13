@@ -314,8 +314,32 @@ const md = [
   ...calibration.map((c) => `- ${c.task} / ${c.kind}: ${c.verdict} ${c.passed ? '' : '← судья пропустил брак'}`),
 ].join('\n');
 
+// Порог проверяется только на полном прогоне: частичный срез (--limit/--only) не показателен
+let thresholdFailures = [];
+const thresholdPath = path.join(EVAL_DIR, 'thresholds.json');
+if (fs.existsSync(thresholdPath) && selected.length === tasks.length) {
+  const th = JSON.parse(fs.readFileSync(thresholdPath, 'utf-8'));
+  if (th.total && stats.total !== th.total) thresholdFailures.push(`задач ${stats.total}, ожидалось ${th.total}`);
+  if (typeof th.confirmedMin === 'number' && stats.confirmed < th.confirmedMin) {
+    thresholdFailures.push(`подтверждено ${stats.confirmed} < порога ${th.confirmedMin}`);
+  }
+  if (typeof th.attributionWrongMax === 'number' && stats.attributionWrong > th.attributionWrongMax) {
+    thresholdFailures.push(`ошибок атрибуции ${stats.attributionWrong} > ${th.attributionWrongMax}`);
+  }
+  if (typeof th.judgeUnavailableMax === 'number' && (stats.judgeUnavailable ?? 0) > th.judgeUnavailableMax) {
+    thresholdFailures.push(`судья недоступен ${stats.judgeUnavailable} > ${th.judgeUnavailableMax}`);
+  }
+  if (th.calibrationRequired && !stats.calibrationOk) thresholdFailures.push('калибровка судьи не пройдена');
+  if (thresholdFailures.length > 0) {
+    console.error(`[evals] РЕГРЕСС: ${thresholdFailures.join('; ')}`);
+  } else {
+    console.error('[evals] порог пройден');
+  }
+}
+
 const mdPath = path.join(OUT_DIR, `run-${stamp}.md`);
 fs.writeFileSync(mdPath, md + '\n', 'utf-8');
 console.log(md);
 console.error(`[evals] отчёт: ${mdPath}`);
 if (!calibrationOk) process.exitCode = 2;
+else if (thresholdFailures.length > 0) process.exitCode = 6;
