@@ -296,9 +296,13 @@ for (const task of selected) {
   // Судья на этом классе ошибается (пропускает «символ живёт в другом файле»), код — нет.
   const mentioned = [...text.matchAll(/(?:^|[\s`(])((?:src|scripts)\/[\w./-]+\.ts)/g)].map((m) => m[1]);
   // Кросс-файловая задача: контекст содержал несколько файлов, и ответ вправе назвать
-  // любой из них. Ошибка — только когда назван файл, которого в контексте не было.
+  // любой из них.
+  // Файл, который реально есть в репозитории, — тоже не ошибка: модель может по делу
+  // сказать «это увидит RetryHandler». Ошибка — только выдуманный путь, которого нет.
+  // (Прогон в CI поймал именно такой случай: EV-07 упомянул настоящий RetryHandler.ts.)
   const allowedFiles = [task.file, ...(task.contextFiles ?? [])];
-  const attributionWrong = mentioned.length > 0 && !mentioned.some((f) => allowedFiles.includes(f));
+  const inRepo = (f) => fs.existsSync(path.join(ROOT, f));
+  const attributionWrong = mentioned.length > 0 && !mentioned.some((f) => allowedFiles.includes(f) || inRepo(f));
   const j = await judge(task, text);
   rows.push({ ...task, answer: text, mechanical: mech, attributionWrong, mentionedFiles: mentioned, judge: j.verdict, judgeRaw: j.raw, quote: j.quote, why: j.why });
   process.stderr.write(`${mech === null ? 'mech-n/a' : mech ? 'mech-ok' : 'mech-miss'} / ${j.verdict}\n`);
