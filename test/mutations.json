@@ -212,9 +212,9 @@
     {
       "id": "CW-CAP-EXPANDS",
       "file": "src/shared/contextWindow.ts",
-      "from": "  const tokens = configured > 0 ? Math.min(configured, usable) : usable;",
-      "to": "  const tokens = configured > 0 ? configured : usable;",
-      "label": "потолок может расширить окно модели",
+      "from": "  if (configured > 0 && configured < usable) {",
+      "to": "  if (configured > 0) {",
+      "label": "потолок может расширить окно модели (условие сужения убрано)",
       "expect": "must-fail"
     }
   ]

@@ -14,18 +14,25 @@ export function reserveForAnswer(windowTokens: number): number {
 
 /** Известные окна по семействам моделей: имя модели → токены. */
 const KNOWN: Array<[RegExp, number]> = [
+  // Порядок важен: сначала узкие семейства, потом общие. Неизвестное окно честнее неверного.
   [/gpt-4\.1/i, 1_047_576],
+  [/gpt-4o-mini/i, 128_000],
   [/gpt-4o/i, 128_000],
-  [/^(o1|o3|o4)/i, 200_000],
   [/gpt-4-turbo/i, 128_000],
   [/gpt-3\.5/i, 16_385],
-  [/claude/i, 200_000],
+  [/^o1-mini/i, 128_000],
+  [/^(o1|o3|o4)(?!-mini)/i, 200_000],
+  [/claude-3|claude-4|claude-sonnet|claude-opus|claude-haiku/i, 200_000],
   [/gemini/i, 1_048_576],
-  [/deepseek-reasoner|deepseek-v[34]|deepseek-chat/i, 65_536],
-  [/qwen/i, 32_768],
+  [/deepseek-(reasoner|chat|v[234])/i, 65_536],
+  [/llama-3\.[1-9]/i, 131_072],
   [/llama-?3/i, 8_192],
-  [/mistral|mixtral/i, 32_768],
+  [/gemma-?3/i, 131_072],
   [/gemma/i, 8_192],
+  [/mistral-large/i, 131_072],
+  [/mixtral/i, 32_768],
+  [/mistral/i, 32_768],
+  [/qwen/i, 32_768],
 ];
 
 /** Окно по имени модели, если семейство известно. */
@@ -69,8 +76,12 @@ export function resolveContextTokens(input: ResolutionInput): Resolution {
     return configured > 0 ? { tokens: configured, source: 'setting' } : { tokens: fallback, source: 'fallback' };
   }
 
-  const usable = Math.max(1024, window - reserveForAnswer(window));
-  // Потолок может сузить окно, но не расширить за пределы модели
-  const tokens = configured > 0 ? Math.min(configured, usable) : usable;
-  return { tokens, source: fromProvider ? 'provider' : 'known', window };
+  // Никогда не превышаем окно модели: минимум 1024 ограничен сверху самим окном
+  const usable = Math.min(window, Math.max(1024, window - reserveForAnswer(window)));
+  const windowSource = fromProvider ? 'provider' : 'known';
+  if (configured > 0 && configured < usable) {
+    // Потолок реально сузил бюджет — так и говорим, иначе индикатор врёт об источнике
+    return { tokens: configured, source: 'setting', window };
+  }
+  return { tokens: usable, source: windowSource, window };
 }

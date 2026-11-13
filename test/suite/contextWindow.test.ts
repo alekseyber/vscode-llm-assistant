@@ -54,4 +54,24 @@ suite('contextWindow', () => {
     assert.strictEqual(knownContextWindow('deepseek-chat'), 65_536);
     assert.strictEqual(knownContextWindow(''), undefined);
   });
+
+  test('CW-8: узкие имена семейств не перекрываются общими (llama-3.1, gemma-3, o1-mini)', () => {
+    assert.strictEqual(knownContextWindow('llama-3.1-70b'), 131_072, 'llama-3.1 не должен получать 8k от /llama-3/');
+    assert.strictEqual(knownContextWindow('gemma-3-27b'), 131_072, 'gemma-3 не должен получать 8k от /gemma/');
+    assert.strictEqual(knownContextWindow('o1-mini'), 128_000, 'o1-mini не должен получать 200k от /o1/');
+    assert.strictEqual(knownContextWindow('o1'), 200_000);
+  });
+
+  test('CW-9: бюджет не превышает само окно на крошечных моделях', () => {
+    const r = resolveContextTokens({ model: 'x', providerWindow: 700 });
+    assert.ok(r.tokens <= 700, `бюджет ${r.tokens} больше окна 700`);
+  });
+
+  test('CW-10: потолок, который реально сузил бюджет, помечается источником setting', () => {
+    const r = resolveContextTokens({ model: 'gpt-4o', configured: 3000 });
+    assert.strictEqual(r.tokens, 3000);
+    assert.strictEqual(r.source, 'setting', 'индикатор должен знать, что число пришло из настройки');
+    const wide = resolveContextTokens({ model: 'gpt-4o', configured: 900_000 });
+    assert.strictEqual(wide.source, 'known', 'если потолок шире окна — источник окно модели');
+  });
 });
