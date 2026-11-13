@@ -216,6 +216,14 @@
       "to": "  if (configured > 0) {",
       "label": "потолок может расширить окно модели (условие сужения убрано)",
       "expect": "must-fail"
+    },
+    {
+      "id": "MH-HINTS-WRONG",
+      "file": "scripts/mutation-check.js",
+      "from": "    if (a.size > 0 && b.size === 0) return;",
+      "to": "    if (false) return;",
+      "label": "фильтр по числам отключён — подсказки теряют точность",
+      "expect": "must-fail"
     }
   ]
 }

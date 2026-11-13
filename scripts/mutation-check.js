@@ -18,6 +18,59 @@ const { execFileSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
+
+/**
+ * Ближайшие строки файла к искомому фрагменту: помогает обновить мутацию, когда реализация
+ * изменилась и `from` перестал совпадать. Сравнение — по нормализованному тексту (пробелы схлопнуты),
+ * расстояние — Левенштейн с ранней отсечкой.
+ */
+function normalized(text) {
+  return String(text).replace(/\s+/g, ' ').trim();
+}
+
+function levenshtein(a, b) {
+  if (a === b) return 0;
+  if (!a.length) return b.length;
+  if (!b.length) return a.length;
+  let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i += 1) {
+    const cur = [i];
+    for (let j = 1; j <= b.length; j += 1) {
+      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    }
+    prev = cur;
+  }
+  return prev[b.length];
+}
+
+/** Кандидаты на замену `from`: до `limit` строк с наименьшим расстоянием. */
+function suggestClosestLines(content, from, limit = 3) {
+  const needle = normalized(from);
+  const lines = String(content).split('\n');
+  const scored = [];
+  lines.forEach((line, index) => {
+    const text = normalized(line);
+    if (!text) return;
+    // Первый проход — грубый фильтр по общим словам, иначе Левенштейн по всему файлу дорог
+    const firstToken = needle.split(' ')[0];
+    if (text.length < 4 && !needle.includes(text)) return;
+    if (!firstToken || !text.includes(firstToken)) return;
+    // Числовые литералы различают почти одинаковые строки (4096 против 32_768): чем больше
+    // общих чисел, тем выше кандидат — иначе выигрывает короткая строка вроде `return undefined;`
+    const nums = (str) => new Set((str.match(/\d[\d_]*/g) ?? []).map((n) => n.replace(/_/g, '')));
+    const a = nums(needle);
+    const b = nums(text);
+    // Если в мутации есть числа, а в строке их нет — это не «похожая строка», а другая логика
+    if (a.size > 0 && b.size === 0) return;
+    const union = new Set([...a, ...b]);
+    const overlap = union.size === 0 ? 0 : [...a].filter((n) => b.has(n)).length / union.size;
+    const score = levenshtein(text, needle) - overlap * 40;
+    if (Number.isFinite(score)) scored.push({ line: index + 1, text: line.trim(), score });
+  });
+  scored.sort((a, b) => a.score - b.score);
+  return scored.slice(0, limit);
+}
+
 const BACKUP_DIR = path.resolve(__dirname, '..', 'tmp', 'mutation-backup');
 
 /** Сохранить исходник до мутации: восстановление возможно даже после жёсткого убийства процесса. */
@@ -119,7 +172,13 @@ function main() {
     const file = path.join(ROOT, mutation.file);
     const original = fs.readFileSync(file, 'utf-8');
     if (!original.includes(mutation.from)) {
-      results.push({ ...mutation, verdict: 'not-applied', detail: 'строка для мутации не найдена' });
+      const hints = suggestClosestLines(original, mutation.from);
+      results.push({
+        ...mutation,
+        verdict: 'not-applied',
+        detail: 'строка для мутации не найдена — реализация изменилась, обновите `from` в test/mutations.json',
+        hints,
+      });
       continue;
     }
 
@@ -169,6 +228,17 @@ function main() {
           ? `, неприменимых ${inapplicable.length} (${inapplicable.map((r) => r.id).join(', ')})`
           : ''),
     );
+    if (inapplicable.length > 0) {
+      // Без подсказки такой прогон читается как «тесты виноваты», хотя строка просто переехала
+      console.log('[mutation] неприменимые мутации — обновите `from` в test/mutations.json:');
+      for (const row of inapplicable) {
+        console.log(`  - ${row.id} (${row.file}):`);
+        for (const hint of row.hints ?? []) {
+          console.log(`      строка ${hint.line}: ${hint.text.slice(0, 140)}`);
+        }
+        if (!row.hints || row.hints.length === 0) console.log('      похожих строк не нашлось — проверьте, что правило ещё существует');
+      }
+    }
     if (missed.length > 0) {
       console.log('[mutation] поведение не покрыто юнит-тестами:');
       for (const row of missed) console.log(`  - ${row.id}: ${row.label}`);
@@ -178,4 +248,7 @@ function main() {
   process.exit(missed.length > 0 ? 1 : 0);
 }
 
-main();
+// Экспорт для юнит-тестов: подсказки по неприменимым мутациям проверяются без запуска прогона
+module.exports = { suggestClosestLines, levenshtein };
+
+if (require.main === module) main();
