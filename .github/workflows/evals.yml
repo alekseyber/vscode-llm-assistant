@@ -1,0 +1,36 @@
+name: Evals
+
+# Прогон качества ответов (P12). Не на каждый push: стоимость ~$0,03 и 2-3 минуты,
+# смысл есть только там, где меняются промпты, контекст или модель.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 3 * * *'      # ночью по МСК, чтобы изменения моделей провайдера ловились без ручного запуска
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/evals/**'
+      - 'src/**'
+
+jobs:
+  evals:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Прогон evals (судья deepseek-chat)
+        env:
+          # Отдельный ключ под evals: отзывается, не задевая остальные сценарии
+          DEEPSEEK_EVALS_KEY: ${{ secrets.DEEPSEEK_EVALS_KEY }}
+        run: node scripts/evals/run.mjs --judge=deepseek-chat --judge-provider=deepseek --budget=0.5
+
+      - name: Отчёт в артефакты
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: evals-report
+          path: reports/evals/
+          if-no-files-found: warn
