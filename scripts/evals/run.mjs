@@ -35,6 +35,7 @@ const JUDGE_PROVIDER = arg('judge-provider', 'deepseek');
 function loadEnv() {
   const fromProcess = {
     DEEPSEEK_API_KEY: process.env.DEEPSEEK_API_KEY,
+    DEEPSEEK_EVALS_KEY: process.env.DEEPSEEK_EVALS_KEY,
     POLZA_AI_API_KEY: process.env.POLZA_AI_API_KEY,
     OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY,
   };
@@ -53,12 +54,13 @@ function loadEnv() {
 }
 
 const env = loadEnv();
-if (!env.DEEPSEEK_API_KEY && !env.POLZA_AI_API_KEY && !env.OPENROUTER_API_KEY) {
+if (!DEEPSEEK_KEY && !env.POLZA_AI_API_KEY && !env.OPENROUTER_API_KEY) {
   console.error('[evals] нет ключей провайдеров (env или .env) — прогон невозможен');
   process.exit(4);
 }
 
-const DEEPSEEK_KEY = env.DEEPSEEK_API_KEY;
+// Отдельный ключ под evals (CI) приоритетнее общего: его можно отозвать, не ломая остальное
+const DEEPSEEK_KEY = env.DEEPSEEK_EVALS_KEY || env.DEEPSEEK_API_KEY;
 const OPENROUTER_KEY = env.OPENROUTER_API_KEY;
 const POLZA_KEY = env.POLZA_AI_API_KEY;
 
