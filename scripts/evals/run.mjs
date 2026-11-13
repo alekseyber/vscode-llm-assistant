@@ -27,8 +27,8 @@ const arg = (name, fallback) => {
 
 const LIMIT = Number(arg('limit', '0')) || 0;
 const ANSWER_MODEL = arg('answer-model', 'deepseek-chat');
-const JUDGE_MODEL = arg('judge', 'anthropic/claude-haiku-5.5');
-const JUDGE_PROVIDER = arg('judge-provider', 'polza');
+const JUDGE_MODEL = arg('judge', 'deepseek-chat');
+const JUDGE_PROVIDER = arg('judge-provider', 'deepseek');
 
 const env = Object.fromEntries(
   fs.readFileSync(path.join(ROOT, '..', '..', '.env'), 'utf-8')
@@ -53,9 +53,10 @@ async function chat(url, key, model, messages, maxTokens = 700) {
 }
 
 const askDeepSeek = (messages) => chat('https://api.deepseek.com/chat/completions', DEEPSEEK_KEY, ANSWER_MODEL, messages);
-// Судья по умолчанию — Claude Haiku через Polza: другой вендор, чем отвечающая модель (DeepSeek),
-// и при этом дешёвый (полный прогон ≈$0,1 ≈ 10 ₽). Reasoning-модели в роли судьи не годятся:
-// у них скрытые токены съедают лимит ответа, и вердикт приходит пустым — проверено на deepseek-v4-pro.
+// Судья по умолчанию — deepseek-chat: не reasoning (лимит не съедается скрытыми токенами),
+// предсказуемая цена, свой ключ с балансом. Кросс-вендорные модели (Claude через Polza) —
+// только явным флагом и с бюджетом: Polza списала ~500 ₽ за ~15 вызовов Haiku, оценка по
+// прайсу Anthropic это не объясняет, поэтому дорогой провайдер не используется без разрешения.
 // Кросс-вендорная проверка запускается отдельно и намеренно дорого: --judge=anthropic/claude-sonnet-4.5
 // --judge-provider=polza. Один такой прогон ≈85 ₽, поэтому он контрольный, а не рабочий.
 const JUDGE_ENDPOINTS = {
@@ -68,20 +69,51 @@ const [judgeUrl, judgeKey] = JUDGE_ENDPOINTS[JUDGE_PROVIDER] ?? JUDGE_ENDPOINTS.
 // и при малом лимите ответ приходит пустым (finish_reason=length) — отсюда было «нет вердикта».
 const askJudge = (messages) => chat(judgeUrl, judgeKey, JUDGE_MODEL, messages, 2000);
 
-/** Контекст: файл целиком, но не больше 8 КБ — символ ищем и подсвечиваем окном вокруг него. */
-function contextFor(file, symbol) {
-  const abs = path.join(ROOT, file);
-  const text = fs.readFileSync(abs, 'utf-8');
-  const at = text.indexOf(symbol);
-  if (at < 0) return text.slice(0, 8000);
-  const from = Math.max(0, at - 2500);
-  return text.slice(from, Math.min(text.length, at + 5500));
+/** Контекст задачи. Три режима:
+ *  - обычный: окно вокруг символа;
+ *  - `contextFiles`: несколько файлов (кросс-файловые вопросы — факт в одном, вызов в другом);
+ *  - `truncate`: символ и его окрестность ВЫРЕЗАНЫ — правильный ответ «по фрагменту ответить нельзя».
+ */
+function contextFor(task) {
+  const readWindow = (file, symbol, cut) => {
+    const text = fs.readFileSync(path.join(ROOT, file), 'utf-8');
+    const at = symbol ? text.indexOf(symbol) : -1;
+    if (at < 0) return `// ${file}\n${text.slice(0, 4000)}`;
+    if (cut) {
+      // Вырезаем ЦЕЛИКОМ функцию/класс, в котором объявлен символ: если оставить тело и убрать
+      // только имя, модель всё равно отвечает по телу — задача «на честный отказ» не работает.
+      const start = Math.max(
+        text.lastIndexOf('export function', at),
+        text.lastIndexOf('function', at),
+        text.lastIndexOf('export class', at),
+        text.lastIndexOf('class', at),
+        text.lastIndexOf('const', at),
+      );
+      const from = start >= 0 ? start : Math.max(0, at - 200);
+      let depth = 0;
+      let end = from;
+      let seenBrace = false;
+      for (let i = from; i < text.length; i += 1) {
+        if (text[i] === '{') { depth += 1; seenBrace = true; }
+        else if (text[i] === '}') { depth -= 1; if (seenBrace && depth === 0) { end = i + 1; break; } }
+      }
+      // Плюс затираем все вхождения имени: оно может встречаться в соседних функциях и в тестах
+      const cutText = (text.slice(0, from) + '\n/* фрагмент вырезан */\n' + text.slice(end))
+        .split(symbol).join('/* имя вырезано */')
+        .slice(0, 8000);
+      if (cutText.includes(symbol)) throw new Error(`truncate: символ ${symbol} остался в контексте`);
+      return `// ${file}\n${cutText}`;
+    }
+    return `// ${file}\n${text.slice(Math.max(0, at - 2000), Math.min(text.length, at + 4000))}`;
+  };
+  if (task.contextFiles) return task.contextFiles.map((f) => readWindow(f, task.symbol, false)).join('\n\n');
+  return readWindow(task.file, task.symbol, Boolean(task.truncate));
 }
 
 const ANSWER_SYSTEM = 'Ты помощник по кодовой базе. Отвечай по приведённому фрагменту кода, 2–4 предложения, без вступлений. Если в фрагменте нет ответа — скажи это прямо.';
 
 async function answer(task) {
-  const ctx = contextFor(task.file, task.symbol);
+  const ctx = contextFor(task);
   return askDeepSeek([
     { role: 'system', content: ANSWER_SYSTEM },
     { role: 'user', content: `Файл ${task.file}:\n\n${ctx}\n\nВопрос: ${task.question}` },
@@ -97,15 +129,17 @@ const JUDGE_SYSTEM = `Ты проверяешь фактическую верн�
 - Если ответ утверждает, что во фрагменте нет нужных строк, и это правда — тоже «подтверждается» (честный отказ не ошибка).
 - «противоречит» — только когда утверждение расходится с кодом (другое поведение, другой файл, выдуманная функция, перевёрнутый смысл).
 - «не проверяемо» — если по фрагменту нельзя установить ни верность, ни ложность.
+Если в задаче помечено «ожидается честный отказ»: правильный ответ — сказать, что по фрагменту ответить нельзя.
+Выдумка в таком случае — «противоречит».
 Стиль, полноту и полезность не оценивай.
 Ответ — ТОЛЬКО JSON без markdown:
 {"verdict":"подтверждается|противоречит|не проверяемо","quote":"строка кода","why":"до 20 слов"}`;
 
 async function judge(task, answerText) {
-  const ctx = contextFor(task.file, task.symbol);
+  const ctx = contextFor(task);
   const raw = await askJudge([
     { role: 'system', content: JUDGE_SYSTEM.replace('${SYMBOL_PLACEHOLDER}', task.symbol) },
-    { role: 'user', content: `Вопрос: ${task.question}\n\nФайл фрагмента: ${task.file}\nОжидаемый символ: ${task.symbol}\n\nФрагмент кода:\n${ctx}\n\nОтвет, который надо проверить:\n${answerText}\n\nНапоминание: если в ответе символ отнесён к другому файлу — это «противоречит».` },
+    { role: 'user', content: `Вопрос: ${task.question}\n${task.truncate ? 'Ожидается честный отказ: нужного кода в фрагменте НЕТ.\n' : ''}\n\nФайл фрагмента: ${task.file}\nОжидаемый символ: ${task.symbol}\n\nФрагмент кода:\n${ctx}\n\nОтвет, который надо проверить:\n${answerText}\n\nНапоминание: если в ответе символ отнесён к другому файлу — это «противоречит».` },
   ]);
   const parse = (text) => {
     const jsonText = /\{[\s\S]*\}/.exec(text)?.[0];
@@ -170,7 +204,10 @@ if (usdEstimate > budgetUsd && !process.argv.includes('--yes')) {
     `для запуска добавить --yes или поднять --budget.`);
   process.exit(3);
 }
-const selected = LIMIT ? tasks.slice(0, LIMIT) : tasks;
+const onlyArg = arg('only', '');
+const selected = onlyArg
+  ? tasks.filter((t) => onlyArg.split(',').map((x) => x.trim()).includes(t.id))
+  : LIMIT ? tasks.slice(0, LIMIT) : tasks;
 fs.mkdirSync(OUT_DIR, { recursive: true });
 console.error(`[evals] оценка стоимости: $${usdEstimate.toFixed(3)} (${planned} задач, судья ${JUDGE_MODEL})`);
 

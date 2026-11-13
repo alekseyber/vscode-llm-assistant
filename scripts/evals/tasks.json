@@ -140,6 +140,112 @@
       "file": "src/shared/IndexService.ts",
       "question": "Кто отвечает за индекс кода и когда он перестраивается?",
       "mechanicalRequired": true
+    },
+    {
+      "id": "EV-21",
+      "symbol": "calculateCost",
+      "file": "src/providers/types.ts",
+      "question": "Где вычисляется стоимость прогона и кто её вызывает?",
+      "kind": "crossfile",
+      "contextFiles": [
+        "src/providers/types.ts",
+        "src/modes/chat/ChatViewProvider.ts"
+      ],
+      "mechanicalRequired": true
+    },
+    {
+      "id": "EV-22",
+      "symbol": "mergeDailySpend",
+      "file": "src/shared/dailySpend.ts",
+      "question": "Кто вызывает mergeDailySpend и при каких условиях?",
+      "kind": "crossfile",
+      "contextFiles": [
+        "src/shared/dailySpend.ts",
+        "src/modes/chat/ChatViewProvider.ts"
+      ],
+      "mechanicalRequired": true
+    },
+    {
+      "id": "EV-23",
+      "symbol": "resolveContextTokens",
+      "file": "src/shared/contextWindow.ts",
+      "question": "В каких местах расширения применяется resolveContextTokens и зачем в двух сразу?",
+      "kind": "crossfile",
+      "contextFiles": [
+        "src/shared/contextWindow.ts",
+        "src/modes/chat/ConversationManager.ts",
+        "src/modes/chat/ChatViewProvider.ts"
+      ],
+      "mechanicalRequired": true
+    },
+    {
+      "id": "EV-24",
+      "symbol": "escapeInlineScript",
+      "file": "src/shared/inlineScript.ts",
+      "question": "Кто использует escapeInlineScript и от чего он защищает?",
+      "kind": "crossfile",
+      "contextFiles": [
+        "src/shared/inlineScript.ts",
+        "src/modes/history/HistoryViewProvider.ts"
+      ],
+      "mechanicalRequired": true
+    },
+    {
+      "id": "EV-25",
+      "symbol": "fileChangesSummary",
+      "file": "src/shared/runSummary.ts",
+      "question": "Кто вызывает fileChangesSummary и что печатается в лог?",
+      "kind": "crossfile",
+      "contextFiles": [
+        "src/shared/runSummary.ts",
+        "src/activation/registerCommands.ts"
+      ],
+      "mechanicalRequired": true
+    },
+    {
+      "id": "EV-26",
+      "symbol": "effectivePromptWindow",
+      "file": "src/providers/ollama.ts",
+      "question": "Как вычисляется эффективное окно промпта у Ollama и где используется коэффициент?",
+      "kind": "refusal",
+      "truncate": true,
+      "mechanicalRequired": true
+    },
+    {
+      "id": "EV-27",
+      "symbol": "truncateAtBoundary",
+      "file": "src/shared/AgentsMdLoader.ts",
+      "question": "По какому правилу truncateAtBoundary обрезает текст и что происходит на границе?",
+      "kind": "refusal",
+      "truncate": true,
+      "mechanicalRequired": true
+    },
+    {
+      "id": "EV-28",
+      "symbol": "toProviderError",
+      "file": "src/providers/openai.ts",
+      "question": "Как toProviderError различает таймаут и отказ провайдера?",
+      "kind": "refusal",
+      "truncate": true,
+      "mechanicalRequired": true
+    },
+    {
+      "id": "EV-29",
+      "symbol": "countFileChanges",
+      "file": "src/shared/runSummary.ts",
+      "question": "Как countFileChanges считает изменённые файлы и что делает с дублями?",
+      "kind": "refusal",
+      "truncate": true,
+      "mechanicalRequired": true
+    },
+    {
+      "id": "EV-30",
+      "symbol": "buildTruncationWarning",
+      "file": "src/providers/ollama.ts",
+      "question": "При каком условии buildTruncationWarning выдаёт предупреждение?",
+      "kind": "refusal",
+      "truncate": true,
+      "mechanicalRequired": true
     }
   ]
 }
