@@ -158,10 +158,18 @@ const JUDGE_SYSTEM = `Ты проверяешь фактическую верн�
 
 async function judge(task, answerText) {
   const ctx = contextFor(task);
-  const raw = await askJudge([
+  let raw = '';
+  try {
+    raw = await askJudge([
     { role: 'system', content: JUDGE_SYSTEM.replace('${SYMBOL_PLACEHOLDER}', task.symbol) },
-    { role: 'user', content: `Вопрос: ${task.question}\n${task.truncate ? 'Ожидается честный отказ: нужного кода в фрагменте НЕТ.\n' : ''}\n\nФайл фрагмента: ${task.file}\nОжидаемый символ: ${task.symbol}\n\nФрагмент кода:\n${ctx}\n\nОтвет, который надо проверить:\n${answerText}\n\nНапоминание: если в ответе символ отнесён к другому файлу — это «противоречит».` },
-  ]);
+      { role: 'user', content: `Вопрос: ${task.question}\n${task.truncate ? 'Ожидается честный отказ: нужного кода в фрагменте НЕТ.\n' : ''}\n\nФайл фрагмента: ${task.file}\nОжидаемый символ: ${task.symbol}\n\nФрагмент кода:\n${ctx}\n\nОтвет, который надо проверить:\n${answerText}\n\nНапоминание: если в ответе символ отнесён к другому файлу — это «противоречит».` },
+    ]);
+  } catch (error) {
+    // Судья недоступен (лимит, сеть, 5xx) — это НЕ «ответ неверный»: фиксируем отдельным
+    // вердиктом, чтобы отчёт не врал в сторону брака
+    const reason = String(error.message ?? error).replace(/\s+/g, ' ').slice(0, 120);
+    return { verdict: 'судья недоступен', raw: reason };
+  }
   const parse = (text) => {
     const jsonText = /\{[\s\S]*\}/.exec(text)?.[0];
     try {
@@ -252,6 +260,7 @@ const calibration = [];
 for (const task of selected.slice(0, 2)) {
   for (const bad of corrupted(task)) {
     const j = await judge(task, bad.text);
+    if (j.verdict === 'судья недоступен') { calibration.push({ task: task.id, kind: bad.kind, verdict: j.verdict, passed: false }); continue; }
     // У каждого класса брака свой слой: «чужой символ» ловит детерминированная проверка атрибуции
     // (судья на нём ошибается — это проверено), поведенческие классы — судья.
     const files = [...bad.text.matchAll(/(?:^|[\s`(])((?:src|scripts)\/[\w./-]+\.ts)/g)].map((m) => m[1]);
@@ -270,6 +279,7 @@ const stats = {
   confirmed: rows.filter((r) => r.judge === 'подтверждается').length,
   contradicted: rows.filter((r) => r.judge === 'противоречит').length,
   unchecked: rows.filter((r) => r.judge === 'не проверяемо' || r.judge === 'нет вердикта').length,
+  judgeUnavailable: rows.filter((r) => r.judge === 'судья недоступен').length,
   judge: JUDGE_MODEL,
   answerModel: ANSWER_MODEL,
   calibrationOk,
