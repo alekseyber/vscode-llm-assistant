@@ -30,12 +30,31 @@ const ANSWER_MODEL = arg('answer-model', 'deepseek-chat');
 const JUDGE_MODEL = arg('judge', 'deepseek-chat');
 const JUDGE_PROVIDER = arg('judge-provider', 'deepseek');
 
-const env = Object.fromEntries(
-  fs.readFileSync(path.join(ROOT, '..', '..', '.env'), 'utf-8')
-    .split('\n')
-    .filter((l) => l.includes('=') && !l.startsWith('#'))
-    .map((l) => [l.slice(0, l.indexOf('=')), l.slice(l.indexOf('=') + 1).trim()]),
-);
+// Ключи: сначала окружение (в CI это secrets), и только если там пусто — локальный .env.
+// В репозиторий ключи не попадают никогда: файл лежит вне проекта, а отчёты — в reports/ (не трекается).
+function loadEnv() {
+  const fromProcess = {
+    DEEPSEEK_API_KEY: process.env.DEEPSEEK_API_KEY,
+    POLZA_AI_API_KEY: process.env.POLZA_AI_API_KEY,
+    OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY,
+  };
+  if (Object.values(fromProcess).some(Boolean)) return fromProcess;
+  const envPath = process.env.EVALS_ENV_FILE || path.join(ROOT, '..', '..', '.env');
+  if (!fs.existsSync(envPath)) return fromProcess;
+  const fileEnv = Object.fromEntries(
+    fs.readFileSync(envPath, 'utf-8')
+      .split('\n')
+      .filter((l) => l.includes('=') && !l.startsWith('#'))
+      .map((l) => [l.slice(0, l.indexOf('=')), l.slice(l.indexOf('=') + 1).trim()]),
+  );
+  return { ...fileEnv, ...fromProcess };
+}
+
+const env = loadEnv();
+if (!env.DEEPSEEK_API_KEY && !env.POLZA_AI_API_KEY && !env.OPENROUTER_API_KEY) {
+  console.error('[evals] нет ключей провайдеров (env или .env) — прогон невозможен');
+  process.exit(4);
+}
 
 const DEEPSEEK_KEY = env.DEEPSEEK_API_KEY;
 const OPENROUTER_KEY = env.OPENROUTER_API_KEY;
