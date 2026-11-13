@@ -1,0 +1,145 @@
+{
+  "version": "0.1.0",
+  "tasks": [
+    {
+      "id": "EV-01",
+      "symbol": "calculateCost",
+      "file": "src/providers/types.ts",
+      "question": "Как считается стоимость запроса к модели и что произойдёт, если цены для модели нет?",
+      "mechanicalRequired": true
+    },
+    {
+      "id": "EV-02",
+      "symbol": "buildPricingMap",
+      "file": "src/providers/types.ts",
+      "question": "Откуда берутся цены моделей и в каком виде их видит остальной код?",
+      "mechanicalRequired": true
+    },
+    {
+      "id": "EV-03",
+      "symbol": "effectivePromptWindow",
+      "file": "src/providers/ollama.ts",
+      "question": "Сколько окна реально доступно под промпт у локальной модели и почему не всё окно?",
+      "mechanicalRequired": true
+    },
+    {
+      "id": "EV-04",
+      "symbol": "buildTruncationWarning",
+      "file": "src/providers/ollama.ts",
+      "question": "Когда появляется предупреждение об обрезке промпта и как отличается от реального лимита?",
+      "mechanicalRequired": true
+    },
+    {
+      "id": "EV-05",
+      "symbol": "readOllamaLocalSettings",
+      "file": "src/providers/ollama.ts",
+      "question": "Какие локальные настройки читает провайдер Ollama и что приоритетнее — запись провайдера или настройки расширения?",
+      "mechanicalRequired": false
+    },
+    {
+      "id": "EV-06",
+      "symbol": "toNativeMessages",
+      "file": "src/providers/ollama.ts",
+      "question": "Как сообщения чата превращаются в формат нативного API Ollama?",
+      "mechanicalRequired": true
+    },
+    {
+      "id": "EV-07",
+      "symbol": "toProviderError",
+      "file": "src/providers/openai.ts",
+      "question": "Какие ошибки OpenAI превращаются в понятные пользователю и как различаются таймаут и отказ?",
+      "mechanicalRequired": true
+    },
+    {
+      "id": "EV-08",
+      "symbol": "isLocalBaseUrl",
+      "file": "src/providers/base.ts",
+      "question": "Как определить, что провайдер локальный, по его адресу?",
+      "mechanicalRequired": true
+    },
+    {
+      "id": "EV-09",
+      "symbol": "extractModelNames",
+      "file": "src/providers/types.ts",
+      "question": "Как из ответа discovery вытаскиваются имена моделей и что отбрасывается?",
+      "mechanicalRequired": true
+    },
+    {
+      "id": "EV-10",
+      "symbol": "getRulesSources",
+      "file": "src/shared/AgentsMdLoader.ts",
+      "question": "Откуда загружаются правила проекта и в каком порядке они применяются?",
+      "mechanicalRequired": false
+    },
+    {
+      "id": "EV-11",
+      "symbol": "truncateAtBoundary",
+      "file": "src/shared/AgentsMdLoader.ts",
+      "question": "Как обрезаются правила проекта и почему не по символу?",
+      "mechanicalRequired": true
+    },
+    {
+      "id": "EV-12",
+      "symbol": "invalidateCache",
+      "file": "src/shared/AgentsMdLoader.ts",
+      "question": "Когда сбрасывается кэш правил проекта?",
+      "mechanicalRequired": true
+    },
+    {
+      "id": "EV-13",
+      "symbol": "debugLog",
+      "file": "src/shared/logger.ts",
+      "question": "Куда пишется отладочный лог и что с ним будет, если канал не задан?",
+      "mechanicalRequired": false
+    },
+    {
+      "id": "EV-14",
+      "symbol": "countFileChanges",
+      "file": "src/shared/runSummary.ts",
+      "question": "Как считается число изменённых файлов по шагам агента?",
+      "mechanicalRequired": false
+    },
+    {
+      "id": "EV-15",
+      "symbol": "fileChangesSummary",
+      "file": "src/shared/runSummary.ts",
+      "question": "Что попадает в сводку изменений и почему она нужна агенту?",
+      "mechanicalRequired": false
+    },
+    {
+      "id": "EV-16",
+      "symbol": "mergeDailySpend",
+      "file": "src/shared/dailySpend.ts",
+      "question": "Как складывается дневной расход при двух открытых окнах VS Code?",
+      "mechanicalRequired": true
+    },
+    {
+      "id": "EV-17",
+      "symbol": "resolveContextTokens",
+      "file": "src/shared/contextWindow.ts",
+      "question": "Сколько истории можно отправить модели и что делает настройка chat.maxContextTokens?",
+      "mechanicalRequired": true
+    },
+    {
+      "id": "EV-18",
+      "symbol": "registerCommands",
+      "file": "src/activation/registerCommands.ts",
+      "question": "Какие команды регистрирует расширение при активации?",
+      "mechanicalRequired": false
+    },
+    {
+      "id": "EV-19",
+      "symbol": "ProviderManager",
+      "file": "src/providers/manager.ts",
+      "question": "Как менеджер выбирает провайдера и что делает при ошибке провайдера?",
+      "mechanicalRequired": false
+    },
+    {
+      "id": "EV-20",
+      "symbol": "IndexService",
+      "file": "src/shared/IndexService.ts",
+      "question": "Кто отвечает за индекс кода и когда он перестраивается?",
+      "mechanicalRequired": true
+    }
+  ]
+}
