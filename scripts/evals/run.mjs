@@ -47,7 +47,9 @@ function loadEnv() {
       .filter((l) => l.includes('=') && !l.startsWith('#'))
       .map((l) => [l.slice(0, l.indexOf('=')), l.slice(l.indexOf('=') + 1).trim()]),
   );
-  return { ...fileEnv, ...fromProcess };
+  // Только реально заданные значения: спред объекта с undefined затёр бы ключи из файла
+  const defined = Object.fromEntries(Object.entries(fromProcess).filter(([, v]) => Boolean(v)));
+  return { ...fileEnv, ...defined };
 }
 
 const env = loadEnv();
@@ -205,10 +207,11 @@ const PRICES = {
   'anthropic/claude-sonnet-4.5': [3, 15],
 };
 const estimateCost = (totalTasks) => {
+  const freeTier = JUDGE_MODEL.endsWith(':free');
   const inTokens = totalTasks * 3000 + 6 * 3000;      // контекст задачи + калибровка
   const outTokens = totalTasks * 120 + 6 * 120;
   const answerPrice = PRICES[ANSWER_MODEL] ?? [0.3, 0.6];
-  const judgePrice = PRICES[JUDGE_MODEL] ?? [3, 15];
+  const judgePrice = freeTier ? [0, 0] : PRICES[JUDGE_MODEL] ?? [3, 15];
   const usd = (inTokens * (answerPrice[0] + judgePrice[0]) + outTokens * (answerPrice[1] + judgePrice[1])) / 1_000_000;
   return usd;
 };
