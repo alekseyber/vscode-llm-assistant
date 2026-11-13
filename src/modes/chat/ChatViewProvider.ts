@@ -18,6 +18,7 @@ import { McpClient, loadMcpConfig } from '../apply/McpClient';
 import { AgentWorker, AgentRole } from '../apply/AgentWorker';
 import { AgentOrchestrator, MultiAgentTask, MultiAgentResult } from '../apply/AgentOrchestrator';
 import { RunHistoryStore, generateRunId, RunEntry } from '../../shared/RunHistoryStore';
+import { DailySpendState, fromMicro, mergeDailySpend, toMicro } from '../../shared/dailySpend';
 import { setDebugSink } from '../../shared/logger';
 import { SessionLog } from '../../shared/SessionLog';
 import { isAbortError } from '../../shared/RetryHandler';
@@ -145,7 +146,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   private readonly budgetReserved = new Map<string, number>();
 
   /** Кэш дневного расхода в памяти окна: защищает от потери при параллельных прогонах. */
-  private dailySpendCache?: { date: string; usd: number };
+  private dailySpendCache?: DailySpendState;
 
   /** Резерв конкретного прогона — чтобы снять ровно его в finalizeRun. */
   private readonly runReservations = new Map<string, { sessionId: string; usd: number }>();
@@ -827,37 +828,49 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     return todayLocalDate();
   }
 
-  private readDailySpend(): { date: string; usd: number } {
+  private readDailySpendState(): DailySpendState {
     const date = ChatViewProvider.today();
-    const raw = this.context.globalState.get<{ date?: string; usd?: number }>(DAILY_SPEND_KEY);
+    const raw = this.context.globalState.get<Partial<DailySpendState> & { usd?: number }>(DAILY_SPEND_KEY);
     // Number.isFinite, а не typeof: NaN имеет тип 'number' и отравил бы счётчик
-    if (!raw || raw.date !== date || !Number.isFinite(raw.usd)) return { date, usd: 0 };
-    return { date, usd: raw.usd as number };
+    if (!raw || raw.date !== date) return { date, usdMicro: 0, rev: 0 };
+    // Миграция старой записи `{date, usd}` — до 0.23.9 счётчик был в долларах
+    if (!Number.isFinite(raw.usdMicro) && Number.isFinite(raw.usd)) {
+      return { date, usdMicro: toMicro(raw.usd as number), rev: 0 };
+    }
+    if (!Number.isFinite(raw.usdMicro)) return { date, usdMicro: 0, rev: 0 };
+    return { date, usdMicro: raw.usdMicro as number, rev: Number.isFinite(raw.rev) ? (raw.rev as number) : 0 };
+  }
+
+  private readDailySpend(): { date: string; usd: number } {
+    const state = this.readDailySpendState();
+    return { date: state.date, usd: fromMicro(state.usdMicro) };
   }
 
   /**
    * Учесть фактический расход прогона.
    *
-   * Считаем через память, а не только через `globalState`: два прогона подряд
-   * (параллельные запросы) иначе читают одно значение и затирают расход друг друга.
-   * Полной атомарности между окнами VS Code это не даёт, но в пределах окна
-   * счётчик не теряется.
+   * База для приращения — максимум из записанного в `globalState` и локального кэша:
+   *  - записанное забирает расход, сделанный в ДРУГОМ окне VS Code (кэш этого не видит);
+   *  - кэш страхует от асинхронности `globalState.update` (запись ещё не долетела,
+   *    а следующий прогон уже считает).
+   * Полной атомарности между окнами Memento не даёт (read-modify-write), но затирание
+   * чужого расхода уходит: раньше кэш перекрывал записанное значение целиком.
    */
   private addDailySpend(usd: number): void {
     if (!(usd > 0) || !Number.isFinite(usd)) return;
     const date = ChatViewProvider.today();
-    if (this.dailySpendCache?.date !== date) {
-      this.dailySpendCache = { date, usd: this.readDailySpend().usd };
-    }
-    this.dailySpendCache.usd += usd;
-    void this.context.globalState.update(DAILY_SPEND_KEY, { date, usd: this.dailySpendCache.usd });
+    const next = mergeDailySpend(this.readDailySpendState(), this.dailySpendCache, toMicro(usd), date);
+    this.dailySpendCache = next;
+    void this.context.globalState.update(DAILY_SPEND_KEY, next);
   }
 
   /** Сбросить расход за сегодня (команда «Сбросить дневной лимит»). */
   public resetDailySpend(): void {
     const date = ChatViewProvider.today();
-    this.dailySpendCache = { date, usd: 0 };
-    void this.context.globalState.update(DAILY_SPEND_KEY, { date, usd: 0 });
+    // Ревизия растёт: иначе кэш другого окна с прежней суммой отменил бы сброс
+    const next: DailySpendState = { date, usdMicro: 0, rev: this.readDailySpendState().rev + 1 };
+    this.dailySpendCache = next;
+    void this.context.globalState.update(DAILY_SPEND_KEY, next);
     this.debugChannel.appendLine('[budget] дневной счётчик сброшен вручную');
   }
 

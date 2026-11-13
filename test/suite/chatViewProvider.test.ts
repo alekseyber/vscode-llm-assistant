@@ -292,9 +292,11 @@ suite('ChatViewProvider.handleSendMessage', () => {
     configOverrides['maxTokens'] = 512;
     await send('привет', 'chat');
 
-    const stored = globalState.get('llmAssistant.dailySpend') as { date: string; usd: number };
+    // Формат после 0.23.9: расход в микро-долларах + ревизия (см. specs/dailySpend.md)
+    const stored = globalState.get('llmAssistant.dailySpend') as { date: string; usdMicro: number; rev: number };
     assert.ok(stored, 'дневной счётчик записан в globalState');
-    assert.ok(stored.usd > 0, `расход учтён: ${stored.usd}`);
+    assert.ok(stored.usdMicro > 0, `расход учтён: ${stored.usdMicro} микро-$`);
+    assert.ok(stored.rev >= 1, `ревизия растёт: ${stored.rev}`);
     assert.strictEqual(stored.date, todayLocalDate(), 'счётчик привязан к локальной дате пользователя, не к UTC');
 
     // Перезапуск окна: новый провайдер поверх того же globalState видит расход
