@@ -54,13 +54,16 @@ function loadEnv() {
 }
 
 const env = loadEnv();
+
+// Отдельный ключ под evals (CI) приоритетнее общего: его можно отозвать, не ломая остальное
+const DEEPSEEK_KEY = env.DEEPSEEK_EVALS_KEY || env.DEEPSEEK_API_KEY;
+
+// Проверка ключей — ПОСЛЕ объявления DEEPSEEK_KEY: раньше она стояла выше и падала
+// с ReferenceError (TDZ), то есть прогон ломался ещё до первого запроса
 if (!DEEPSEEK_KEY && !env.POLZA_AI_API_KEY && !env.OPENROUTER_API_KEY) {
   console.error('[evals] нет ключей провайдеров (env или .env) — прогон невозможен');
   process.exit(4);
 }
-
-// Отдельный ключ под evals (CI) приоритетнее общего: его можно отозвать, не ломая остальное
-const DEEPSEEK_KEY = env.DEEPSEEK_EVALS_KEY || env.DEEPSEEK_API_KEY;
 const OPENROUTER_KEY = env.OPENROUTER_API_KEY;
 const POLZA_KEY = env.POLZA_AI_API_KEY;
 
