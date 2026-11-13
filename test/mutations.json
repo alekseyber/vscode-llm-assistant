@@ -204,7 +204,7 @@
     {
       "id": "CW-NO-RESERVE",
       "file": "src/shared/contextWindow.ts",
-      "from": "  return Math.min(4096, Math.max(512, Math.floor(windowTokens * 0.15)));",
+      "from": "  return Math.min(32_768, Math.max(512, Math.floor(windowTokens * 0.15)));",
       "to": "  return 0;",
       "label": "резерв под ответ убран — истории отдаётся всё окно",
       "expect": "must-fail"
