@@ -27,7 +27,8 @@ const arg = (name, fallback) => {
 
 const LIMIT = Number(arg('limit', '0')) || 0;
 const ANSWER_MODEL = arg('answer-model', 'deepseek-chat');
-const JUDGE_MODEL = arg('judge', 'anthropic/claude-sonnet-4.5');
+const JUDGE_MODEL = arg('judge', 'anthropic/claude-haiku-5.5');
+const JUDGE_PROVIDER = arg('judge-provider', 'polza');
 
 const env = Object.fromEntries(
   fs.readFileSync(path.join(ROOT, '..', '..', '.env'), 'utf-8')
@@ -38,6 +39,7 @@ const env = Object.fromEntries(
 
 const DEEPSEEK_KEY = env.DEEPSEEK_API_KEY;
 const OPENROUTER_KEY = env.OPENROUTER_API_KEY;
+const POLZA_KEY = env.POLZA_AI_API_KEY;
 
 async function chat(url, key, model, messages, maxTokens = 700) {
   const res = await fetch(url, {
@@ -51,9 +53,20 @@ async function chat(url, key, model, messages, maxTokens = 700) {
 }
 
 const askDeepSeek = (messages) => chat('https://api.deepseek.com/chat/completions', DEEPSEEK_KEY, ANSWER_MODEL, messages);
-// Судья — через OpenRouter: Polza упёрлась в лимит баланса (402), Azure недоступен (P33),
-// SiliconFlow ключ невалиден. OpenRouter проверен живым вызовом: claude-sonnet-4.5 → http 200.
-const askJudge = (messages) => chat('https://openrouter.ai/api/v1/chat/completions', OPENROUTER_KEY, JUDGE_MODEL, messages, 500);
+// Судья по умолчанию — Claude Haiku через Polza: другой вендор, чем отвечающая модель (DeepSeek),
+// и при этом дешёвый (полный прогон ≈$0,1 ≈ 10 ₽). Reasoning-модели в роли судьи не годятся:
+// у них скрытые токены съедают лимит ответа, и вердикт приходит пустым — проверено на deepseek-v4-pro.
+// Кросс-вендорная проверка запускается отдельно и намеренно дорого: --judge=anthropic/claude-sonnet-4.5
+// --judge-provider=polza. Один такой прогон ≈85 ₽, поэтому он контрольный, а не рабочий.
+const JUDGE_ENDPOINTS = {
+  deepseek: ['https://api.deepseek.com/chat/completions', DEEPSEEK_KEY],
+  polza: ['https://polza.ai/api/v1/chat/completions', POLZA_KEY],
+  openrouter: ['https://openrouter.ai/api/v1/chat/completions', OPENROUTER_KEY],
+};
+const [judgeUrl, judgeKey] = JUDGE_ENDPOINTS[JUDGE_PROVIDER] ?? JUDGE_ENDPOINTS.deepseek;
+// 500 токенов не хватает: у deepseek-v4-pro reasoning-токены списываются из completion_tokens,
+// и при малом лимите ответ приходит пустым (finish_reason=length) — отсюда было «нет вердикта».
+const askJudge = (messages) => chat(judgeUrl, judgeKey, JUDGE_MODEL, messages, 2000);
 
 /** Контекст: файл целиком, но не больше 8 КБ — символ ищем и подсвечиваем окном вокруг него. */
 function contextFor(file, symbol) {
@@ -125,9 +138,41 @@ function corrupted(task) {
   ];
 }
 
+// Оценка стоимости ДО прогона: отладка промпта судьи на дорогой модели уже стоила 293 ₽ за вечер.
+// Цены за 1M токенов (вход/выход) для тех моделей, которыми реально пользуемся.
+const PRICES = {
+  'deepseek-chat': [0.14, 0.28],
+  'deepseek-v4-pro': [0.28, 0.56],
+  'anthropic/claude-opus-5.5': [15, 75],
+  'anthropic/claude-haiku-5.5': [1, 5],
+  'anthropic/claude-sonnet-4.5': [3, 15],
+  'anthropic/claude-sonnet-4.5': [3, 15],
+  'anthropic/claude-opus-5.5': [15, 75],
+  'anthropic/claude-haiku-5.5': [1, 5],
+  'anthropic/claude-sonnet-4.5': [3, 15],
+};
+const estimateCost = (totalTasks) => {
+  const inTokens = totalTasks * 3000 + 6 * 3000;      // контекст задачи + калибровка
+  const outTokens = totalTasks * 120 + 6 * 120;
+  const answerPrice = PRICES[ANSWER_MODEL] ?? [0.3, 0.6];
+  const judgePrice = PRICES[JUDGE_MODEL] ?? [3, 15];
+  const usd = (inTokens * (answerPrice[0] + judgePrice[0]) + outTokens * (answerPrice[1] + judgePrice[1])) / 1_000_000;
+  return usd;
+};
+
 const tasks = JSON.parse(fs.readFileSync(path.join(EVAL_DIR, 'tasks.json'), 'utf-8')).tasks;
+const planned = LIMIT ? Math.min(LIMIT, tasks.length) : tasks.length;
+const usdEstimate = estimateCost(planned);
+const budgetUsd = Number(arg('budget', '0.5'));
+if (usdEstimate > budgetUsd && !process.argv.includes('--yes')) {
+  console.error(`[evals] ОЦЕНКА $${usdEstimate.toFixed(3)} > бюджета $${budgetUsd}. ` +
+    `Судья «${JUDGE_MODEL}», ответы «${ANSWER_MODEL}». Отладку вести на дешёвой модели, ` +
+    `для запуска добавить --yes или поднять --budget.`);
+  process.exit(3);
+}
 const selected = LIMIT ? tasks.slice(0, LIMIT) : tasks;
 fs.mkdirSync(OUT_DIR, { recursive: true });
+console.error(`[evals] оценка стоимости: $${usdEstimate.toFixed(3)} (${planned} задач, судья ${JUDGE_MODEL})`);
 
 const rows = [];
 for (const task of selected) {
