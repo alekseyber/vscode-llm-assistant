@@ -200,6 +200,22 @@
       "to": "      if (false) return false;",
       "label": "фильтр по статусу не применяется",
       "expect": "must-fail"
+    },
+    {
+      "id": "CW-NO-RESERVE",
+      "file": "src/shared/contextWindow.ts",
+      "from": "  return Math.min(4096, Math.max(512, Math.floor(windowTokens * 0.15)));",
+      "to": "  return 0;",
+      "label": "резерв под ответ убран — истории отдаётся всё окно",
+      "expect": "must-fail"
+    },
+    {
+      "id": "CW-CAP-EXPANDS",
+      "file": "src/shared/contextWindow.ts",
+      "from": "  const tokens = configured > 0 ? Math.min(configured, usable) : usable;",
+      "to": "  const tokens = configured > 0 ? configured : usable;",
+      "label": "потолок может расширить окно модели",
+      "expect": "must-fail"
     }
   ]
 }

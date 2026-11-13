@@ -4,6 +4,7 @@
 
 import * as vscode from 'vscode';
 import { ChatMessage } from '../../providers/types';
+import { resolveContextTokens } from '../../shared/contextWindow';
 import { SessionManager } from './SessionManager';
 import { loadAgentsMd } from '../../shared/AgentsMdLoader';
 import { ContextSummarizer } from '../../shared/ContextSummarizer';
@@ -58,9 +59,17 @@ export class ConversationManager {
     return this.lastTruncation;
   }
 
-  async getMessagesForRequest(provider?: import('../../providers/types').LLMProvider): Promise<ChatMessage[]> {
+  async getMessagesForRequest(
+    provider?: import('../../providers/types').LLMProvider,
+    model?: string,
+  ): Promise<ChatMessage[]> {
     const config = vscode.workspace.getConfiguration('llmAssistant');
-    const maxTokens = config.get<number>('chat.maxContextTokens', 4096);
+    const resolution = resolveContextTokens({
+      model,
+      providerWindow: provider?.contextWindow,
+      configured: config.get<number>('chat.maxContextTokens', 0),
+    });
+    const maxTokens = resolution.tokens;
     let systemPrompt = config.get<string>('chat.systemPrompt', '');
 
     // Автоинжект AGENTS.md (слой 01 System Policy)

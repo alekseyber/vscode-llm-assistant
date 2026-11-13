@@ -9,6 +9,7 @@ import { ProviderManager } from '../../providers/manager';
 import { isLocalBaseUrl } from '../../providers/base';
 import { ConversationManager } from './ConversationManager';
 import { ChatMessage, TokenUsage, calculateCost } from '../../providers/types';
+import { resolveContextTokens } from '../../shared/contextWindow';
 import { loadAgentsMd } from '../../shared/AgentsMdLoader';
 import { loadRoleAgentsMd, loadOrchestratorRoles, loadAllAgentRoles, getSkillTemplate, loadSkillMd, getSkillCatalog } from '../../shared/RoleAgentsMdLoader';
 import { loadToolAllowListConfig, isConfirmationRequired } from '../apply/ToolAllowList';
@@ -19,6 +20,7 @@ import { AgentWorker, AgentRole } from '../apply/AgentWorker';
 import { AgentOrchestrator, MultiAgentTask, MultiAgentResult } from '../apply/AgentOrchestrator';
 import { RunHistoryStore, generateRunId, RunEntry } from '../../shared/RunHistoryStore';
 import { DailySpendState, fromMicro, mergeDailySpend, toMicro } from '../../shared/dailySpend';
+import { LLMProvider } from '../../providers/types';
 import { setDebugSink } from '../../shared/logger';
 import { SessionLog } from '../../shared/SessionLog';
 import { isAbortError } from '../../shared/RetryHandler';
@@ -425,7 +427,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
     try {
       const systemPrompt = await this.getSystemPrompt(mode, providerName);
-      const historyMessages = await this.conversationManager.getMessagesForRequest(provider);
+      const historyMessages = await this.conversationManager.getMessagesForRequest(provider, model);
 
       // Сообщение не влезло в контекст: раньше оно молча выбрасывалось и модель
       // отвечала мимо вопроса. Теперь обрезаем и говорим об этом.
@@ -1338,8 +1340,13 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   }
 
   /** Максимальный размер контекста из настроек (для индикатора токенов). */
-  private getMaxContextTokens(): number {
-    return vscode.workspace.getConfiguration('llmAssistant').get<number>('chat.maxContextTokens', 4096);
+  private getMaxContextTokens(model?: string, provider?: LLMProvider): number {
+    const config = vscode.workspace.getConfiguration('llmAssistant');
+    return resolveContextTokens({
+      model,
+      providerWindow: provider?.contextWindow,
+      configured: config.get<number>('chat.maxContextTokens', 0),
+    }).tokens;
   }
 
   private postTokens(messages: any[], fullResponse: string, model: string, usage?: TokenUsage): void {

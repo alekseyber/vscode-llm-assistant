@@ -411,7 +411,14 @@ export class OllamaProvider extends BaseProvider {
     this.supportsVision = config.supportsVision ?? false;
     this.overrides = config.overrides ?? {};
     this.toolLoopOverride = typeof config.overrides?.toolLoop === 'boolean' ? config.overrides.toolLoop : undefined;
+    // Окно контекста знает сам сервер (num_ctx в запросе): отдаём его наружу, чтобы
+    // история не резалась фиксированными 4096 (P30)
+    const numCtx = readOllamaLocalSettings(this.overrides).numCtx;
+    this.contextWindow = effectivePromptWindow(numCtx);
   }
+
+  /** Сколько токенов окна реально доступно под промпт (с поправкой на усечение сервером). */
+  public readonly contextWindow: number;
 
   /**
    * Тело запроса к /api/chat.

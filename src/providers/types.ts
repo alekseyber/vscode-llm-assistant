@@ -100,6 +100,12 @@ export interface LLMProvider {
   readonly toolLoopOverride?: boolean;
 
   /**
+   * Окно контекста провайдера в токенах, если известно (локальный `numCtx`, каталог модели).
+   * Нужно, чтобы не резать историю фиксированными 4096 на модели с окном 32k–128k.
+   */
+  readonly contextWindow?: number;
+
+  /**
    * Отправить сообщения в чат и получить стриминг ответа
    * @param messages - история сообщений
    * @param options - опции модели

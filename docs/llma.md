@@ -119,7 +119,7 @@ description: Проверяет changelog на пропущенные релиз
 | Шагов агента в чате | `llmAssistant.agent.maxIterations` = 15 | настройка |
 | Шагов apply-режима | `llmAssistant.apply.maxIterations` = 20 | настройка |
 | Отказов в подтверждении подряд | 2 → прогон останавливается | `MAX_DENIALS` в `AgentWorker` |
-| Контекст истории чата | `llmAssistant.chat.maxContextTokens` = 4096 | настройка |
+| Контекст истории чата | `llmAssistant.chat.maxContextTokens` = 0 (авто по окну модели; число — жёсткий потолок) | настройка |
 | Порог summary при переполнении | `llmAssistant.chat.summaryTriggerTokens` = 2048 | настройка |
 | Окно контекста локальной модели | `llmAssistant.local.numCtx` = 8192 | настройка, отдельно от истории чата |
 | Токенов под промпт при локальном движке | ≈ `numCtx / 2` (512→258, 4096→2050, 16384→8194 — замер 09.11) | Ollama резервирует половину окна под ответ; плагин предупреждает, когда счётчик дошёл до этой границы |
