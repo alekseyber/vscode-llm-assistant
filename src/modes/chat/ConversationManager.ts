@@ -5,23 +5,19 @@
 import * as vscode from 'vscode';
 import { ChatMessage } from '../../providers/types';
 import { resolveContextTokens } from '../../shared/contextWindow';
+import {
+  assembleRequestMessages,
+  estimateTokens,
+  systemPromptWithAgents,
+  CodeContext,
+  ContextMessage,
+} from '../../shared/contextAssembly';
 import { SessionManager } from './SessionManager';
 import { loadAgentsMd } from '../../shared/AgentsMdLoader';
 import { ContextSummarizer } from '../../shared/ContextSummarizer';
 import { SessionLog } from '../../shared/SessionLog';
 
-/** Контекст кода */
-export interface CodeContext {
-  filePath: string;
-  content: string;
-  selectionStart?: number;
-  selectionEnd?: number;
-}
-
-/** Сообщение с опциональным контекстом */
-export interface ContextMessage extends ChatMessage {
-  context?: CodeContext;
-}
+export type { CodeContext, ContextMessage };
 
 export class ConversationManager {
   private static readonly MAX_MESSAGES = 100;
@@ -70,16 +66,14 @@ export class ConversationManager {
       configured: config.get<number>('chat.maxContextTokens', 0),
     });
     const maxTokens = resolution.tokens;
-    let systemPrompt = config.get<string>('chat.systemPrompt', '');
+    const systemPrompt = config.get<string>('chat.systemPrompt', '');
 
     // Автоинжект AGENTS.md (слой 01 System Policy)
     const agentsMd = await loadAgentsMd();
-    if (agentsMd) {
-      systemPrompt += `\n\n## Правила проекта:\n${agentsMd}`;
-    }
 
-    const systemMessage: ChatMessage = { role: 'system', content: systemPrompt };
-    let usedTokens = this.estimateTokens(systemPrompt);
+    const assemblerSystemPrompt = systemPromptWithAgents(systemPrompt, agentsMd ?? undefined);
+    const systemMessage: ChatMessage = { role: 'system', content: assemblerSystemPrompt };
+    const usedTokens = estimateTokens(assemblerSystemPrompt);
 
     const debug = config.get<boolean>('debug', false);
 
@@ -93,7 +87,7 @@ export class ConversationManager {
       trimmed = r.trimmed;
       this.lastTruncation = r.truncation;
     } else {
-      const r = this.buildHistoryWithTrimmed(maxTokens, usedTokens);
+      const r = this.buildHistoryWithTrimmed(maxTokens, assemblerSystemPrompt);
       history = r.history;
       trimmed = r.trimmed;
       this.lastTruncation = undefined;
@@ -155,62 +149,25 @@ export class ConversationManager {
 
   /** Только сообщения истории (без system prompt) — для внешнего управления */
   getMessagesForHistory(): ChatMessage[] {
-    const { history } = this.buildHistoryWithTrimmed(Number.MAX_SAFE_INTEGER, 0);
+    const { history } = this.buildHistoryWithTrimmed(Number.MAX_SAFE_INTEGER, '');
     return history;
   }
 
   /**
    * Собрать историю сообщений с учётом лимита токенов.
-   * Возвращает и включённые в контекст сообщения, и обрезанные (для summary).
+   * Делегирует общей сборке (src/shared/contextAssembly) — тому же коду, который
+   * использует стенд evals, чтобы панель и стенд не расходились.
    */
   private buildHistoryWithTrimmed(
     maxTokens: number,
-    usedTokens: number,
+    systemPrompt: string,
   ): { history: ChatMessage[]; trimmed: ChatMessage[] } {
-    const messages = this.sessionManager.getMessages();
-    const history: ChatMessage[] = [];
-    const trimmed: ChatMessage[] = [];
-    let totalTokens = usedTokens;
-
-    // Диагностика: логируем входные параметры
-    const debug = vscode.workspace.getConfiguration('llmAssistant').get<boolean>('debug', false);
-    if (debug) {
-      console.warn(`[LLM Assistant] buildHistory: allMessages=${messages.length}, maxTokens=${maxTokens}, usedBySystem=${usedTokens}, budget=${maxTokens - usedTokens}`);
-    }
-
-    for (let i = messages.length - 1; i >= 0; i--) {
-      const msg = messages[i];
-      const msgTokens = this.estimateTokens(msg.content);
-
-      // Контекст кода тоже учитываем в токенах
-      const contextStr = (msg as ContextMessage).context?.content
-        ? `\n\n--- Файл: ${(msg as ContextMessage).context!.filePath} ---\n\`\`\`\n${(msg as ContextMessage).context!.content}\n\`\`\``
-        : '';
-      const contextTokens = this.estimateTokens(contextStr);
-      const totalMsgTokens = msgTokens + contextTokens;
-
-      if (totalTokens + totalMsgTokens > maxTokens && history.length > 0) {
-        // Это сообщение и все более старые — обрезаны
-        for (let j = 0; j <= i; j++) {
-          trimmed.push({
-            role: messages[j].role,
-            content: messages[j].content, // Без контекста кода — для summary не нужен
-          });
-        }
-        if (debug) {
-          console.warn(`[LLM Assistant] buildHistory: trimmed=${trimmed.length} (messages[0..${i}]), kept=${history.length}, totalTokens=${totalTokens}/${maxTokens}`);
-        }
-        break;
-      }
-
-      totalTokens += totalMsgTokens;
-      history.unshift({
-        role: msg.role,
-        content: msg.content + contextStr,
-      });
-    }
-
-    return { history, trimmed };
+    const assembled = assembleRequestMessages({
+      systemPrompt,
+      messages: this.sessionManager.getMessages() as ContextMessage[],
+      maxTokens,
+    });
+    return { history: assembled.messages.slice(1), trimmed: assembled.trimmed };
   }
 
   addMessage(message: ContextMessage): void {
@@ -295,6 +252,6 @@ export class ConversationManager {
 
   /** Публичный доступ к оценщику токенов (для тестов и внешнего использования) */
   estimateTokens(text: string): number {
-    return Math.ceil(text.length / 4);
+    return estimateTokens(text);
   }
 }

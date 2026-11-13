@@ -5,6 +5,7 @@
 
 import * as vscode from 'vscode';
 import { ChatMessage } from '../providers/types';
+import { assembleRequestMessages } from './contextAssembly';
 
 /** Идентификатор шага ReAct-цикла (уникален в рамках сессии) */
 export type StepId = string;
@@ -257,6 +258,10 @@ export class SessionLog {
   /**
    * Проекция + обрезка (для getMessagesForRequest, SL-3/5b): возвращает включённые
    * сообщения и обрезанные (для summary). Не мутирует лог.
+   *
+   * Обрезка делегируется общей сборке (`contextAssembly`) — той же, что использует панель
+   * без журнала и стенд evals. Две реализации одного правила расходились бы молча:
+   * ошибка в одной не всплывала бы ни в тестах, ни в прогоне стенда.
    */
   deriveMessagesWithTrimmed(
     sessionId: string,
@@ -267,32 +272,31 @@ export class SessionLog {
     const prefix = hasSummary ? [full[0]] : [];
     const body = hasSummary ? full.slice(1) : full;
 
-    let used = prefix.reduce((s, m) => s + this.estimateTokens(m.content), 0);
-    const kept: ChatMessage[] = [];
-    const trimmed: ChatMessage[] = [];
-    let dropped = false;
-    for (let i = body.length - 1; i >= 0; i--) {
-      const tokens = this.estimateTokens(body[i].content);
-      if (dropped || used + tokens > maxContextTokens) {
-        trimmed.unshift(body[i]);
-        dropped = true;
-      } else {
-        used += tokens;
-        kept.unshift(body[i]);
-      }
-    }
-    // Текущее сообщение не выбрасываем никогда: раньше большое сообщение целиком
-    // уходило в trimmed, модель получала один system-промпт (141 токен) и отвечала
-    // мимо вопроса — молча, без предупреждения.
+    const assembled = assembleRequestMessages({
+      systemPrompt: prefix.length > 0 ? prefix[0].content : '',
+      messages: body,
+      maxTokens: maxContextTokens,
+    });
+    // messages[0] — системное сообщение, дальше идёт уложившаяся история
+    const kept = assembled.messages.slice(1);
+    const trimmed = assembled.trimmed;
+
+    // Текущее сообщение не выбрасываем никогда, но и не отправляем целиком, если не влезает:
+    // раньше огромное сообщение уходило в trimmed, модель получала один system-промпт
+    // (141 токен) и отвечала мимо вопроса — молча, без предупреждения.
     let truncation: { kept: number; total: number } | undefined;
     const lastUser = body.length > 0 && body[body.length - 1].role === 'user' ? body[body.length - 1] : undefined;
-    if (lastUser && !kept.includes(lastUser)) {
-      const budgetChars = Math.max(400, (maxContextTokens - used) * 4);
+    if (lastUser && kept.length > 0 && kept[kept.length - 1].content === lastUser.content) {
+      const others = kept.slice(0, -1).reduce((s, m) => s + this.estimateTokens(m.content), 0);
+      const usedBySummary = prefix.reduce((s, m) => s + this.estimateTokens(m.content), 0);
+      const budgetChars = Math.max(400, (maxContextTokens - usedBySummary - others) * 4);
       const total = lastUser.content.length;
-      const head = lastUser.content.slice(0, budgetChars);
-      const marker = `\n\n[…обрезано ${total - head.length} знаков из ${total}: сообщение не влезло в контекст]`;
-      kept.push({ role: 'user', content: head + marker });
-      truncation = { kept: head.length, total };
+      if (total > budgetChars) {
+        const head = lastUser.content.slice(0, budgetChars);
+        const marker = `\n\n[…обрезано ${total - head.length} знаков из ${total}: сообщение не влезло в контекст]`;
+        kept[kept.length - 1] = { role: 'user', content: head + marker };
+        truncation = { kept: head.length, total };
+      }
     }
 
     return { messages: [...prefix, ...kept], trimmed, truncation };

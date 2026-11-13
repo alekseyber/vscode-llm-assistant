@@ -1,6 +1,6 @@
 ---
 component: SessionLog
-version: 0.13.1
+version: 0.14.0
 status: stable
 ---
 
@@ -95,6 +95,7 @@ status: stable
 
 | Версия | Дата | Изменения |
 |--------|------|-----------|
+| 0.14.0 | 2026-11-13 | `deriveMessagesWithTrimmed` делегирует обрезку в `contextAssembly` — одна реализация правила для панели, журнала и стенда evals |
 | 0.1.0 | 2026-08-22 | Черновик spec (F1) — консолидация session-log |
 | 0.1.0 | 2026-08-22 | Этап 1: SL-1/SL-2/SL-4/SL-5 — словарь + персист + wiring AgentWorker/стриминг |
 | 0.1.0 | 2026-08-22 | Этап 2: SL-3 — deriveMessages() + compact() + user/message-эмиссия |

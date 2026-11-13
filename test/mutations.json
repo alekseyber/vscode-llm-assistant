@@ -224,6 +224,22 @@
       "to": "    if (false) return;",
       "label": "фильтр по числам отключён — подсказки теряют точность",
       "expect": "must-fail"
+    },
+    {
+      "id": "CA-CONTEXT-NOT-COUNTED",
+      "file": "src/shared/contextAssembly.ts",
+      "from": "    const totalMsgTokens = estimateTokens(msg.content) + estimateTokens(contextStr);",
+      "to": "    const totalMsgTokens = estimateTokens(msg.content);",
+      "label": "контекст файла не учитывается в бюджете — вытесняет историю молча",
+      "expect": "must-fail"
+    },
+    {
+      "id": "CA-NO-LAST-MESSAGE",
+      "file": "src/shared/contextAssembly.ts",
+      "from": "    if (usedTokens + totalMsgTokens > maxTokens && history.length > 0) {",
+      "to": "    if (usedTokens + totalMsgTokens > maxTokens) {",
+      "label": "последнее сообщение может не попасть в запрос — модель отвечает без вопроса",
+      "expect": "must-fail"
     }
   ]
 }

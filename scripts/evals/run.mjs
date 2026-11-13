@@ -15,10 +15,41 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { createRequire } from 'node:module';
 
 const ROOT = path.resolve(path.join(import.meta.dirname, '..', '..'));
 const EVAL_DIR = path.join(ROOT, 'scripts', 'evals');
 const OUT_DIR = path.join(ROOT, 'reports', 'evals');
+
+// Контекст собирает САМ ПЛАГИН (src/shared/contextAssembly), а не этот скрипт.
+// Иначе стенд проверял бы модель на вырезанном фрагменте, а не продукт: ошибка в сборке
+// контекста не могла бы его уронить. Требует собранного out/ (npx tsc -p tsconfig.test.json).
+const require = createRequire(import.meta.url);
+function loadProductAssembly() {
+  const compiled = path.join(ROOT, 'out', 'src', 'shared', 'contextAssembly.js');
+  if (!fs.existsSync(compiled)) {
+    console.error('[evals] нет сборки плагина: ' + compiled);
+    console.error('[evals] выполните: npx tsc -p tsconfig.test.json');
+    process.exit(5);
+  }
+  return require(compiled);
+}
+const { assembleRequestMessages, systemPromptWithAgents } = loadProductAssembly();
+
+// Системный промпт берём из настроек плагина (package.json), а не из константы скрипта:
+// именно его получает модель в реальном чате.
+function productSystemPrompt() {
+  const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf-8'));
+  const props = pkg?.contributes?.configuration?.properties ?? {};
+  const def = props['llmAssistant.chat.systemPrompt']?.default;
+  if (typeof def === 'string' && def.length > 0) return def;
+  return 'Ты помощник по кодовой базе. Отвечай по приведённому фрагменту кода, 2–4 предложения, без вступлений. Если в фрагменте нет ответа — скажи это прямо.';
+}
+const PRODUCT_SYSTEM = productSystemPrompt();
+
+// Флаг для сравнения: старый путь (контекст собран скриптом) — чтобы было видно,
+// что даёт переключение на сборку плагина.
+const LEGACY_CONTEXT = process.argv.includes('--legacy-context');
 
 const arg = (name, fallback) => {
   const hit = process.argv.find((a) => a.startsWith(`--${name}=`));
@@ -140,10 +171,20 @@ const ANSWER_SYSTEM = 'Ты помощник по кодовой базе. От�
 
 async function answer(task) {
   const ctx = contextFor(task);
-  return askDeepSeek([
-    { role: 'system', content: ANSWER_SYSTEM },
-    { role: 'user', content: `Файл ${task.file}:\n\n${ctx}\n\nВопрос: ${task.question}` },
-  ]);
+  if (LEGACY_CONTEXT) {
+    return askDeepSeek([
+      { role: 'system', content: ANSWER_SYSTEM },
+      { role: 'user', content: `Файл ${task.file}:\n\n${ctx}\n\nВопрос: ${task.question}` },
+    ]);
+  }
+  // Путь продукта: системный промпт из настроек плагина, файл прикреплён как контекст
+  // сообщения, бюджет — по окну модели. Ровно так собирает запрос панель чата.
+  const assembled = assembleRequestMessages({
+    systemPrompt: systemPromptWithAgents(PRODUCT_SYSTEM, undefined),
+    messages: [{ role: 'user', content: `Вопрос: ${task.question}`, context: { filePath: task.file, content: ctx } }],
+    maxTokens: Number(arg('context-tokens', '60000')) || 60000,
+  });
+  return askDeepSeek(assembled.messages);
 }
 
 const JUDGE_SYSTEM = `Ты проверяешь фактическую верность ответа по фрагменту кода.
@@ -254,7 +295,10 @@ for (const task of selected) {
   // Детерминированная проверка атрибуции: если ответ называет файлы, ожидаемый должен быть среди них.
   // Судья на этом классе ошибается (пропускает «символ живёт в другом файле»), код — нет.
   const mentioned = [...text.matchAll(/(?:^|[\s`(])((?:src|scripts)\/[\w./-]+\.ts)/g)].map((m) => m[1]);
-  const attributionWrong = mentioned.length > 0 && !mentioned.includes(task.file);
+  // Кросс-файловая задача: контекст содержал несколько файлов, и ответ вправе назвать
+  // любой из них. Ошибка — только когда назван файл, которого в контексте не было.
+  const allowedFiles = [task.file, ...(task.contextFiles ?? [])];
+  const attributionWrong = mentioned.length > 0 && !mentioned.some((f) => allowedFiles.includes(f));
   const j = await judge(task, text);
   rows.push({ ...task, answer: text, mechanical: mech, attributionWrong, mentionedFiles: mentioned, judge: j.verdict, judgeRaw: j.raw, quote: j.quote, why: j.why });
   process.stderr.write(`${mech === null ? 'mech-n/a' : mech ? 'mech-ok' : 'mech-miss'} / ${j.verdict}\n`);
