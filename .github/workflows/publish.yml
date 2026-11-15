@@ -14,7 +14,15 @@ permissions:
   contents: read
 
 jobs:
+  # Гейт релиза: перед сборкой VSIX прогоняется весь Test (spec-validate, lint,
+  # check-any-budget, test-unit, test-e2e) на тегируемом коммите.
+  # Переиспользуем reusable-воркфлоу, а не копию шагов: иначе релизный гейт
+  # со временем разойдётся с обычным CI и перестанет ловить то, что ловит он.
+  tests:
+    uses: ./.github/workflows/test.yml
+
   publish:
+    needs: tests
     runs-on: ubuntu-latest
     environment: marketplace-publish
     steps:

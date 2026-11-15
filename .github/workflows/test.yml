@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+  # Вызывается из publish.yml: релиз по тегу не уходит в Marketplace,
+  # если хотя бы одна из этих проверок красная. Один источник, без дублей шагов.
+  workflow_call:
 
 jobs:
   spec-validate:
