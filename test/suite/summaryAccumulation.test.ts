@@ -10,6 +10,7 @@ import * as assert from 'assert';
 import * as vscode from 'vscode';
 import { ConversationManager } from '../../src/modes/chat/ConversationManager';
 import { SessionLog } from '../../src/shared/SessionLog';
+import { SUMMARY_MESSAGE_PREFIX } from '../../src/shared/ContextSummarizer';
 import { ChatMessage } from '../../src/providers/types';
 import { fakeConfiguration, fakeMemento, fakeProvider, ProviderFake } from '../support/fakes';
 
@@ -91,21 +92,32 @@ suite('Summary — накопление через ConversationManager (P42 S2)'
     );
   });
 
-  test('ST-2: основной system-промпт не принимается за прежнюю сводку', async () => {
-    // Промпт начинается с тех же слов, что и маркер сводки — граница должна держаться на префиксе
-    setupConfig(sandbox, { 'chat.systemPrompt': '## Краткое содержание предыдущего диалога: это не сводка, а промпт' });
+  test('ST-2: прежней сводкой становится маркер, а не основной system-промпт', async () => {
+    // Промпт намеренно начинается с тех же слов, что и маркер сводки: граница держится на префиксе,
+    // а проверяем обе стороны — настоящая сводка доходит, промпт не доходит
+    const promptText = '## Краткое содержание предыдущего диалога: это не сводка, а промпт';
+    setupConfig(sandbox, { 'chat.systemPrompt': promptText });
     const storage = fakeMemento();
     const log = new SessionLog(storage);
     const cm = new ConversationManager(storage, log);
     const provider = makeMarkerProvider(sandbox);
 
+    cm.addMessage({ role: 'user', content: `FACT1: пароль ротирован 12.11. ${'фон '.repeat(80)}` });
+    cm.addMessage({ role: 'assistant', content: `Принято. ${'фон '.repeat(80)}` });
     fill(cm, 'Первый блок', 8);
     await cm.getMessagesForRequest(provider);
 
-    assert.ok(provider.prompts.length >= 1, 'суммаризация должна произойти');
+    fill(cm, 'FACT2 второй блок', 8);
+    await cm.getMessagesForRequest(provider);
+
+    assert.ok(provider.prompts.length >= 2, 'должны пройти две суммаризации');
     assert.ok(
-      !provider.prompts[0].includes('это не сводка, а промпт'),
-      'промпт не должен попасть в суммаризацию как «прежняя сводка»',
+      provider.prompts[1].includes('FACT1'),
+      'прежняя сводка (маркер) должна попасть в промпт второй суммаризации',
+    );
+    assert.ok(
+      !provider.prompts[1].includes('это не сводка, а промпт'),
+      'основной system-промпт не должен попасть в суммаризацию как «прежняя сводка»',
     );
   });
 
@@ -121,5 +133,30 @@ suite('Summary — накопление через ConversationManager (P42 S2)'
     await cm.getMessagesForRequest(provider);
 
     assert.strictEqual(provider.chatComplete.called, false, 'на короткой истории суммаризации нет');
+  });
+
+  test('ST-4: после второй суммаризации в запросе ровно один summary-маркер', async () => {
+    setupConfig(sandbox);
+    const storage = fakeMemento();
+    const log = new SessionLog(storage);
+    const cm = new ConversationManager(storage, log);
+    const provider = makeMarkerProvider(sandbox);
+
+    cm.addMessage({ role: 'user', content: `FACT1: пароль ротирован 12.11. ${'фон '.repeat(80)}` });
+    cm.addMessage({ role: 'assistant', content: `Принято. ${'фон '.repeat(80)}` });
+    fill(cm, 'Первый блок', 8);
+    await cm.getMessagesForRequest(provider);
+
+    fill(cm, 'FACT2 второй блок', 8);
+    const messages = await cm.getMessagesForRequest(provider);
+
+    const markers = messages.filter(
+      (m) => m.role === 'system' && m.content.startsWith(SUMMARY_MESSAGE_PREFIX),
+    );
+    assert.strictEqual(
+      markers.length,
+      1,
+      `в запросе должна быть одна сводка, найдено ${markers.length} — старая и новая одновременно дублируют факты`,
+    );
   });
 });
