@@ -59,13 +59,16 @@ export class ContextSummarizer {
     messages: ChatMessage[],
     provider: LLMProvider,
     model: string,
+    previousSummary?: string,
   ): Promise<string> {
     if (messages.length === 0) {
-      return '';
+      return previousSummary ?? '';
     }
 
-    // Проверяем кеш — хеш контента + количество сообщений
-    const contentHash = this.computeContentHash(messages);
+    // Кеш учитывает и содержимое куска, и предыдущую сводку: иначе после нового
+    // переполнения вернулась бы сводка, посчитанная без фактов прежней.
+    const prevKey = (previousSummary ?? '').slice(0, 200);
+    const contentHash = `${this.computeContentHash(messages)}|prev:${prevKey}`;
     const cached = this.cache.get(contentHash);
     if (cached && cached.messageCount === messages.length) {
       return cached.summary;
@@ -74,8 +77,9 @@ export class ContextSummarizer {
     // Формируем текст истории для отправки в LLM
     const historyText = this.formatMessagesForSummary(messages);
 
-    // Отправляем запрос на суммаризацию (нестриминговый)
-    const summary = await this.requestSummary(provider, model, historyText);
+    // Отправляем запрос на суммаризацию (нестриминговый), передавая прежнюю сводку:
+    // без неё факты ранней части диалога теряются безвозвратно
+    const summary = await this.requestSummary(provider, model, historyText, previousSummary);
 
     // Сохраняем в кеш
     this.cache.set(contentHash, {
@@ -138,7 +142,11 @@ export class ContextSummarizer {
     provider: LLMProvider,
     model: string,
     historyText: string,
+    previousSummary?: string,
   ): Promise<string> {
+    // Прежняя сводка идёт отдельным блоком: модель должна объединить её с новым фрагментом,
+    // а не пересказывать только новый кусок
+    const previousBlock = previousSummary ? `Сводка ранее:\n${previousSummary}\n\n` : '';
     // Если провайдер поддерживает chatComplete — используем его
     if (provider.chatComplete) {
       const summaryMessages: ChatMessage[] = [
@@ -148,7 +156,7 @@ export class ContextSummarizer {
         },
         {
           role: 'user',
-          content: `Сожми эту историю диалога в краткое summary на русском языке:\n\n${historyText}`,
+          content: `${previousBlock}Сожми эту историю диалога в краткое summary на русском языке. Если есть сводка ранее — сохрани все её факты и добавь новые:\n\n${historyText}`,
         },
       ];
 
@@ -167,7 +175,7 @@ export class ContextSummarizer {
       },
       {
         role: 'user',
-        content: `Сожми эту историю в краткое summary на русском:\n\n${historyText}`,
+        content: `${previousBlock}Сожми эту историю в краткое summary на русском. Факты из сводки ранее сохрани:\n\n${historyText}`,
       },
     ];
 

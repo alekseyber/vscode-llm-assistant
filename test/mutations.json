@@ -240,6 +240,22 @@
       "to": "    if (usedTokens + totalMsgTokens > maxTokens) {",
       "label": "последнее сообщение может не попасть в запрос — модель отвечает без вопроса",
       "expect": "must-fail"
+    },
+    {
+      "id": "SA-MUT-DROP-PREV",
+      "file": "src/shared/ContextSummarizer.ts",
+      "from": "const previousBlock = previousSummary ?",
+      "to": "const previousBlock = false ?",
+      "label": "прежняя сводка не попадает в промпт суммаризации",
+      "expect": "must-fail"
+    },
+    {
+      "id": "SA-MUT-CACHE-IGNORE-PREV",
+      "file": "src/shared/ContextSummarizer.ts",
+      "from": "const contentHash = `${this.computeContentHash(messages)}|prev:${prevKey}`;",
+      "to": "const contentHash = this.computeContentHash(messages);",
+      "label": "кеш не учитывает прежнюю сводку (ключ только по содержимому куска)",
+      "expect": "must-fail"
     }
   ]
 }

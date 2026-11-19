@@ -378,3 +378,77 @@ suite('ContextSummarizer', () => {
       `После addMessage() кеш должен инвалидироваться, вызовов было ${callsAfterFirst}, стало ${summaryCalls}`);
   });
 });
+
+
+// --- P42: сводка должна накапливаться (SA-1, SA-2, SA-4) ---
+// Дефект: summarizeMessages получает только свежеотрезанный кусок, поэтому факт из
+// предыдущей сводки исчезает и из контекста, и из журнала. Тесты вызывают метод через
+// сигнатуру с четвёртым аргументом, чтобы на текущем коде падать по утверждению, а не по компиляции.
+
+type SummarizeWithPrevious = (
+  messages: ChatMessage[],
+  provider: LLMProvider,
+  model: string,
+  previousSummary?: string,
+) => Promise<string>;
+
+suite('ContextSummarizer · накопление сводки (P42)', () => {
+  let sandbox: sinon.SinonSandbox;
+  let summarizer: ContextSummarizer;
+
+  setup(() => {
+    sandbox = sinon.createSandbox();
+    summarizer = new ContextSummarizer();
+  });
+
+  teardown(() => {
+    sandbox.restore();
+  });
+
+  /** Стаб «суммаризатора»: возвращает только те маркеры, которые реально были во входе. */
+  function markerProvider(seen: string[]): LLMProvider {
+    return createMockProvider(async (messages) => {
+      const text = messages.map((m) => m.content).join('\n');
+      seen.push(text);
+      return ['FACT1', 'FACT2', 'FACT3'].filter((f) => text.includes(f)).join('; ');
+    });
+  }
+
+  test('SA-1: факт из предыдущей сводки остаётся в новой', async () => {
+    const seen: string[] = [];
+    const summarize: SummarizeWithPrevious = summarizer.summarizeMessages.bind(summarizer);
+
+    const summary = await summarize(
+      [{ role: 'user', content: 'FACT2: сервер слушает порт 8080' }],
+      markerProvider(seen),
+      'gpt-4o',
+      'FACT1: пароль ротирован 12.11',
+    );
+
+    assert.ok(seen[0].includes('FACT1'), 'предыдущая сводка должна попасть в промпт суммаризации');
+    assert.ok(summary.includes('FACT1'), `в сводке потерян факт из предыдущей: «${summary}»`);
+    assert.ok(summary.includes('FACT2'), `в сводке потерян новый факт: «${summary}»`);
+  });
+
+  test('SA-2: без предыдущей сводки поведение прежнее', async () => {
+    const summarize: SummarizeWithPrevious = summarizer.summarizeMessages.bind(summarizer);
+    const summary = await summarize(
+      [{ role: 'user', content: 'FACT3: релиз 0.24.0 вышел' }],
+      markerProvider([]),
+      'gpt-4o',
+    );
+    assert.strictEqual(summary, 'FACT3', 'без previousSummary результат должен остаться прежним');
+  });
+
+  test('SA-4: кеш учитывает предыдущую сводку', async () => {
+    const summarize: SummarizeWithPrevious = summarizer.summarizeMessages.bind(summarizer);
+    const provider = markerProvider([]);
+    const messages: ChatMessage[] = [{ role: 'user', content: 'FACT2: порт 8080' }];
+
+    const first = await summarize(messages, provider, 'gpt-4o', 'FACT1: пароль');
+    const second = await summarize(messages, provider, 'gpt-4o', 'FACT3: релиз');
+
+    assert.notStrictEqual(second, first, 'смена предыдущей сводки должна менять результат, а не отдавать кеш');
+    assert.ok(second.includes('FACT3'), `кеш отдал сводку без новой предыдущей: «${second}»`);
+  });
+});
