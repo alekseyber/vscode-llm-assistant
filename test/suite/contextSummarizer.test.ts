@@ -7,7 +7,11 @@ import 'mocha';
 import * as sinon from 'sinon';
 import * as vscode from 'vscode';
 import * as assert from 'assert';
-import { ContextSummarizer } from '../../src/shared/ContextSummarizer';
+import {
+  ContextSummarizer,
+  SUMMARY_MESSAGE_PREFIX,
+  extractPreviousSummary,
+} from '../../src/shared/ContextSummarizer';
 import { ConversationManager, ContextMessage, CodeContext } from '../../src/modes/chat/ConversationManager';
 import { ChatMessage, LLMProvider, CompletionOptions } from '../../src/providers/types';
 import { fakeConfiguration } from '../support/vscode-harness';
@@ -494,5 +498,34 @@ suite('ContextSummarizer · накопление сводки (P42)', () => {
     await summarize(messages, provider, 'claude-sonnet', 'FACT1: пароль');
 
     assert.strictEqual(calls, 2, `смена модели должна давать новый запрос, вызовов ${calls}`);
+  });
+});
+
+suite('ContextSummarizer · извлечение прежней сводки (P42 S2)', () => {
+  test('UT-1: system-сообщение без маркера не считается сводкой', () => {
+    // Промпт намеренно ДЛИННЕЕ префикса маркера: иначе реализация, которая берёт любое
+    // system-сообщение, отрезала бы от него префикс и вернула пустую строку — тест прошёл бы
+    // на сломанном коде (поймано мутацией SA-MUT-EXTRACT-ANY-SYSTEM).
+    const messages: ChatMessage[] = [
+      {
+        role: 'system',
+        content: 'Ты — AI-ассистент для работы с кодом. Отвечай кратко, по делу и без вступлений.',
+      },
+      { role: 'user', content: 'привет' },
+    ];
+    assert.strictEqual(extractPreviousSummary(messages), undefined, 'обычный промпт — не сводка');
+  });
+
+  test('UT-2: маркер возвращает текст сводки без префикса', () => {
+    const messages: ChatMessage[] = [
+      { role: 'system', content: `${SUMMARY_MESSAGE_PREFIX}\nFACT1: пароль ротирован` },
+      { role: 'user', content: 'дальше' },
+    ];
+    assert.strictEqual(extractPreviousSummary(messages), 'FACT1: пароль ротирован');
+  });
+
+  test('UT-3: пустая сводка после маркера считается отсутствующей', () => {
+    const messages: ChatMessage[] = [{ role: 'system', content: `${SUMMARY_MESSAGE_PREFIX}\n   ` }];
+    assert.strictEqual(extractPreviousSummary(messages), undefined, 'пустое тело не передаём как сводку');
   });
 });

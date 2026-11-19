@@ -14,7 +14,11 @@ import {
 } from '../../shared/contextAssembly';
 import { SessionManager } from './SessionManager';
 import { loadAgentsMd } from '../../shared/AgentsMdLoader';
-import { ContextSummarizer } from '../../shared/ContextSummarizer';
+import {
+  ContextSummarizer,
+  SUMMARY_MESSAGE_PREFIX,
+  extractPreviousSummary,
+} from '../../shared/ContextSummarizer';
 import { SessionLog } from '../../shared/SessionLog';
 
 export type { CodeContext, ContextMessage };
@@ -114,7 +118,15 @@ export class ConversationManager {
       if (trimmedTokens >= summaryTriggerTokens) {
         try {
           if (debug) console.warn('[LLM Assistant] Вызов summarizer.summarizeMessages()...');
-          const summary = await this.summarizer.summarizeMessages(trimmed, provider, summaryModel);
+          // Прежняя сводка — вход следующей суммаризации: без неё факты ранней части
+          // диалога исчезают при каждом новом переполнении (P42 S2)
+          const previousSummary = extractPreviousSummary(history);
+          const summary = await this.summarizer.summarizeMessages(
+            trimmed,
+            provider,
+            summaryModel,
+            previousSummary,
+          );
           if (debug) console.warn(`[LLM Assistant] Summary результат: ${summary ? 'OK (' + summary.length + ' символов)' : 'null/пусто'}`);
           if (summary) {
             // Дебаг: логируем summary
@@ -131,7 +143,7 @@ export class ConversationManager {
             }
             const summaryMessage: ChatMessage = {
               role: 'system',
-              content: `## Краткое содержание предыдущего диалога:\n${summary}`,
+              content: `${SUMMARY_MESSAGE_PREFIX}\n${summary}`,
             };
             // Вставляем summary после основного system-сообщения
             return [systemMessage, summaryMessage, ...history];

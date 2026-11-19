@@ -272,6 +272,22 @@
       "to": "return '';",
       "label": "пустой кусок теряет прежнюю сводку вместо возврата её",
       "expect": "must-fail"
+    },
+    {
+      "id": "SA-MUT-NO-PREV-TO-SUMMARIZER",
+      "file": "src/modes/chat/ConversationManager.ts",
+      "from": "const previousSummary = extractPreviousSummary(history);",
+      "to": "const previousSummary = undefined;",
+      "label": "прежняя сводка не передаётся в суммаризацию из чата",
+      "expect": "must-fail"
+    },
+    {
+      "id": "SA-MUT-EXTRACT-ANY-SYSTEM",
+      "file": "src/shared/ContextSummarizer.ts",
+      "from": "if (m.role === 'system' && m.content.startsWith(SUMMARY_MESSAGE_PREFIX)) {",
+      "to": "if (m.role === 'system') {",
+      "label": "любое system-сообщение принимается за сводку",
+      "expect": "must-fail"
     }
   ]
 }

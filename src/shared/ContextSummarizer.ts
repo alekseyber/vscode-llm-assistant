@@ -6,6 +6,26 @@
 import { ChatMessage, LLMProvider } from '../providers/types';
 
 /**
+ * Префикс system-сообщения, в которое кладётся сводка (в журнале и в панели чата).
+ * Единственный носитель формата: по нему сводку находят и SessionLog, и ConversationManager.
+ */
+export const SUMMARY_MESSAGE_PREFIX = '## Краткое содержание предыдущего диалога:';
+
+/**
+ * Достать прежнюю сводку из готового набора сообщений.
+ * Нужна, чтобы передать её в следующий вызов суммаризации (`previousSummary`).
+ */
+export function extractPreviousSummary(messages: ChatMessage[]): string | undefined {
+  for (const m of messages) {
+    if (m.role === 'system' && m.content.startsWith(SUMMARY_MESSAGE_PREFIX)) {
+      const text = m.content.slice(SUMMARY_MESSAGE_PREFIX.length).trim();
+      return text.length > 0 ? text : undefined;
+    }
+  }
+  return undefined;
+}
+
+/**
  * Конфигурация для ContextSummarizer.
  */
 export interface SummarizerConfig {

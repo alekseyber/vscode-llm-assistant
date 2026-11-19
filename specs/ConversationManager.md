@@ -40,7 +40,8 @@ since: 0.1.0
 | Ситуация | Поведение |
 |----------|-----------|
 | История > бюджета | Бюджет = окно модели минус резерв (`specs/contextWindow.md`); обрезается с конца, новые остаются |
-| Обрезано ≥ summaryTriggerTokens (256) | Вызывается ContextSummarizer |
+| Обрезано ≥ summaryTriggerTokens (256) | Вызывается ContextSummarizer; прежняя сводка (system-сообщение с маркером `SUMMARY_MESSAGE_PREFIX`) передаётся в него как `previousSummary` |
+| Сводки в истории нет | `previousSummary` не передаётся — первый вызов ведёт себя как раньше |
 | summaryEnabled = false | Без сжатия |
 | pendingContext задан | Прикрепляется к следующему user-сообщению |
 | MAX_MESSAGES (100) | Старые вытесняются в SessionManager |

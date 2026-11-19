@@ -1,6 +1,6 @@
 ---
 component: SessionLog
-version: 0.14.0
+version: 0.14.1
 status: stable
 ---
 
@@ -95,6 +95,7 @@ status: stable
 
 | Версия | Дата | Изменения |
 |--------|------|-----------|
+| 0.14.1 | 2026-11-19 | Текст summary-маркера собирается из `SUMMARY_MESSAGE_PREFIX` (`ContextSummarizer`) — формат маркера в одном месте |
 | 0.14.0 | 2026-11-13 | `deriveMessagesWithTrimmed` делегирует обрезку в `contextAssembly` — одна реализация правила для панели, журнала и стенда evals |
 | 0.1.0 | 2026-08-22 | Черновик spec (F1) — консолидация session-log |
 | 0.1.0 | 2026-08-22 | Этап 1: SL-1/SL-2/SL-4/SL-5 — словарь + персист + wiring AgentWorker/стриминг |

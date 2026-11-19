@@ -6,6 +6,7 @@
 import * as vscode from 'vscode';
 import { ChatMessage } from '../providers/types';
 import { assembleRequestMessages } from './contextAssembly';
+import { SUMMARY_MESSAGE_PREFIX } from './ContextSummarizer';
 
 /** Идентификатор шага ReAct-цикла (уникален в рамках сессии) */
 export type StepId = string;
@@ -234,7 +235,7 @@ export class SessionLog {
     // summary-маркер → system-сообщение (сжатая история)
     if (lastSummaryIdx >= 0) {
       const s = events[lastSummaryIdx] as Extract<SessionEvent, { type: 'summary' }>;
-      messages.push({ role: 'system', content: `## Краткое содержание предыдущего диалога:\n${s.content}` });
+      messages.push({ role: 'system', content: `${SUMMARY_MESSAGE_PREFIX}\n${s.content}` });
     }
 
     // Проецируем события ПОСЛЕ маркера
