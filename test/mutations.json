@@ -252,9 +252,25 @@
     {
       "id": "SA-MUT-CACHE-IGNORE-PREV",
       "file": "src/shared/ContextSummarizer.ts",
-      "from": "const contentHash = `${this.computeContentHash(messages)}|prev:${prevKey}`;",
-      "to": "const contentHash = this.computeContentHash(messages);",
+      "from": "const contentHash = `${model}|${this.computeContentHash(messages)}|prev:${prevKey}`;",
+      "to": "const contentHash = `${model}|${this.computeContentHash(messages)}`;",
       "label": "кеш не учитывает прежнюю сводку (ключ только по содержимому куска)",
+      "expect": "must-fail"
+    },
+    {
+      "id": "SA-MUT-CACHE-IGNORE-MODEL",
+      "file": "src/shared/ContextSummarizer.ts",
+      "from": "const contentHash = `${model}|${this.computeContentHash(messages)}|prev:${prevKey}`;",
+      "to": "const contentHash = `${this.computeContentHash(messages)}|prev:${prevKey}`;",
+      "label": "кеш не учитывает модель — сводка чужой модели отдаётся из кеша",
+      "expect": "must-fail"
+    },
+    {
+      "id": "SA-MUT-EMPTY-RETURNS-EMPTY",
+      "file": "src/shared/ContextSummarizer.ts",
+      "from": "return previousSummary ?? '';",
+      "to": "return '';",
+      "label": "пустой кусок теряет прежнюю сводку вместо возврата её",
       "expect": "must-fail"
     }
   ]

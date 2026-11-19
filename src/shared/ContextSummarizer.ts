@@ -65,10 +65,11 @@ export class ContextSummarizer {
       return previousSummary ?? '';
     }
 
-    // Кеш учитывает и содержимое куска, и предыдущую сводку: иначе после нового
-    // переполнения вернулась бы сводка, посчитанная без фактов прежней.
-    const prevKey = (previousSummary ?? '').slice(0, 200);
-    const contentHash = `${this.computeContentHash(messages)}|prev:${prevKey}`;
+    // Кеш учитывает модель, содержимое куска и предыдущую сводку: иначе после нового
+    // переполнения вернулась бы сводка, посчитанная без фактов прежней, а смена модели
+    // отдавала бы текст, сгенерированный другой моделью.
+    const prevKey = this.summaryKey(previousSummary);
+    const contentHash = `${model}|${this.computeContentHash(messages)}|prev:${prevKey}`;
     const cached = this.cache.get(contentHash);
     if (cached && cached.messageCount === messages.length) {
       return cached.summary;
@@ -104,6 +105,18 @@ export class ContextSummarizer {
    */
   estimateTokens(text: string): number {
     return Math.ceil(text.length / 4);
+  }
+
+  /**
+   * Ключ прежней сводки для кеша: длина плюс оба края текста.
+   * Одного префикса мало — две разные сводки с общим началом длиннее 200 символов
+   * дали бы ложное попадание в кеш.
+   */
+  private summaryKey(previousSummary?: string): string {
+    if (!previousSummary) return '';
+    const head = previousSummary.slice(0, 200);
+    const tail = previousSummary.length > 200 ? previousSummary.slice(-200) : '';
+    return `${previousSummary.length}:${head}:${tail}`;
   }
 
   /**

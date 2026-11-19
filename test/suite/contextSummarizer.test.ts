@@ -451,4 +451,48 @@ suite('ContextSummarizer · накопление сводки (P42)', () => {
     assert.notStrictEqual(second, first, 'смена предыдущей сводки должна менять результат, а не отдавать кеш');
     assert.ok(second.includes('FACT3'), `кеш отдал сводку без новой предыдущей: «${second}»`);
   });
+
+  test('SA-5: одинаковые аргументы → повторный вызов берётся из кеша', async () => {
+    let calls = 0;
+    const provider = createMockProvider(async () => {
+      calls++;
+      return 'FACT1; FACT2';
+    });
+    const summarize: SummarizeWithPrevious = summarizer.summarizeMessages.bind(summarizer);
+    const messages: ChatMessage[] = [{ role: 'user', content: 'FACT2: порт 8080' }];
+
+    await summarize(messages, provider, 'gpt-4o', 'FACT1: пароль');
+    await summarize(messages, provider, 'gpt-4o', 'FACT1: пароль');
+
+    assert.strictEqual(calls, 1, `провайдер должен вызываться один раз, вызван ${calls}`);
+  });
+
+  test('SA-6: пустой кусок с прежней сводкой возвращает её без запроса', async () => {
+    let calls = 0;
+    const provider = createMockProvider(async () => {
+      calls++;
+      return 'не должно вызываться';
+    });
+    const summarize: SummarizeWithPrevious = summarizer.summarizeMessages.bind(summarizer);
+
+    const summary = await summarize([], provider, 'gpt-4o', 'FACT1: пароль ротирован');
+
+    assert.strictEqual(summary, 'FACT1: пароль ротирован', 'должна вернуться прежняя сводка');
+    assert.strictEqual(calls, 0, 'при пустом куске запрос в LLM не нужен');
+  });
+
+  test('SA-7: смена модели при тех же аргументах — новый запрос, а не кеш', async () => {
+    let calls = 0;
+    const provider = createMockProvider(async () => {
+      calls++;
+      return 'FACT1; FACT2';
+    });
+    const summarize: SummarizeWithPrevious = summarizer.summarizeMessages.bind(summarizer);
+    const messages: ChatMessage[] = [{ role: 'user', content: 'FACT2: порт 8080' }];
+
+    await summarize(messages, provider, 'gpt-4o', 'FACT1: пароль');
+    await summarize(messages, provider, 'claude-sonnet', 'FACT1: пароль');
+
+    assert.strictEqual(calls, 2, `смена модели должна давать новый запрос, вызовов ${calls}`);
+  });
 });
