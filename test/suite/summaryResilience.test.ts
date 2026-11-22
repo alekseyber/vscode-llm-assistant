@@ -67,19 +67,51 @@ suite('Summary — порог и устойчивость (P42 S3, S6)', () => {
   });
 
   test('SR-2: обрезано меньше 2048 токенов — суммаризации нет', async () => {
-    setupConfig(sandbox);
+    // Размеры зафиксированы расчётом, а не «на глаз»: история ≈ 1 100 токенов при бюджете 700,
+    // то есть отрезается ≈ 400 токенов — заметно ниже порога 2048. Раньше тест зависел от
+    // длины наполнителя и мог ложно упасть, если обрезалось больше порога.
+    setupConfig(sandbox, { 'chat.maxContextTokens': 700 });
     const summarizer = new ContextSummarizer();
     const spy = sandbox.stub(summarizer, 'summarizeMessages').resolves('не должно вызываться');
     const cm = new ConversationManager(fakeMemento(), undefined, summarizer);
     const provider = { ...fakeProvider(), chatComplete: sandbox.stub().resolves('ответ') };
 
-    // Бюджет маленький, но обрезанный кусок — заметно меньше 2048 токенов
     cm.addMessage({ role: 'user', content: `короткое ${'x'.repeat(600)}` });
     cm.addMessage({ role: 'assistant', content: 'ответ' });
     fill(cm, 3);
     await cm.getMessagesForRequest(provider);
 
     assert.strictEqual(spy.called, false, 'при обрезке меньше порога суммаризации быть не должно');
+  });
+
+  test('SR-5: пользовательский порог важнее значения по умолчанию', async () => {
+    setupConfig(sandbox, { 'chat.summaryTriggerTokens': 100 });
+    const summarizer = new ContextSummarizer();
+    const spy = sandbox.stub(summarizer, 'summarizeMessages').resolves('сводка');
+    const cm = new ConversationManager(fakeMemento(), undefined, summarizer);
+    const provider = { ...fakeProvider(), chatComplete: sandbox.stub().resolves('ответ') };
+
+    fill(cm, 6);
+    await cm.getMessagesForRequest(provider);
+
+    assert.ok(spy.called, 'при явно заданном пороге 100 суммаризация обязана запуститься');
+  });
+
+  test('SR-6: повторный сбой не забивает лог — не чаще раза в минуту', async () => {
+    setupConfig(sandbox, { 'chat.summaryTriggerTokens': 100 });
+    const summarizer = new ContextSummarizer();
+    sandbox.stub(summarizer, 'summarizeMessages').rejects(new Error('провайдер недоступен'));
+    const warn = sandbox.stub(console, 'warn');
+    const cm = new ConversationManager(fakeMemento(), undefined, summarizer);
+    const provider = { ...fakeProvider(), chatComplete: sandbox.stub().resolves('ответ') };
+
+    fill(cm, 10);
+    await cm.getMessagesForRequest(provider);
+    fill(cm, 6);
+    await cm.getMessagesForRequest(provider);
+
+    const failures = warn.getCalls().filter((c) => String(c.args.join(' ')).includes('Сводка не создана'));
+    assert.strictEqual(failures.length, 1, `о сбое должно быть одно сообщение за минуту, было ${failures.length}`);
   });
 
   test('SR-3: после truncate кеш суммаризатора очищается', async () => {

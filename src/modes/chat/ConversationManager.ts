@@ -32,6 +32,8 @@ export class ConversationManager {
   private pendingContext: CodeContext | null = null;
   /** Суммаризатор для сжатия обрезанной истории */
   private summarizer: ContextSummarizer = new ContextSummarizer();
+  /** Время последней записи о сбое суммаризации: при недоступном провайдере лог иначе забивается */
+  private lastSummaryFailureLog = 0;
 
   constructor(storage: vscode.Memento, sessionLog?: SessionLog, summarizer?: ContextSummarizer) {
     this.sessionManager = new SessionManager(storage);
@@ -158,10 +160,14 @@ export class ConversationManager {
         } catch (err) {
           // Продолжаем без сводки, но не молча: раньше сбой был виден только в debug-режиме,
           // и пользователь получал деградированный контекст без следа в логах
-          console.warn(
-            `[LLM Assistant] Сводка не создана: обрезано ${trimmedTokens} токенов, модель ${summaryModel}`,
-            err,
-          );
+          const now = Date.now();
+          if (now - this.lastSummaryFailureLog >= 60_000) {
+            this.lastSummaryFailureLog = now;
+            console.warn(
+              `[LLM Assistant] Сводка не создана: обрезано ${trimmedTokens} токенов, модель ${summaryModel}`,
+              err,
+            );
+          }
         }
       }
     }

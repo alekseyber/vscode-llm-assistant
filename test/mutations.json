@@ -312,6 +312,22 @@
       "to": "console.debug(\n            `[LLM Assistant] Сводка не создана",
       "label": "сбой суммаризации снова молчаливый (лог только при включённом debug)",
       "expect": "must-fail"
+    },
+    {
+      "id": "SA-MUT-THRESHOLD-HARDCODED",
+      "file": "src/modes/chat/ConversationManager.ts",
+      "from": "const summaryTriggerTokens = config.get<number>('chat.summaryTriggerTokens', 2048);",
+      "to": "const summaryTriggerTokens = 2048;",
+      "label": "пользовательский порог игнорируется — захардкожено 2048",
+      "expect": "must-fail"
+    },
+    {
+      "id": "SA-MUT-NO-THROTTLE",
+      "file": "src/modes/chat/ConversationManager.ts",
+      "from": "if (now - this.lastSummaryFailureLog >= 60_000) {",
+      "to": "if (true) {",
+      "label": "лог сбоя суммаризации без троттлинга — забивает лог при недоступном провайдере",
+      "expect": "must-fail"
     }
   ]
 }
