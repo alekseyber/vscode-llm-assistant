@@ -20,66 +20,8 @@ jobs:
         with:
           fetch-depth: 2
 
+      # Правило живёт в одном месте — scripts/sdd-check.sh; он же стоит локально как
+      # pre-commit хук. Пока в CI был инлайн-дубль, локальная проверка была слабее
+      # (не проверяла бамп version), и коммиты уходили красными только после пуша.
       - name: Check spec consistency (src/X.ts → specs/X.md)
-        run: |
-          CHANGED_TS=$(git diff --name-only HEAD~1 HEAD 2>/dev/null | grep '^src/.*\.ts$' || echo "")
-          CHANGED_SPECS=$(git diff --name-only HEAD~1 HEAD 2>/dev/null | grep '^specs/.*\.md$' || echo "")
-
-          if [ -z "$CHANGED_TS" ]; then
-            echo "✅ No .ts changes — skipping SDD check."
-            exit 0
-          fi
-
-          echo "Changed .ts files:"
-          echo "$CHANGED_TS"
-
-          VIOLATIONS=0
-
-          # Маппинг src-файла → имя спеки (не совпадает с basename).
-          spec_for() {
-            case "$1" in
-              src/providers/manager.ts) echo "specs/ProviderManager.md" ;;
-              src/providers/openai.ts)  echo "specs/OpenAIProvider.md" ;;
-              src/providers/ollama.ts)  echo "specs/OllamaProvider.md" ;;
-              src/shared/logger.ts)     echo "specs/Logger.md" ;;
-              src/shared/streaming.ts)  echo "specs/Streaming.md" ;;
-              src/shared/runSummary.ts) echo "specs/RunSummary.md" ;;
-              src/shared/promptGuard.ts) echo "specs/PromptGuard.md" ;;
-              src/shared/runStats.ts) echo "specs/RunStats.md" ;;
-              *)                        echo "specs/$(basename "$1" .ts).md" ;;
-            esac
-          }
-
-          for ts_file in $CHANGED_TS; do
-            component=$(basename "$ts_file" .ts)
-
-            # Инфраструктура/хелперы без собственной спеки (как в spec-validate.js SRC_EXEMPT).
-            case "$component" in
-              index|types|extension|registerCommands|base|diff|ContextBuilder|GhostTextManager|ChatPanel|cleanLlmResponse)
-                echo "  ⏭️  $ts_file — exempt (infrastructure)" ;;
-              *)
-                spec_file=$(spec_for "$ts_file")
-                if echo "$CHANGED_SPECS" | grep -qF "$spec_file"; then
-                  echo "  ✅ $ts_file → $spec_file (обновлена)"
-                  # Проверяем, что version в спеке реально изменился (бамп обязателен).
-                  old_ver=$(git show HEAD~1:"$spec_file" 2>/dev/null | grep -m1 '^version:' | sed 's/version:[[:space:]]*//')
-                  new_ver=$(git show HEAD:"$spec_file" 2>/dev/null | grep -m1 '^version:' | sed 's/version:[[:space:]]*//')
-                  if [ -n "$old_ver" ] && [ "$old_ver" = "$new_ver" ]; then
-                    echo "  ❌ $spec_file: version не изменён ($new_ver) — нужен бамп + строка в «Истории изменений»"
-                    VIOLATIONS=$((VIOLATIONS + 1))
-                  fi
-                else
-                  echo "  ❌ $ts_file → $spec_file NOT updated"
-                  VIOLATIONS=$((VIOLATIONS + 1))
-                fi ;;
-            esac
-          done
-
-          if [ $VIOLATIONS -gt 0 ]; then
-            echo ""
-            echo "❌ SDD VIOLATION: $VIOLATIONS компонент(ов) без обновлённой спеки."
-            echo "   Обнови specs/<Component>.md: бамп version + строка в «Истории изменений»."
-            exit 1
-          fi
-
-          echo "✅ All components have updated specs."
+        run: bash scripts/sdd-check.sh --range HEAD~1..HEAD
