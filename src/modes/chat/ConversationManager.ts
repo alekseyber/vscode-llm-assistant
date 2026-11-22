@@ -33,9 +33,12 @@ export class ConversationManager {
   /** Суммаризатор для сжатия обрезанной истории */
   private summarizer: ContextSummarizer = new ContextSummarizer();
 
-  constructor(storage: vscode.Memento, sessionLog?: SessionLog) {
+  constructor(storage: vscode.Memento, sessionLog?: SessionLog, summarizer?: ContextSummarizer) {
     this.sessionManager = new SessionManager(storage);
     this.sessionLog = sessionLog;
+    // Подмена суммаризатора нужна тестам: проверить инвалидацию кеша и обработку сбоя
+    // иначе нельзя — внутренние вызовы не наблюдаемы
+    if (summarizer) this.summarizer = summarizer;
   }
 
   get session(): SessionManager {
@@ -101,7 +104,9 @@ export class ConversationManager {
     const summaryEnabled = config.get<boolean>('chat.summaryEnabled', true);
     const summaryModel = config.get<string>('chat.summaryModel', '') ||
       config.get<string>('defaultModel', '');
-    const summaryTriggerTokens = config.get<number>('chat.summaryTriggerTokens', 256);
+    // Значение по умолчанию обязано совпадать с манифестом (`chat.summaryTriggerTokens` = 2048):
+    // раньше здесь стояло 256, и фактический порог зависел от того, объявлена ли настройка
+    const summaryTriggerTokens = config.get<number>('chat.summaryTriggerTokens', 2048);
 
     if (debug) {
       console.warn(`[LLM Assistant] Summary check: maxTokens=${maxTokens}, usedBySystem=${usedTokens}, historyMsgs=${history.length}, trimmed=${trimmed.length}, summaryEnabled=${summaryEnabled}, hasProvider=${!!provider}, model=${summaryModel}`);
@@ -138,6 +143,8 @@ export class ConversationManager {
               // F1 (5b + storage-гигиена): персист summary-маркера + обрезка старых событий
               const keptCount = history.filter(m => m.role !== 'system').length;
               this.sessionLog.truncate(sessionId, summary, keptCount);
+              // Журнал перезаписан: ключи кеша относятся к прежнему набору сообщений
+              this.summarizer.invalidateCache();
               history = this.sessionLog.deriveMessages(sessionId);
               return [systemMessage, ...history];
             }
@@ -149,8 +156,12 @@ export class ConversationManager {
             return [systemMessage, summaryMessage, ...history];
           }
         } catch (err) {
-          // Если суммаризация упала — молча продолжаем без summary
-          if (debug) console.warn('[LLM Assistant] Summary ОШИБКА:', err);
+          // Продолжаем без сводки, но не молча: раньше сбой был виден только в debug-режиме,
+          // и пользователь получал деградированный контекст без следа в логах
+          console.warn(
+            `[LLM Assistant] Сводка не создана: обрезано ${trimmedTokens} токенов, модель ${summaryModel}`,
+            err,
+          );
         }
       }
     }

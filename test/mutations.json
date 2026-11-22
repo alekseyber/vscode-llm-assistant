@@ -288,6 +288,30 @@
       "to": "if (m.role === 'system') {",
       "label": "любое system-сообщение принимается за сводку",
       "expect": "must-fail"
+    },
+    {
+      "id": "SA-MUT-TRIGGER-256",
+      "file": "src/modes/chat/ConversationManager.ts",
+      "from": "config.get<number>('chat.summaryTriggerTokens', 2048)",
+      "to": "config.get<number>('chat.summaryTriggerTokens', 256)",
+      "label": "порог суммаризации по умолчанию снова 256 вместо манифестных 2048",
+      "expect": "must-fail"
+    },
+    {
+      "id": "SA-MUT-NO-INVALIDATE-AFTER-TRUNCATE",
+      "file": "src/modes/chat/ConversationManager.ts",
+      "from": "              // Журнал перезаписан: ключи кеша относятся к прежнему набору сообщений\n              this.summarizer.invalidateCache();",
+      "to": "              // Журнал перезаписан: ключи кеша относятся к прежнему набору сообщений",
+      "label": "кеш суммаризатора не очищается после перезаписи журнала",
+      "expect": "must-fail"
+    },
+    {
+      "id": "SA-MUT-SILENT-FAILURE",
+      "file": "src/modes/chat/ConversationManager.ts",
+      "from": "console.warn(\n            `[LLM Assistant] Сводка не создана",
+      "to": "console.debug(\n            `[LLM Assistant] Сводка не создана",
+      "label": "сбой суммаризации снова молчаливый (лог только при включённом debug)",
+      "expect": "must-fail"
     }
   ]
 }
