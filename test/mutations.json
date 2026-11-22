@@ -308,8 +308,8 @@
     {
       "id": "SA-MUT-SILENT-FAILURE",
       "file": "src/modes/chat/ConversationManager.ts",
-      "from": "console.warn(\n            `[LLM Assistant] Сводка не создана",
-      "to": "console.debug(\n            `[LLM Assistant] Сводка не создана",
+      "from": "            console.warn(\n              `[LLM Assistant] Сводка не создана",
+      "to": "            console.debug(\n              `[LLM Assistant] Сводка не создана",
       "label": "сбой суммаризации снова молчаливый (лог только при включённом debug)",
       "expect": "must-fail"
     },
